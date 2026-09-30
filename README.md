@@ -375,6 +375,13 @@ Yes: [`@spicrawl/sdk`](https://www.npmjs.com/package/@spicrawl/sdk) ([GitHub](ht
 
 ## Related
 
+| Package | Latest version | Downloads |
+|---|---|---|
+| [`@spicrawl/cli`](https://www.npmjs.com/package/@spicrawl/cli) ([GitHub](https://github.com/Spicrawl/cli)) | [![npm](https://img.shields.io/npm/v/@spicrawl/cli.svg)](https://www.npmjs.com/package/@spicrawl/cli) | [![downloads](https://img.shields.io/npm/dm/@spicrawl/cli.svg)](https://www.npmjs.com/package/@spicrawl/cli) |
+| [`@spicrawl/sdk`](https://www.npmjs.com/package/@spicrawl/sdk) ([GitHub](https://github.com/Spicrawl/sdk)) | [![npm](https://img.shields.io/npm/v/@spicrawl/sdk.svg)](https://www.npmjs.com/package/@spicrawl/sdk) | [![downloads](https://img.shields.io/npm/dm/@spicrawl/sdk.svg)](https://www.npmjs.com/package/@spicrawl/sdk) |
+
+The versions and downloads are read live from the npm registry.
+
 - TypeScript SDK: [@spicrawl/sdk on npm](https://www.npmjs.com/package/@spicrawl/sdk) and [on GitHub](https://github.com/Spicrawl/sdk)
 - MCP server for AI agents: https://docs.spicrawl.com/agents/mcp
 - Agent skill: https://docs.spicrawl.com/agents/skill
@@ -395,7 +402,7 @@ make spec       # refresh openapi.yaml from the docs site
 
 The design and the contract agents rely on are in [DESIGN.md](https://github.com/Spicrawl/cli/blob/main/DESIGN.md); the API wire contract is [openapi.yaml](https://github.com/Spicrawl/cli/blob/main/openapi.yaml).
 
-**Releasing:** push a `v*` tag on main (`git tag v0.1.1 && git push origin v0.1.1`). The [release workflow](https://github.com/Spicrawl/cli/blob/main/.github/workflows/release.yml) runs the tests, builds the six binaries with GoReleaser, creates the GitHub release with the archives and `checksums.txt`, and publishes `@spicrawl/cli` to npm.
+**Releasing:** bump `"version"` in [`npm/package.json`](https://github.com/Spicrawl/cli/blob/main/npm/package.json) and merge to main. When npm does not have that version yet, the [release workflow](https://github.com/Spicrawl/cli/blob/main/.github/workflows/release.yml) runs the tests, tags the commit `vX.Y.Z`, builds the six binaries with GoReleaser, creates the GitHub release with the archives and `checksums.txt`, and publishes `@spicrawl/cli` to npm. No manual tag is needed.
 
 ## License
 

@@ -1,4 +1,5 @@
-# Publishes the Spicrawl CLI to npm as @spicrawl/cli from a vX.Y.Z tag.
+# Tests every pull request and push to main, and releases the Spicrawl CLI
+# (@spicrawl/cli on npm, plus a GitHub release) from main.
 #
 # Auth is the NPM_TOKEN repository secret: an npm granular access token for
 # the spicrawl account with "Read and write (publish and stage)" on @spicrawl
@@ -7,15 +8,18 @@
 # publishing with such tokens in January 2027; switch to trusted publishing
 # (OIDC) before that.
 #
-# Release: tag a commit on main with vX.Y.Z and push it. The workflow builds
-# the six binaries with goreleaser, creates a GitHub release with the
+# Release: bump "version" in npm/package.json and merge to main. When npm does
+# not have that version yet, the release job tags the commit vX.Y.Z, builds
+# the six binaries with GoReleaser, creates the GitHub release with the
 # archives and checksums.txt (which install.sh downloads), and publishes to
-# npm. @spicrawl/cli 0.1.0 is already on npm, so the first tag from this
-# repo must be v0.1.1 or later (npm never reuses a version). A prerelease
-# version (0.2.0-beta.1) is published under the `next` dist-tag so
-# `npm install @spicrawl/cli` keeps getting latest.
+# npm. Any other push to main only runs the tests. npm never reuses a
+# version, so always bump to a new one. A prerelease version (0.2.0-beta.1)
+# is published under the `next` dist-tag so `npm install @spicrawl/cli` keeps
+# getting latest.
 #
-#   git tag v0.1.1 && git push origin v0.1.1
+# The tag is created and released in the same run on purpose: a tag pushed
+# with GITHUB_TOKEN does not start other workflows. A re-run of a failed
+# release reuses the tag if it points at the same commit.
 #
 # npm provenance checks that package.json's repository matches the GitHub
 # repo, so do not change that field without updating npm/package.json.
@@ -26,7 +30,7 @@ on:
   pull_request:
   push:
     branches: [main]
-    tags: [v*]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -60,7 +64,8 @@ jobs:
           args: check
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Only main is released; a manual run from another branch is skipped.
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: test
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -71,15 +76,47 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache-dependency-path: go.sum
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
+      - name: new version?
+        id: check
+        run: |
+          name="$(node -p 'require("./npm/package.json").name')"
+          version="$(node -p 'require("./npm/package.json").version')"
+          tag="v$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if npm view "$name@$version" version >/dev/null 2>&1; then
+            echo "$name@$version is already published; nothing to release."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null &&
+            [ "$(git rev-list -n 1 "$tag")" != "$(git rev-parse HEAD)" ]; then
+            echo "::error::$tag already exists on another commit; bump \"version\" in npm/package.json"
+            exit 1
+          fi
+          echo "release=true" >> "$GITHUB_OUTPUT"
+          npm_tag=latest
+          case "$version" in *-*) npm_tag=next ;; esac
+          echo "npm_tag=$npm_tag" >> "$GITHUB_OUTPUT"
+      - name: tag
+        if: steps.check.outputs.release == 'true'
+        run: |
+          tag="${{ steps.check.outputs.tag }}"
+          if ! git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            git tag "$tag"
+            git push origin "refs/tags/$tag"
+          fi
+      - uses: actions/setup-go@v5
+        if: steps.check.outputs.release == 'true'
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
       - uses: goreleaser/goreleaser-action@v6
+        if: steps.check.outputs.release == 'true'
         with:
           distribution: goreleaser
           version: "~> v2"
@@ -87,23 +124,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: build npm package
-        run: scripts/build-npm.sh
-      - name: already on npm?
-        id: check
-        run: |
-          name="$(node -p 'require("./npm/package.json").name')"
-          version="$(node -p 'require("./dist/metadata.json").version' | sed 's/^v//')"
-          if npm view "$name@$version" version >/dev/null 2>&1; then
-            echo "$name@$version is already published; nothing to do."
-            echo "publish=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "publish=true" >> "$GITHUB_OUTPUT"
-          fi
-          tag=latest
-          case "$version" in *-*) tag=next ;; esac
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+        if: steps.check.outputs.release == 'true'
+        run: scripts/build-npm.sh "${{ steps.check.outputs.version }}"
       - name: publish
-        if: steps.check.outputs.publish == 'true'
+        if: steps.check.outputs.release == 'true'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
@@ -111,5 +135,5 @@ jobs:
             echo "::error::the NPM_TOKEN repository secret is not set"
             exit 1
           fi
-          npm publish --provenance --access public --tag "${{ steps.check.outputs.tag }}"
+          npm publish --provenance --access public --tag "${{ steps.check.outputs.npm_tag }}"
         working-directory: dist/npm/cli

@@ -13,8 +13,8 @@
 # dependencies, no postinstall.
 #
 # VERSION defaults to the "version" in dist/metadata.json. This script only
-# writes files; publishing is done by .github/workflows/release.yml on a v*
-# tag, or can be done manually:
+# writes files; .github/workflows/release.yml publishes when a new "version"
+# in npm/package.json reaches main. By hand:
 #
 #   cd dist/npm/cli && npm publish --access public
 

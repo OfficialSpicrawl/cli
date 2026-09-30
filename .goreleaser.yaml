@@ -65,3 +65,6 @@ release:
     name: cli
   draft: false
   prerelease: auto
+  # A re-run of a release whose npm publish failed re-uploads the archives
+  # instead of failing on the ones already attached.
+  replace_existing_artifacts: true
