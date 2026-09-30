@@ -61,7 +61,7 @@ Key and base URL resolve flag > env (`SPICRAWL_API_KEY`, `SPICRAWL_BASE_URL`) >
 config file (`spicrawl config path`: `~/.config/spicrawl/config.json` on Linux, `~/Library/Application Support/spicrawl/config.json` on macOS; mode 0600; override with
 `SPICRAWL_CONFIG`) > default `https://api.spicrawl.com`.
 Every other URL derives from the resolved base URL, so a self-hosted
-deployment (e.g. `--base-url http://192.0.2.10`) needs no further settings:
+deployment (e.g. `--base-url https://spicrawl.example.com`) needs no further settings:
 
 | URL | Precedence |
 |---|---|
