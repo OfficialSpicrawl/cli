@@ -5,7 +5,8 @@
 #   scripts/build-npm.sh [VERSION]
 #
 # Run from the repo root after `goreleaser release` (or `make snapshot`). Copies npm/
-# (launcher + README) to dist/npm/cli/ and every per-target binary from
+# (launcher + package.json), the repo's README.md (the one README for GitHub
+# and npm) and LICENSE to dist/npm/cli/, and every per-target binary from
 # dist/spicrawl_<goos>_<goarch>*/ into dist/npm/cli/bin/<os>-<cpu>/, using
 # npm's process.platform/process.arch names (darwin|linux|win32, x64|arm64).
 # One package, all six binaries: no platform packages, no optional
@@ -29,7 +30,7 @@ die() { printf 'build-npm: %s\n' "$*" >&2; exit 1; }
 
 command -v node >/dev/null 2>&1 || die "need node"
 [ -d "$DIST" ] || die "no $DIST/ here; run goreleaser (make snapshot) first"
-[ -f npm/README.md ] || die "missing npm/README.md (the npm page README)"
+[ -f README.md ] || die "missing README.md (the README for GitHub and the npm page)"
 
 VERSION="${1:-}"
 if [ -z "$VERSION" ]; then
@@ -42,7 +43,7 @@ printf 'build-npm: version %s\n' "$VERSION" >&2
 rm -rf "$OUT"
 mkdir -p "$OUT"
 cp -R npm "$PKG"
-cp LICENSE "$PKG/"
+cp README.md LICENSE "$PKG/"
 
 # goos goarch npm-os npm-cpu
 TARGETS="linux amd64 linux x64

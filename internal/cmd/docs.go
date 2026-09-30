@@ -20,7 +20,7 @@ const (
 	// host (https://docs.spicrawl.com/quickstart.md), not under /docs.
 	docsPublicURL = "https://docs.spicrawl.com"
 	// docsEnvURL is the docs base URL, pages appended directly:
-	// http(s)://host[:port][/path], e.g. http://192.0.2.10:8080/docs.
+	// http(s)://host[:port][/path], e.g. https://spicrawl.example.com/docs.
 	docsEnvURL = "SPICRAWL_DOCS_URL"
 	// docsEnvHost is the legacy setting: an origin whose /docs holds the docs.
 	// Read only when $SPICRAWL_DOCS_URL is unset, and it keeps that meaning.
@@ -37,7 +37,7 @@ var docsCmd = &cobra.Command{
 	Use:   "docs [topic]",
 	Short: "Print Spicrawl documentation as Markdown",
 	Long: `Fetch a documentation page as Markdown from the docs site and print it.
-The docs URL is $SPICRAWL_DOCS_URL if set (e.g. http://192.0.2.10:8080/docs),
+The docs URL is $SPICRAWL_DOCS_URL if set (e.g. https://spicrawl.example.com/docs),
 else the legacy $SPICRAWL_DOCS_HOST + /docs, else derived from the API base URL
 (--base-url, $SPICRAWL_BASE_URL or the config file): https://docs.spicrawl.com
 for the hosted API, <API origin>/docs for a self-hosted one.
