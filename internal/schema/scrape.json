@@ -1,0 +1,1093 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ScrapeRequest",
+  "x-spicrawl-endpoint": "Body of POST /v1/scrape",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "url"
+  ],
+  "description": "Body of POST /v1/scrape. Unknown fields (including nested ones) are rejected with 400 ERR::REQUEST::INVALID_PARAMETER; a wrong JSON type is 400 naming the field. Max body 1 MiB (413).",
+  "properties": {
+    "url": {
+      "type": "string",
+      "format": "uri",
+      "maxLength": 8192,
+      "description": "Target URL; required, must be http or https with a host. A private or reserved address fails with 400 ERR::SECURITY::SSRF_BLOCKED at 0 credits."
+    },
+    "method": {
+      "type": "string",
+      "enum": [
+        "GET",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE",
+        "HEAD",
+        "OPTIONS"
+      ],
+      "default": "GET",
+      "description": "HTTP method sent to the target (case-insensitive). There is no request-body parameter, so non-GET methods are sent without a body; only GET/HEAD/OPTIONS are retried on transient failure and only GET results are cached."
+    },
+    "js_render": {
+      "type": "boolean",
+      "default": false,
+      "description": "Render in a browser engine (obscura; 3 credits datacenter, 25 residential) so JavaScript runs. Required by every browser-only flag unless stealth or mode=auto is set; cannot be combined with mode=auto. If omitted, the project's stored default applies."
+    },
+    "stealth": {
+      "type": "boolean",
+      "default": false,
+      "description": "Coming soon. Render in the hardened camoufox browser, flat 25 credits at any proxy tier; wins over js_render when both are set. Cannot be combined with mode=auto or with an engine pin other than camoufox; returns 503 ERR::ENGINE::UNAVAILABLE where camoufox is not deployed. If omitted, the project's stored default applies."
+    },
+    "impersonate": {
+      "type": "boolean",
+      "default": false,
+      "description": "Fetch tier only: present a real browser TLS/HTTP2 fingerprint to pass passive fingerprint checks, at no extra cost and with no JavaScript. Ignored on render engines. POST only - the GET form rejects `impersonate` as an unknown query parameter. If omitted, the project's stored default applies."
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "auto"
+      ],
+      "description": "`auto` escalates through the available engines (fetch -> obscura) until a rung returns a usable page, billing only the rung that succeeded (0 if all fail) while reserving the dearest rung against quota. Incompatible with js_render, stealth and engine. If omitted, the project's stored default applies."
+    },
+    "engine": {
+      "type": "string",
+      "enum": [
+        "fetch",
+        "obscura",
+        "camoufox",
+        "chromium"
+      ],
+      "description": "Engine `camoufox` is coming soon. Pin the execution engine (case-insensitive); disables escalation and is never substituted. chromium (8 credits datacenter, 32 residential) is the only engine supporting headless=false; screenshots and pdf need camoufox or chromium. An unentitled engine is 403 ERR::AUTH::ENGINE_NOT_ENTITLED, an undeployed one 503 ERR::ENGINE::UNAVAILABLE, both at 0 credits. If omitted, the project's stored default applies."
+    },
+    "premium_proxy": {
+      "type": "boolean",
+      "default": false,
+      "description": "Coming soon. Use residential exits from the managed pool: fetch 10, obscura 25, chromium 32 credits (camoufox stays 25). If no residential exit is available the request fails 503 ERR::PROXY::EXHAUSTED rather than falling back; ignored (with X-Warning PROXY_FLAG_IGNORED) when `proxy` is set. If omitted, the project's stored default applies."
+    },
+    "proxy_country": {
+      "type": "string",
+      "pattern": "^[A-Za-z]{2}$",
+      "description": "Coming soon. ISO 3166-1 alpha-2 exit country (case-insensitive), within the residential pool. Requires premium_proxy=true (400 ERR::REQUEST::INCOMPATIBLE_FLAGS otherwise) unless `proxy` is set, in which case it is ignored with a warning; an unavailable country is 503 ERR::PROXY::EXHAUSTED, never substituted. If omitted, the project's stored default applies."
+    },
+    "proxy": {
+      "type": "string",
+      "description": "Your own proxy URL (http, https, socks5 or socks5h; credentials in userinfo). Takes precedence over premium_proxy/proxy_country and adds 0 proxy credits; loopback hosts are refused with 400 ERR::SECURITY::SSRF_BLOCKED. An unreachable proxy fails 502 ERR::PROXY::UNREACHABLE."
+    },
+    "proxy_verify": {
+      "type": "boolean",
+      "default": false,
+      "description": "Probe the custom `proxy` before spending the engine cost so a dead proxy fails fast. Requires `proxy` (400 ERR::REQUEST::INCOMPATIBLE_FLAGS otherwise)."
+    },
+    "session_id": {
+      "type": "string",
+      "description": "Reuse a session's cookies and storage (created via /v1/sessions); the session's engine is used and pinning a different engine is 400 ERR::REQUEST::INCOMPATIBLE_FLAGS. Checked before any work, at 0 credits and not retryable - an unknown, malformed or other organization's id is 404 ERR::SESSION::NOT_FOUND, a released session 410 ERR::SESSION::RELEASED, an expired one 410 ERR::SESSION::EXPIRED. A successful request increments the session's `usage_count`, sets `last_used_at` and slides `expires_at`. Requests with a session are never cached."
+    },
+    "sticky_key": {
+      "type": "string",
+      "description": "Coming soon. Any string; requests sharing it reuse the same pool exit. Forces a pool exit even on deployments whose default is direct egress, so it can fail 503 ERR::PROXY::EXHAUSTED where no pool exists."
+    },
+    "wait": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 30000,
+      "default": 0,
+      "description": "Milliseconds to wait after load before capture. Browser-only: needs js_render, stealth, an engine pin with a browser, or mode=auto, else 400 ERR::REQUEST::INCOMPATIBLE_FLAGS."
+    },
+    "wait_for": {
+      "type": "string",
+      "description": "CSS selector to wait for before capture. Browser-only. If it never appears the page is returned as it stood with an X-Warning RENDER_DEGRADED; if the render times out waiting it fails 504 ERR::UPSTREAM::TIMEOUT - raise wait_for_timeout or fix the selector."
+    },
+    "wait_for_timeout": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 120000,
+      "default": 0,
+      "description": "Milliseconds to wait for `wait_for`; 0 uses the engine default. Requires wait_for (400 ERR::REQUEST::INCOMPATIBLE_FLAGS otherwise)."
+    },
+    "actions": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "description": "One workflow step: an object with exactly one verb key plus optional label/timeout_ms/on_error. Two verb keys, or an unknown verb, is 400 ERR::REQUEST::INVALID_PARAMETER before anything is spent.",
+        "oneOf": [
+          {
+            "type": "object",
+            "title": "wait_for",
+            "description": "Wait for a selector, or sleep.",
+            "required": [
+              "wait_for"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "wait_for": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Shorthand: CSS selector to wait for."
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "selector": {
+                        "type": "string",
+                        "description": "CSS selector to wait for."
+                      },
+                      "ms": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 30000,
+                        "description": "Plain sleep in ms when no selector is given."
+                      },
+                      "wait": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 30000,
+                        "description": "Alias of `ms`."
+                      },
+                      "label": {
+                        "type": "string",
+                        "description": "Name echoed in diagnostics and screenshot labels; defaults to `<verb>[index]`."
+                      },
+                      "timeout_ms": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Per-step timeout in ms; omitted or <=0 uses the engine default. May also be placed inside the verb object."
+                      },
+                      "on_error": {
+                        "type": "string",
+                        "enum": [
+                          "fail",
+                          "skip"
+                        ],
+                        "default": "fail",
+                        "description": "`fail` ends the request at 0 credits naming the step; `skip` records the failure and continues. May also be placed inside the verb object."
+                      }
+                    },
+                    "description": "Needs `selector` or a positive `ms`/`wait`, else 400."
+                  }
+                ]
+              },
+              "label": {
+                "type": "string",
+                "description": "Name echoed in diagnostics and screenshot labels; defaults to `<verb>[index]`."
+              },
+              "timeout_ms": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Per-step timeout in ms; omitted or <=0 uses the engine default. May also be placed inside the verb object."
+              },
+              "on_error": {
+                "type": "string",
+                "enum": [
+                  "fail",
+                  "skip"
+                ],
+                "default": "fail",
+                "description": "`fail` ends the request at 0 credits naming the step; `skip` records the failure and continues. May also be placed inside the verb object."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "title": "click",
+            "description": "Click an element.",
+            "required": [
+              "click"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "click": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Shorthand: CSS selector to click."
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "selector": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "label": {
+                        "type": "string",
+                        "description": "Name echoed in diagnostics and screenshot labels; defaults to `<verb>[index]`."
+                      },
+                      "timeout_ms": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Per-step timeout in ms; omitted or <=0 uses the engine default. May also be placed inside the verb object."
+                      },
+                      "on_error": {
+                        "type": "string",
+                        "enum": [
+                          "fail",
+                          "skip"
+                        ],
+                        "default": "fail",
+                        "description": "`fail` ends the request at 0 credits naming the step; `skip` records the failure and continues. May also be placed inside the verb object."
+                      }
+                    },
+                    "description": "Unknown keys inside the verb object are ignored.",
+                    "required": [
+                      "selector"
+                    ]
+                  }
+                ]
+              },
+              "label": {
+                "type": "string",
+                "description": "Name echoed in diagnostics and screenshot labels; defaults to `<verb>[index]`."
+              },
+              "timeout_ms": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Per-step timeout in ms; omitted or <=0 uses the engine default. May also be placed inside the verb object."
+              },
+              "on_error": {
+                "type": "string",
+                "enum": [
+                  "fail",
+                  "skip"
+                ],
+                "default": "fail",
+                "description": "`fail` ends the request at 0 credits naming the step; `skip` records the failure and continues. May also be placed inside the verb object."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "title": "fill",
+            "description": "Type a value into an input.",
+            "required": [
+              "fill"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "fill": {
+                "type": "object",
+                "properties": {
+                  "selector": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Input to fill."
+                  },
+                  "value": {
+                    "type": "string",
+                    "description": "Text to enter; must be a string."
+                  },
+                  "secret": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Redact the value from logs, results and diagnostics; use for passwords."
+                  },
+                  "label": {
+                    "type": "string",
+                    "description": "Name echoed in diagnostics and screenshot labels; defaults to `<verb>[index]`."
+                  },
+                  "timeout_ms": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Per-step timeout in ms; omitted or <=0 uses the engine default. May also be placed inside the verb object."
+                  },
+                  "on_error": {
+                    "type": "string",
+                    "enum": [
+                      "fail",
+                      "skip"
+                    ],
+                    "default": "fail",
+                    "description": "`fail` ends the request at 0 credits naming the step; `skip` records the failure and continues. May also be placed inside the verb object."
+                  }
+                },
+                "description": "Unknown keys inside the verb object are ignored.",
+                "required": [
+                  "selector",
+                  "value"
+                ]
+              },
+              "label": {
+                "type": "string",
+                "description": "Name echoed in diagnostics and screenshot labels; defaults to `<verb>[index]`."
+              },
+              "timeout_ms": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Per-step timeout in ms; omitted or <=0 uses the engine default. May also be placed inside the verb object."
+              },
+              "on_error": {
+                "type": "string",
+                "enum": [
+                  "fail",
+                  "skip"
+                ],
+                "default": "fail",
+                "description": "`fail` ends the request at 0 credits naming the step; `skip` records the failure and continues. May also be placed inside the verb object."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "title": "select",
+            "description": "Choose option(s) in a <select>.",
+            "required": [
+              "select"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "select": {
+                "type": "object",
+                "properties": {
+                  "selector": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "value": {
+                    "type": "string",
+                    "description": "Single option value."
+                  },
+                  "values": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Several option values (multi-select); overrides `value`."
+                  },
+                  "label": {
+                    "type": "string",
+                    "description": "Name echoed in diagnostics and screenshot labels; defaults to `<verb>[index]`."
+                  },
+                  "timeout_ms": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Per-step timeout in ms; omitted or <=0 uses the engine default. May also be placed inside the verb object."
+                  },
+                  "on_error": {
+                    "type": "string",
+                    "enum": [
+                      "fail",
+                      "skip"
+                    ],
+                    "default": "fail",
+                    "description": "`fail` ends the request at 0 credits naming the step; `skip` records the failure and continues. May also be placed inside the verb object."
+                  }
+                },
+                "description": "Needs `value` or a non-empty `values`, else 400.",
+                "required": [
+                  "selector"
+                ]
+              },
+              "label": {
+                "type": "string",
+                "description": "Name echoed in diagnostics and screenshot labels; defaults to `<verb>[index]`."
+              },
+              "timeout_ms": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Per-step timeout in ms; omitted or <=0 uses the engine default. May also be placed inside the verb object."
+              },
+              "on_error": {
+                "type": "string",
+                "enum": [
+                  "fail",
+                  "skip"
+                ],
+                "default": "fail",
+                "description": "`fail` ends the request at 0 credits naming the step; `skip` records the failure and continues. May also be placed inside the verb object."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "title": "scroll",
+            "description": "Scroll the page or an element into view.",
+            "required": [
+              "scroll"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "scroll": {
+                "type": "object",
+                "properties": {
+                  "y": {
+                    "type": "integer",
+                    "description": "Pixels to scroll vertically."
+                  },
+                  "pixels": {
+                    "type": "integer",
+                    "description": "Alias of `y`."
+                  },
+                  "selector": {
+                    "type": "string",
+                    "description": "Scroll this element into view."
+                  },
+                  "to_bottom": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Scroll to the bottom of the page."
+                  },
+                  "label": {
+                    "type": "string",
+                    "description": "Name echoed in diagnostics and screenshot labels; defaults to `<verb>[index]`."
+                  },
+                  "timeout_ms": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Per-step timeout in ms; omitted or <=0 uses the engine default. May also be placed inside the verb object."
+                  },
+                  "on_error": {
+                    "type": "string",
+                    "enum": [
+                      "fail",
+                      "skip"
+                    ],
+                    "default": "fail",
+                    "description": "`fail` ends the request at 0 credits naming the step; `skip` records the failure and continues. May also be placed inside the verb object."
+                  }
+                },
+                "description": "Needs non-zero `y`/`pixels`, a `selector`, or to_bottom=true, else 400."
+              },
+              "label": {
+                "type": "string",
+                "description": "Name echoed in diagnostics and screenshot labels; defaults to `<verb>[index]`."
+              },
+              "timeout_ms": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Per-step timeout in ms; omitted or <=0 uses the engine default. May also be placed inside the verb object."
+              },
+              "on_error": {
+                "type": "string",
+                "enum": [
+                  "fail",
+                  "skip"
+                ],
+                "default": "fail",
+                "description": "`fail` ends the request at 0 credits naming the step; `skip` records the failure and continues. May also be placed inside the verb object."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "title": "evaluate",
+            "description": "Run JavaScript in the page.",
+            "required": [
+              "evaluate"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "evaluate": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Shorthand: JavaScript expression."
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "expression": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "JavaScript run in the page."
+                      },
+                      "return_value": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Return the expression's value in the step result."
+                      },
+                      "label": {
+                        "type": "string",
+                        "description": "Name echoed in diagnostics and screenshot labels; defaults to `<verb>[index]`."
+                      },
+                      "timeout_ms": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Per-step timeout in ms; omitted or <=0 uses the engine default. May also be placed inside the verb object."
+                      },
+                      "on_error": {
+                        "type": "string",
+                        "enum": [
+                          "fail",
+                          "skip"
+                        ],
+                        "default": "fail",
+                        "description": "`fail` ends the request at 0 credits naming the step; `skip` records the failure and continues. May also be placed inside the verb object."
+                      }
+                    },
+                    "description": "Unknown keys inside the verb object are ignored.",
+                    "required": [
+                      "expression"
+                    ]
+                  }
+                ]
+              },
+              "label": {
+                "type": "string",
+                "description": "Name echoed in diagnostics and screenshot labels; defaults to `<verb>[index]`."
+              },
+              "timeout_ms": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Per-step timeout in ms; omitted or <=0 uses the engine default. May also be placed inside the verb object."
+              },
+              "on_error": {
+                "type": "string",
+                "enum": [
+                  "fail",
+                  "skip"
+                ],
+                "default": "fail",
+                "description": "`fail` ends the request at 0 credits naming the step; `skip` records the failure and continues. May also be placed inside the verb object."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "title": "screenshot",
+            "description": "Capture a screenshot mid-workflow (needs camoufox or chromium); returned under `screenshots` with this step's label.",
+            "required": [
+              "screenshot"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "screenshot": {
+                "type": "object",
+                "properties": {
+                  "full_page": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Capture the full page; exclusive with selector."
+                  },
+                  "selector": {
+                    "type": "string",
+                    "description": "Element to capture; exclusive with full_page."
+                  },
+                  "format": {
+                    "type": "string",
+                    "enum": [
+                      "png",
+                      "jpeg",
+                      "jpg",
+                      "webp"
+                    ],
+                    "description": "Image format; engine default if omitted."
+                  },
+                  "quality": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100,
+                    "default": 0,
+                    "description": "Lossy quality; 0 = engine default."
+                  },
+                  "label": {
+                    "type": "string",
+                    "description": "Name echoed in diagnostics and screenshot labels; defaults to `<verb>[index]`."
+                  },
+                  "timeout_ms": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Per-step timeout in ms; omitted or <=0 uses the engine default. May also be placed inside the verb object."
+                  },
+                  "on_error": {
+                    "type": "string",
+                    "enum": [
+                      "fail",
+                      "skip"
+                    ],
+                    "default": "fail",
+                    "description": "`fail` ends the request at 0 credits naming the step; `skip` records the failure and continues. May also be placed inside the verb object."
+                  }
+                },
+                "description": "Unknown keys inside the verb object are ignored."
+              },
+              "label": {
+                "type": "string",
+                "description": "Name echoed in diagnostics and screenshot labels; defaults to `<verb>[index]`."
+              },
+              "timeout_ms": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Per-step timeout in ms; omitted or <=0 uses the engine default. May also be placed inside the verb object."
+              },
+              "on_error": {
+                "type": "string",
+                "enum": [
+                  "fail",
+                  "skip"
+                ],
+                "default": "fail",
+                "description": "`fail` ends the request at 0 credits naming the step; `skip` records the failure and continues. May also be placed inside the verb object."
+              }
+            }
+          }
+        ]
+      },
+      "description": "Ordered browser workflow (click, fill, scroll, ...), validated before anything is spent. Browser-only; disables the default image/font blocking and makes the request uncacheable. A failed step ends the request at 0 credits unless that step has on_error=skip."
+    },
+    "block_resources": {
+      "type": "array",
+      "uniqueItems": false,
+      "items": {
+        "type": "string",
+        "enum": [
+          "none",
+          "document",
+          "documents",
+          "stylesheet",
+          "stylesheets",
+          "css",
+          "image",
+          "images",
+          "media",
+          "font",
+          "fonts",
+          "script",
+          "scripts",
+          "js",
+          "xhr",
+          "fetch",
+          "websocket",
+          "websockets",
+          "other"
+        ]
+      },
+      "description": "Subresource classes the browser must not load (plural and short aliases accepted, case-insensitive). If omitted, renders block image+font except for screenshot, pdf, actions, or a network_capture of images/fonts; an explicit list replaces that default and `none` (alone) blocks nothing. Any value other than `none` is browser-only. If omitted, the project's stored default applies."
+    },
+    "headless": {
+      "type": "boolean",
+      "description": "false runs the browser on a real display (1920x1080 screen instead of 800x600); only engine=chromium supports it, anything else is 400 ERR::REQUEST::CAPABILITY_UNSUPPORTED at 0 credits. Either value requires a browser engine; omit to use the deployment default (headless). Headful renders skip the warm pool and add ~1s. If omitted, the project's stored default applies."
+    },
+    "screenshot": {
+      "type": "boolean",
+      "default": false,
+      "description": "Capture a screenshot; forces the JSON envelope (image base64 under `screenshots`). Needs a rasterising engine (camoufox or chromium) - otherwise 400 ERR::REQUEST::CAPABILITY_UNSUPPORTED at 0 credits. mode=auto cannot satisfy it (its fetch rung has no rasteriser). If the image is not delivered the page is still returned but charged 0."
+    },
+    "screenshot_fullpage": {
+      "type": "boolean",
+      "default": false,
+      "description": "Capture the full scrollable page. Requires screenshot=true; mutually exclusive with screenshot_selector."
+    },
+    "screenshot_selector": {
+      "type": "string",
+      "description": "CSS selector of the element to capture. Requires screenshot=true; mutually exclusive with screenshot_fullpage."
+    },
+    "screenshot_format": {
+      "type": "string",
+      "enum": [
+        "png",
+        "jpeg",
+        "jpg",
+        "webp"
+      ],
+      "description": "Image format; omitted uses the engine default (png). Not validated by the API - an unrecognised value silently falls back to the engine default."
+    },
+    "screenshot_quality": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100,
+      "default": 0,
+      "description": "Lossy quality for jpeg/webp; 0 uses the engine default. A value above 0 requires screenshot=true."
+    },
+    "custom_headers": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Headers sent to the target, as name -> string value. Hop-by-hop headers (Connection, Keep-Alive, Proxy-Authenticate, Proxy-Authorization, TE, Trailer, Transfer-Encoding, Upgrade, Host, Content-Length) are refused with 400 ERR::REQUEST::INVALID_PARAMETER. If omitted, the project's stored default applies."
+    },
+    "network_capture": {
+      "allOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Filters for recording the responses the page fetched. Browser-only.",
+          "properties": {
+            "urls": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Substring matches, or anchored regexes when starting with `^`; empty captures every response of the selected types."
+            },
+            "resource_types": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "document",
+                  "stylesheet",
+                  "image",
+                  "media",
+                  "font",
+                  "script",
+                  "xhr",
+                  "fetch",
+                  "websocket",
+                  "other"
+                ]
+              },
+              "default": [
+                "xhr",
+                "fetch"
+              ],
+              "description": "Resource types to record (exact singular names; no aliases). Unknown values are 400."
+            },
+            "include_bodies": {
+              "type": "boolean",
+              "default": true,
+              "description": "Include response bodies; false returns url/status/type/timing only, far smaller."
+            },
+            "max_body_bytes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2097152,
+              "default": 1048576,
+              "description": "Per-response body cap in bytes; 0 = default. Larger bodies are truncated and flagged body_truncated."
+            },
+            "max_responses": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100,
+              "default": 100,
+              "description": "Maximum responses recorded; 0 = default."
+            }
+          }
+        }
+      ],
+      "description": "Record the XHR/fetch responses the page itself made (often cleaner JSON than the DOM), returned under `network` in the JSON envelope. Browser-only; no extra credits."
+    },
+    "autoparse": {
+      "type": "boolean",
+      "default": false,
+      "description": "Harvest the page's own structured metadata (JSON-LD, OpenGraph, Twitter, microdata, RDFa, meta, embedded SPA state) into `data`, no selectors needed. Forces the JSON envelope; no extra credits; refused on a PDF."
+    },
+    "links": {
+      "type": "boolean",
+      "default": false,
+      "description": "Return the page's absolute, de-duplicated <a href> targets under `links`. Forces the JSON envelope; no extra credits; refused on a PDF. If omitted, the project's stored default applies."
+    },
+    "extract": {
+      "allOf": [
+        {
+          "description": "Selector map or JSON Schema form. An empty object is 400. Refused on PDF targets (502 ERR::EXTRACT::FAILED).",
+          "anyOf": [
+            {
+              "type": "object",
+              "required": [
+                "type",
+                "properties"
+              ],
+              "additionalProperties": true,
+              "description": "JSON Schema form, chosen when `type` is \"object\" and `properties` is an object. Every property (or its items/nested properties) needs a `selector`; values are coerced to the declared types and validated.",
+              "properties": {
+                "type": {
+                  "const": "object"
+                },
+                "properties": {
+                  "type": "object",
+                  "minProperties": 1,
+                  "maxProperties": 100,
+                  "additionalProperties": {
+                    "type": "object",
+                    "description": "JSON Schema property plus a `selector` keyword."
+                  }
+                },
+                "required": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "strict": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "Passed to the extractor to enforce the schema strictly."
+                }
+              }
+            },
+            {
+              "type": "object",
+              "minProperties": 1,
+              "maxProperties": 100,
+              "description": "Field name -> selector string or rule. A string may end in `@attr` (e.g. `a.next@href`) to return that attribute. 1-100 fields per level.",
+              "additionalProperties": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "required": [
+                      "selector"
+                    ],
+                    "description": "One extraction rule. Unrecognised keys are ignored.",
+                    "properties": {
+                      "selector": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "CSS selector or XPath expression."
+                      },
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "css",
+                          "xpath"
+                        ],
+                        "default": "css",
+                        "description": "Selector language."
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "item",
+                          "list"
+                        ],
+                        "default": "item",
+                        "description": "`item` returns the first match, `list` all matches."
+                      },
+                      "output": {
+                        "type": "string",
+                        "enum": [
+                          "text",
+                          "html",
+                          "outer_html",
+                          "attr",
+                          "table_json",
+                          "table_array",
+                          "exists",
+                          "count"
+                        ],
+                        "default": "text",
+                        "description": "What to return per match."
+                      },
+                      "attribute": {
+                        "type": "string",
+                        "description": "Attribute name; required when output=attr and forbidden otherwise."
+                      },
+                      "clean": {
+                        "type": "boolean",
+                        "default": true,
+                        "description": "Normalise whitespace in text output."
+                      },
+                      "nested": {
+                        "allOf": [
+                          {
+                            "$ref": "#/$defs/ScrapeExtractSelectorMap"
+                          }
+                        ],
+                        "description": "Rules evaluated inside each match; requires output html or outer_html. Max nesting depth 5."
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Selector extraction into `data`: a selector map, or a JSON Schema whose properties carry `selector`. Forces the JSON envelope, validated before fetching, no extra credits; mutually exclusive with extract_preset. Rules that match nothing are listed in `empty_fields`."
+    },
+    "extract_preset": {
+      "type": "string",
+      "description": "Coming soon. Name of a server-side extraction preset. This deployment has no preset store, so any value fails with 400 ERR::EXTRACT::INVALID_RULES (at 0 credits, after the fetch); use `extract` inline. Mutually exclusive with extract."
+    },
+    "ai_extract": {
+      "allOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Exactly one of `prompt` or `schema` (both is 400 INCOMPATIBLE_FLAGS, neither is 400 INVALID_PARAMETER). The model reads the page as cleaned markdown; output lands in `data`. +4 credits.",
+          "properties": {
+            "prompt": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Plain-language description of the data to extract."
+            },
+            "schema": {
+              "type": "object",
+              "minProperties": 1,
+              "description": "JSON Schema the output must follow."
+            }
+          },
+          "oneOf": [
+            {
+              "required": [
+                "prompt"
+              ],
+              "not": {
+                "required": [
+                  "schema"
+                ]
+              }
+            },
+            {
+              "required": [
+                "schema"
+              ],
+              "not": {
+                "required": [
+                  "prompt"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Coming soon. Model-driven extraction into `data`; adds 4 credits. Refused with 503 ERR::INTERNAL::UNAVAILABLE where no model is configured, and a model failure is 502 ERR::EXTRACT::FAILED at 0 credits. Forces the JSON envelope."
+    },
+    "main_content_only": {
+      "type": "boolean",
+      "description": "true strips nav/footer/aside to the main article; false keeps the whole document. Omitted keeps the pipeline default (main-content isolation on for markdown). Applies to markdown/text/cleaned output. If omitted, the project's stored default applies."
+    },
+    "include_tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "CSS selectors; keep only matching subtrees before extraction and markdown conversion. Applied before exclude_tags and main_content_only."
+    },
+    "exclude_tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "CSS selectors; remove matching elements, applied after include_tags and before main_content_only."
+    },
+    "parse_pdf": {
+      "type": "boolean",
+      "default": true,
+      "description": "When the target returns a PDF and markdown/text is requested, parse it to text. false refuses it with 502 ERR::EXTRACT::FAILED (0 credits); response_format=html always returns the raw bytes. If omitted, the project's stored default applies."
+    },
+    "response_format": {
+      "type": "string",
+      "enum": [
+        "html",
+        "markdown",
+        "text",
+        "json",
+        "pdf"
+      ],
+      "default": "html",
+      "description": "Body shape: html/markdown/text return the document itself, json the envelope, pdf a browser-printed PDF (needs camoufox or chromium). extract, autoparse, links, ai_extract, network_capture or screenshot override this to the JSON envelope with X-Warning FORMAT_COERCED. A non-HTML target (image, binary) requested as markdown/text fails 502 ERR::EXTRACT::FAILED at 0 credits. If omitted, the project's stored default applies."
+    },
+    "cache": {
+      "type": "boolean",
+      "default": true,
+      "description": "Serve a stored result younger than cache_ttl (Cache-State: hit, 0 credits). Only billable successes of GET-method requests without session_id or actions are stored. Set false for time-sensitive data; cache=false with cache_ttl>0 is 400 ERR::REQUEST::INCOMPATIBLE_FLAGS."
+    },
+    "cache_ttl": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 172800,
+      "description": "Maximum acceptable age of a cached result, in seconds. Default and cap are deployment settings (48h by default); larger values are clamped with X-Warning CACHE_TTL_CLAMPED. 0 disables caching for this request."
+    },
+    "max_cost": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0,
+      "description": "Credit ceiling; 0 means none. Checked against the dearest reachable outcome (the top rung under mode=auto) before anything runs, failing 400 ERR::LIMIT::MAX_COST_EXCEEDED at 0 credits."
+    },
+    "original_status": {
+      "type": "boolean",
+      "default": false,
+      "description": "On success, use the target's status as this response's HTTP status instead of 200. Leave off unless you need it: it makes a target 404 indistinguishable from an API error by status alone."
+    },
+    "allowed_status_codes": {
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "minimum": 100,
+        "maximum": 599
+      },
+      "description": "Extra target statuses to treat as billable successes (200, 404 and 410 always are). Other statuses return the target's body at 0 credits, and under mode=auto trigger escalation."
+    }
+  },
+  "$defs": {
+    "ScrapeExtractSelectorMap": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 100,
+      "description": "Field name -> selector string or rule. A string may end in `@attr` (e.g. `a.next@href`) to return that attribute. 1-100 fields per level.",
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "string",
+            "minLength": 1
+          },
+          {
+            "type": "object",
+            "additionalProperties": true,
+            "required": [
+              "selector"
+            ],
+            "description": "One extraction rule. Unrecognised keys are ignored.",
+            "properties": {
+              "selector": {
+                "type": "string",
+                "minLength": 1,
+                "description": "CSS selector or XPath expression."
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "css",
+                  "xpath"
+                ],
+                "default": "css",
+                "description": "Selector language."
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "item",
+                  "list"
+                ],
+                "default": "item",
+                "description": "`item` returns the first match, `list` all matches."
+              },
+              "output": {
+                "type": "string",
+                "enum": [
+                  "text",
+                  "html",
+                  "outer_html",
+                  "attr",
+                  "table_json",
+                  "table_array",
+                  "exists",
+                  "count"
+                ],
+                "default": "text",
+                "description": "What to return per match."
+              },
+              "attribute": {
+                "type": "string",
+                "description": "Attribute name; required when output=attr and forbidden otherwise."
+              },
+              "clean": {
+                "type": "boolean",
+                "default": true,
+                "description": "Normalise whitespace in text output."
+              },
+              "nested": {
+                "allOf": [
+                  {
+                    "$ref": "#/$defs/ScrapeExtractSelectorMap"
+                  }
+                ],
+                "description": "Rules evaluated inside each match; requires output html or outer_html. Max nesting depth 5."
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

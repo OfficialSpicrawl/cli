@@ -1,0 +1,115 @@
+# Publishes the Spicrawl CLI to npm as @spicrawl/cli from a vX.Y.Z tag.
+#
+# Auth is the NPM_TOKEN repository secret: an npm granular access token for
+# the spicrawl account with "Read and write (publish and stage)" on @spicrawl
+# packages and "Bypass two-factor authentication". Write tokens expire (90
+# days at most), so rotate the secret before then, and npm removes direct
+# publishing with such tokens in January 2027; switch to trusted publishing
+# (OIDC) before that.
+#
+# Release: tag a commit on main with vX.Y.Z and push it. The workflow builds
+# the six binaries with goreleaser, creates a GitHub release with the
+# archives and checksums.txt (which install.sh downloads), and publishes to
+# npm. @spicrawl/cli 0.1.0 is already on npm, so the first tag from this
+# repo must be v0.1.1 or later (npm never reuses a version). A prerelease
+# version (0.2.0-beta.1) is published under the `next` dist-tag so
+# `npm install @spicrawl/cli` keeps getting latest.
+#
+#   git tag v0.1.1 && git push origin v0.1.1
+#
+# npm provenance checks that package.json's repository matches the GitHub
+# repo, so do not change that field without updating npm/package.json.
+
+name: release
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: [v*]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: go vet
+        run: go vet ./...
+      - name: gofmt
+        run: |
+          out=$(gofmt -l .)
+          if [ -n "$out" ]; then echo "gofmt needed:"; echo "$out"; exit 1; fi
+      - name: go test
+        run: go test ./...
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: check
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: build npm package
+        run: scripts/build-npm.sh
+      - name: already on npm?
+        id: check
+        run: |
+          name="$(node -p 'require("./npm/package.json").name')"
+          version="$(node -p 'require("./dist/metadata.json").version' | sed 's/^v//')"
+          if npm view "$name@$version" version >/dev/null 2>&1; then
+            echo "$name@$version is already published; nothing to do."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+          tag=latest
+          case "$version" in *-*) tag=next ;; esac
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - name: publish
+        if: steps.check.outputs.publish == 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::error::the NPM_TOKEN repository secret is not set"
+            exit 1
+          fi
+          npm publish --provenance --access public --tag "${{ steps.check.outputs.tag }}"
+        working-directory: dist/npm/cli

@@ -1,0 +1,67 @@
+# GoReleaser config for the Spicrawl CLI (command: spicrawl) (GoReleaser v2).
+#
+# Run from the repo root:
+#   goreleaser check
+#   goreleaser release --snapshot --clean   # local build into dist/, nothing uploaded
+#   goreleaser release --clean              # needs a vX.Y.Z tag and GITHUB_TOKEN
+#
+# Archive names carry no version (spicrawl_<os>_<arch>.tar.gz) so install.sh can
+# fetch https://github.com/<repo>/releases/latest/download/<archive> without
+# calling the GitHub API. scripts/build-npm.sh reads the build output in dist/.
+
+version: 2
+
+project_name: spicrawl
+
+before:
+  hooks:
+    - go mod tidy
+    - go vet ./...
+
+builds:
+  - id: spicrawl
+    main: ./cmd/spicrawl
+    binary: spicrawl
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X github.com/Spicrawl/cli/internal/api.Version={{ .Version }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: spicrawl
+    ids: [spicrawl]
+    name_template: "spicrawl_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - README.md
+      - LICENSE*
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  use: git
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+release:
+  github:
+    owner: Spicrawl
+    name: cli
+  draft: false
+  prerelease: auto

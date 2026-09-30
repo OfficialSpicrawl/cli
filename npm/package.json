@@ -1,0 +1,52 @@
+{
+  "name": "@spicrawl/cli",
+  "version": "0.1.0",
+  "description": "Spicrawl CLI: scrape any URL to Markdown or JSON, batch crawl URLs and extract structured data from your terminal. Built for LLM and AI agent workflows.",
+  "keywords": [
+    "spicrawl",
+    "cli",
+    "command-line",
+    "terminal",
+    "scraper-cli",
+    "web-scraping",
+    "web-scraping-api",
+    "web-scraper",
+    "scraper",
+    "crawler",
+    "website-to-markdown",
+    "html-to-markdown",
+    "markdown",
+    "data-extraction",
+    "structured-data",
+    "llm",
+    "ai-agents",
+    "mcp",
+    "mcp-server",
+    "claude-code",
+    "skill",
+    "cross-platform"
+  ],
+  "homepage": "https://docs.spicrawl.com/cli/overview",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Spicrawl/cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Spicrawl/cli/issues"
+  },
+  "bin": {
+    "spicrawl": "bin/spicrawl.js"
+  },
+  "files": [
+    "bin/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=16"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

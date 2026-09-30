@@ -1,0 +1,209 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SessionCreateRequest",
+  "x-spicrawl-endpoint": "Body of POST /v1/sessions",
+  "type": "object",
+  "additionalProperties": false,
+  "description": "Body of `POST /v1/sessions`. All fields optional; unknown fields are refused with 400.",
+  "properties": {
+    "engine": {
+      "allOf": [
+        {
+          "type": "string",
+          "enum": [
+            "fetch",
+            "obscura",
+            "chromium",
+            "camoufox"
+          ],
+          "description": "Engine a session is pinned to for its whole life. Scrapes on the session run on this engine; `fingerprint` is only valid with `camoufox`."
+        }
+      ],
+      "description": "Engine `camoufox` is coming soon. Engine to pin. Case-insensitive. Omitted means the first of `obscura`, `chromium` that this deployment runs, else `fetch`. Choose explicitly if you need a browser-only feature such as localStorage."
+    },
+    "ttl_seconds": {
+      "type": "integer",
+      "minimum": 30,
+      "default": 1800,
+      "description": "Sliding lifetime in seconds. Omitted or 0 means 1800, reduced to the organization maximum with a warning if that is lower. Values above the organization maximum (default 604800, i.e. 7 days) are refused with 400 naming the real maximum."
+    },
+    "sticky_key": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9-]{0,62}[A-Za-z0-9]$",
+      "description": "Coming soon. Pins the exit IP across the session. Letters, digits and hyphens, not starting or ending with a hyphen. Omitted means derived from the session id (still pinned). Must be unique among active sessions in the project. Cannot be combined with `rotate_ip`."
+    },
+    "region_pool": {
+      "type": "string",
+      "maxLength": 64,
+      "description": "Coming soon. Regional exit pool to draw from. Trimmed; longer than 64 characters is refused."
+    },
+    "rotate_ip": {
+      "type": "boolean",
+      "default": false,
+      "description": "Coming soon. Keep the cookie jar but let the exit IP change between requests. Use for many-page crawls; avoid for replayed logins, which get challenged on a moving IP. Refused together with `sticky_key`."
+    },
+    "premium_proxy": {
+      "type": "boolean",
+      "default": false,
+      "description": "Coming soon. Use the residential tier instead of datacenter. Same meaning as on `/v1/scrape`."
+    },
+    "proxy_country": {
+      "type": "string",
+      "pattern": "^[A-Za-z]{2}$",
+      "description": "Coming soon. ISO 3166-1 alpha-2 exit country, case-insensitive. Requires `premium_proxy: true`, otherwise 400 `ERR::REQUEST::INCOMPATIBLE_FLAGS`."
+    },
+    "fingerprint": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "Camoufox fingerprint pin, stored verbatim. A non-empty object with any engine other than `camoufox` is refused with 400. `null` and `{}` count as absent."
+    },
+    "domain_scores": {
+      "type": "object",
+      "description": "Seed per-domain health, keyed by lowercase registrable domain (e.g. `example.com`). Scores must be non-negative. Above 64 entries, the least useful (unblocked, lowest score, oldest) are evicted rather than refused.",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "score",
+          "good",
+          "bad",
+          "last_updated",
+          "retired"
+        ],
+        "description": "One domain's standing with the session. At a score of 3 or with `retired` true, the session is treated as blocked for that domain.",
+        "properties": {
+          "score": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Error score; rises on failures, decays on successes. Blocked at 3."
+          },
+          "good": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Successful requests counted."
+          },
+          "bad": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Failed requests counted."
+          },
+          "last_updated": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Last update in Unix milliseconds."
+          },
+          "retired": {
+            "type": "boolean",
+            "description": "Hard, sticky block for this domain (e.g. a 403 wall). Does not decay; use a new session for this domain."
+          }
+        }
+      }
+    },
+    "session_context": {
+      "allOf": [
+        {
+          "type": "object",
+          "description": "Everything a browser holds that makes it logged in. Maps and arrays are never null in responses.",
+          "properties": {
+            "cookies": {
+              "type": "array",
+              "maxItems": 2000,
+              "items": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "domain"
+                ],
+                "description": "One cookie in stored spelling (`http_only`, `same_site`), not CDP spelling.",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Cookie name. Required; trimmed."
+                  },
+                  "value": {
+                    "type": "string",
+                    "description": "Cookie value."
+                  },
+                  "domain": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Cookie domain; a leading dot (\".example.com\") makes it domain-wide and is preserved. Required."
+                  },
+                  "path": {
+                    "type": "string",
+                    "default": "/",
+                    "description": "Cookie path. Empty becomes `/`."
+                  },
+                  "expires": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "description": "Expiry in seconds since the epoch (CDP units). Omit for a session cookie. Zero or negative values (such as CDP's -1) are treated as a session cookie and omitted."
+                  },
+                  "http_only": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "HttpOnly flag."
+                  },
+                  "secure": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Secure flag. Required to be true when `same_site` is `None`."
+                  },
+                  "same_site": {
+                    "type": "string",
+                    "enum": [
+                      "Strict",
+                      "Lax",
+                      "None"
+                    ],
+                    "description": "SameSite attribute in exact CDP casing. Omit when unset; it is not defaulted. `None` without `secure: true` is refused."
+                  }
+                }
+              },
+              "description": "Browser-wide cookie jar. At most 2000."
+            },
+            "local_storage": {
+              "type": "object",
+              "maxProperties": 100,
+              "description": "Origin (bare `http(s)://host[:port]`, no path) to key/value map. At most 100 origins and 1000 keys per origin.",
+              "additionalProperties": {
+                "type": "object",
+                "maxProperties": 1000,
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            },
+            "session_storage": {
+              "type": "object",
+              "maxProperties": 100,
+              "description": "Same shape and limits as `local_storage`. Many single-page apps keep access tokens here; include it when importing a login.",
+              "additionalProperties": {
+                "type": "object",
+                "maxProperties": 1000,
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            },
+            "indexed_db": {
+              "type": "object",
+              "maxProperties": 50,
+              "description": "Origin to list of IndexedDB databases, each carried verbatim as JSON. At most 50 origins and 50 databases per origin. Treat as opaque.",
+              "additionalProperties": {
+                "type": "array",
+                "maxItems": 50,
+                "items": {}
+              }
+            }
+          }
+        }
+      ],
+      "description": "Initial cookies and storage, e.g. an existing login or the `session_context` from a previous `GET /v1/sessions/{id}/context`. Serialised size limit 1 MiB (413). Omitted means an empty context."
+    }
+  }
+}
