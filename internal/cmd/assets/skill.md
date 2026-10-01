@@ -1,6 +1,6 @@
 ---
 name: spicrawl
-description: Fetch, render and extract data from web pages with Spicrawl, through its MCP tools, the `spicrawl` CLI or the HTTP API. Use when an agent needs a page's content as markdown, HTML, text or JSON, has to render JavaScript, get past anti-bot protection, extract structured fields, scrape many URLs as a batch job, keep a logged-in session, drive a real browser over CDP, check its request history or usage, or look up Spicrawl's own documentation.
+description: Fetch, render and extract data from web pages with Spicrawl, through its MCP tools, the `spicrawl` CLI or the HTTP API. Use when an agent needs a page's content as markdown, HTML, text or JSON, has to render JavaScript, get past anti-bot protection, extract structured fields, scrape many URLs as a batch job, keep a logged-in session, check its request history or usage, or look up Spicrawl's own documentation.
 ---
 
 # Spicrawl
@@ -50,7 +50,7 @@ Connect a client to `https://mcp.spicrawl.com/mcp` with the header
 
 | Tool | Use it to |
 |---|---|
-| `spicrawl_scrape` | Fetch one URL. Arguments: `url`, `format` (`markdown` default, `text`, `html`, `json`), `render` (JavaScript), `proxy`, `mode`, `engine`, `wait_for`, `wait`, `main_content_only`, `include_tags`, `exclude_tags`, `links`, `autoparse`, `extract`, `ai_extract`, `screenshot`, `actions`, `session_id`, `cache`, `max_cost` and the other `/v1/scrape` fields. Note `render`/`format` instead of the API's `js_render`/`response_format`. |
+| `spicrawl_scrape` | Fetch one URL. Arguments: `url`, `format` (`markdown` default, `text`, `html`, `json`), `render` (JavaScript), `proxy`, `mode`, `engine`, `wait_for`, `wait`, `main_content_only`, `include_tags`, `exclude_tags`, `links`, `autoparse`, `extract`, `ai_extract` (coming soon), `screenshot`, `actions`, `session_id`, `cache`, `max_cost` and the other `/v1/scrape` fields. Note `render`/`format` instead of the API's `js_render`/`response_format`. |
 | `spicrawl_batch_submit` | Start an async job over many URLs (`urls` or `items`, plus shared settings such as `render`, `format`, `wait_for`). |
 | `spicrawl_batch_status` / `spicrawl_batch_list` | Poll one job / list jobs. |
 | `spicrawl_batch_results` | Read finished items (paged with `cursor`). |

@@ -1,6 +1,6 @@
 {
   "name": "@spicrawl/cli",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "The Spicrawl CLI is a command-line web scraper that turns any URL into Markdown, HTML, text or JSON, batch-scrapes up to 10,000 URLs per job, and connects Claude Code, Cursor, Codex and VS Code to Spicrawl over MCP, with JSON output and 13 stable exit codes for shell scripts, CI and AI agents.",
   "keywords": [
     "spicrawl",
