@@ -1,101 +1,25 @@
-# Spicrawl CLI: Scrape Websites to Markdown & JSON from Your Terminal
+# Spicrawl CLI: scrape websites to Markdown and JSON from the terminal
 
-Spicrawl CLI: scrape any URL to Markdown or JSON from your terminal, batch-scrape up to 10,000 URLs, and connect Claude Code, Cursor, Codex and VS Code to web data over MCP. JSON output and stable exit codes for scripts and AI agents.
+The Spicrawl CLI is a command-line web scraper that turns any URL into Markdown, HTML, text or JSON, batch-scrapes up to 10,000 URLs per job, and connects Claude Code, Cursor, Codex and VS Code to Spicrawl over MCP, with JSON output and 13 stable exit codes for shell scripts, CI and AI agents.
 
 [![npm version](https://img.shields.io/npm/v/@spicrawl/cli.svg)](https://www.npmjs.com/package/@spicrawl/cli)
+[![npm downloads](https://img.shields.io/npm/dm/@spicrawl/cli.svg)](https://www.npmjs.com/package/@spicrawl/cli)
 [![license: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/Spicrawl/cli/blob/main/LICENSE)
-[![CI](https://github.com/Spicrawl/cli/actions/workflows/release.yml/badge.svg)](https://github.com/Spicrawl/cli/actions/workflows/release.yml)
-[![GitHub stars](https://img.shields.io/github/stars/Spicrawl/cli.svg)](https://github.com/Spicrawl/cli)
+[![release](https://github.com/Spicrawl/cli/actions/workflows/release.yml/badge.svg)](https://github.com/Spicrawl/cli/actions/workflows/release.yml)
 
-[Docs](https://docs.spicrawl.com/cli/overview) · [Get an API key](https://app.spicrawl.com/signup) · [GitHub](https://github.com/Spicrawl/cli) · [TypeScript SDK](https://github.com/Spicrawl/sdk) · [MCP server](https://docs.spicrawl.com/agents/mcp)
+[Docs](https://docs.spicrawl.com/cli/overview) · [Get an API key](https://app.spicrawl.com/signup) · [TypeScript SDK](https://github.com/Spicrawl/sdk) · [MCP server](https://github.com/Spicrawl/mcp) · [Agent plugins](https://github.com/Spicrawl/agent-plugins)
 
-## What is the Spicrawl CLI?
+## Quickstart: scrape a web page to Markdown
 
-The Spicrawl CLI is a single native binary, `spicrawl`, that calls the [Spicrawl](https://spicrawl.com) web scraping API from the command line. `spicrawl scrape` fetches one page as Markdown, HTML, text, JSON or extracted data; `spicrawl batch` runs a list of URLs as one server-side job; `spicrawl init` connects AI coding agents over MCP. Output is JSON whenever it is piped and exit codes are stable, so it works the same for a person at a terminal, a shell script, a CI job or an AI agent.
-
-## Install
+1. Create an API key at [app.spicrawl.com](https://app.spicrawl.com/signup). Keys start with `spicrawl_live_` or `spicrawl_test_`.
+2. Run the CLI with `npx` (Node.js 16 or later), no install needed:
 
 ```sh
-# Run it once without installing (Node.js 16 or later)
-npx @spicrawl/cli scrape https://example.com --format markdown
-
-# Install globally with npm; the command is `spicrawl`
-npm install -g @spicrawl/cli
-
-# Or build from source (Go 1.27+)
-go install github.com/Spicrawl/cli/cmd/spicrawl@latest
-```
-
-Prebuilt archives for Linux, macOS and Windows (x64 and arm64), with `checksums.txt`, are attached to each [GitHub release](https://github.com/Spicrawl/cli/releases). A `curl | sh` installer and Homebrew are coming soon.
-
-**How the npm package works:** `@spicrawl/cli` is one package that carries six prebuilt binaries (Linux, macOS and Windows on x64 and arm64) and a small Node.js launcher that runs the one for your machine with the same arguments, stdio and exit code. There are no platform sub-packages, no postinstall script and nothing is downloaded at install time. Node.js is needed only for the launcher. More in the [install guide](https://docs.spicrawl.com/cli/install).
-
-Check the install with `spicrawl version`.
-
-## Set up your AI agent in one command
-
-```sh
-spicrawl init
-# or, without installing
-npx @spicrawl/cli init
-```
-
-`spicrawl init` configures Claude Code, Cursor, VS Code (Copilot) and Codex to use the hosted Spicrawl MCP server (`https://mcp.spicrawl.com/mcp`) and installs the Spicrawl [agent skill](https://docs.spicrawl.com/agents/skill) (`SKILL.md`). It detects the clients you use in the current directory and your home directory, prints the files it will create or change, and asks before writing. It merges a `spicrawl` entry into existing MCP configs and keeps every other server; re-running it is safe.
-
-| Client | `--client` | MCP config | Skill | With `--global` |
-|---|---|---|---|---|
-| Claude Code | `claude` | `.mcp.json` | `.claude/skills/spicrawl/SKILL.md` | `~/.claude.json`, `~/.claude/skills/spicrawl/SKILL.md` |
-| Cursor | `cursor` | `.cursor/mcp.json` | `.cursor/skills/spicrawl/SKILL.md` | `~/.cursor/mcp.json`, `~/.cursor/skills/spicrawl/SKILL.md` |
-| VS Code (Copilot) | `vscode` | `.vscode/mcp.json` | `.github/skills/spicrawl/SKILL.md` | `<user config dir>/Code/User/mcp.json`, `~/.copilot/skills/spicrawl/SKILL.md` |
-| Codex | `codex` | `.codex/config.toml` | `.agents/skills/spicrawl/SKILL.md` | `~/.codex/config.toml` (or `$CODEX_HOME/config.toml`), `~/.agents/skills/spicrawl/SKILL.md` |
-
-The MCP config and Skill columns are relative to the project directory (`--dir`, default: the current directory). The skill is written once per location: Cursor and VS Code also read `.claude/skills`, so with `--client all` it goes to `.claude/skills` and `.agents/skills` only.
-
-```sh
-spicrawl init --client claude,cursor --yes     # no prompt; required without a terminal
-spicrawl init --client all --global --yes      # user-level config for every client
-spicrawl init --client codex --agents-md --yes # also add a Spicrawl section to AGENTS.md
-```
-
-The API key is referenced, not copied: Claude Code, Cursor and Codex read `$SPICRAWL_API_KEY` from the environment (export it in the shell that starts the client), and VS Code asks for the key once and stores it. The exception is `--global --client claude`: `~/.claude.json` cannot expand variables, so the key is written into it, the file is set to mode 0600, and the CLI warns. `--use-env=false` embeds the key everywhere.
-
-The two steps are also available on their own:
-
-```sh
-spicrawl mcp install --client claude          # MCP server entry only
-spicrawl mcp install --client cursor --print  # print the config snippet instead of writing it
-spicrawl skill install --client all           # the skill only
-spicrawl skill install --print > SKILL.md     # print the skill
-```
-
-There is no uninstall command. To undo, remove the `spicrawl` entry from each MCP config (`mcpServers.spicrawl`; in VS Code `servers.spicrawl` and the `spicrawl-api-key` input; in Codex the `[mcp_servers.spicrawl]` table), delete the `spicrawl/` skill directory, and, if you used `--agents-md`, delete the block between `<!-- spicrawl:begin -->` and `<!-- spicrawl:end -->` in `AGENTS.md`. More in the [agent setup guide](https://docs.spicrawl.com/cli/agent-setup) and the [MCP guide](https://docs.spicrawl.com/agents/mcp).
-
-## Quickstart
-
-```sh
-# 1. Authenticate: save a key (checked against the API first) ...
-spicrawl login --api-key spicrawl_live_...
-# ... or set it in the environment
 export SPICRAWL_API_KEY=spicrawl_live_...
-
-# 2. Scrape a web page to Markdown
-spicrawl scrape https://example.com --format markdown
-
-# 3. A JavaScript-heavy page: render it and wait for the element that holds the data
-spicrawl scrape https://example.com/pricing --render --wait-for '.plans' --format markdown
-
-# 4. Pipe the result: one compact JSON line per scrape
-spicrawl scrape https://example.com --format markdown --jsonl | jq -r .content
-
-# 5. Many URLs from a file, 8 at a time, one JSON line per URL
-spicrawl scrape - --format markdown --concurrency 8 < urls.txt > pages.jsonl
-
-# 6. A large list as one server-side batch job
-spicrawl batch submit urls.txt --render --wait
-spicrawl batch results <job-id> --all -o results.jsonl
+npx @spicrawl/cli scrape https://example.com --format markdown --json
 ```
 
-Piped (or with `--json`), a scrape prints one object with the document under `content`:
+The result is one JSON object with the page under `content`:
 
 ```json
 {
@@ -114,7 +38,107 @@ Piped (or with `--json`), a scrape prints one object with the document under `co
 }
 ```
 
-`status` is the target site's HTTP status. `spicrawl --help` and `spicrawl <command> --help` list every flag.
+`status` is the target site's HTTP status. Without `--json`, on a terminal, the CLI prints just the Markdown.
+
+## What the Spicrawl CLI does
+
+`spicrawl` is a single native binary that calls the [Spicrawl](https://spicrawl.com) web scraping API:
+
+- **Five output formats.** `--format` takes `html` (the API default), `markdown`, `text`, `json` or `pdf`; Markdown keeps only the main content unless you pass `--no-main-content`.
+- **JavaScript rendering.** `--render` runs the page in a browser, `--wait-for` waits for a CSS selector, and `--engine` pins `fetch`, `obscura` or `chromium` (`camoufox` is coming soon).
+- **Batch jobs of up to 10,000 URLs.** `spicrawl batch submit` sends up to 10,000 URLs and 1 MiB per request as one server-side job, runs up to 50 items at once (server default 10) and tries each item up to 10 times (default 3).
+- **Parallel scrapes from stdin.** `spicrawl scrape -` reads one URL per line and runs 4 requests at once by default (`--concurrency`), with every scrape flag available.
+- **Structured data without a model.** `--extract` (CSS selectors), `--autoparse` (JSON-LD, OpenGraph) and `--links`.
+- **One-command agent setup.** `spicrawl init` configures 4 clients (Claude Code, Cursor, VS Code and Codex) for the hosted MCP server and installs the agent skill.
+- **13 stable exit codes (0 to 12).** Each maps to an error class an agent can branch on; codes are never renumbered, only added.
+- **Offline request schemas.** `spicrawl schema` prints 4 JSON Schemas (`scrape`, `batch`, `batch-item`, `session`) from inside the binary.
+- **6 platforms.** Linux, macOS and Windows on x64 and arm64, built with GoReleaser.
+
+## How to install the Spicrawl CLI
+
+### npm (Linux, macOS, Windows)
+
+```sh
+npm install -g @spicrawl/cli   # the command is `spicrawl`
+npx @spicrawl/cli --help       # or run it without installing
+```
+
+`@spicrawl/cli` is one package that carries all 6 prebuilt binaries and a small Node.js launcher (Node 16 or later) that runs the one for your machine with the same arguments, stdio and exit code. No postinstall script, nothing downloaded at install time.
+
+### Install script from GitHub (Linux, macOS)
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Spicrawl/cli/main/install.sh | sh
+```
+
+It downloads the archive for your OS and CPU from the latest GitHub release, checks its SHA-256 against `checksums.txt`, and installs `spicrawl` into `~/.local/bin` (`SPICRAWL_INSTALL_DIR` changes it; `SPICRAWL_VERSION=v0.1.1` pins a release). It never prompts and never uses `sudo`.
+
+### GitHub releases (prebuilt archives)
+
+Every [GitHub release](https://github.com/Spicrawl/cli/releases) has `spicrawl_<os>_<arch>.tar.gz` (`.zip` on Windows) for `linux`, `darwin` and `windows` on `amd64` and `arm64`, plus `checksums.txt`. The names carry no version, so the latest is always at the same URL:
+
+```sh
+curl -fsSL https://github.com/Spicrawl/cli/releases/latest/download/spicrawl_linux_amd64.tar.gz | tar -xz spicrawl
+./spicrawl version
+```
+
+### go install (Go 1.27.1 or later)
+
+```sh
+go install github.com/Spicrawl/cli/cmd/spicrawl@latest
+```
+
+A binary built this way reports its version as `dev`.
+
+### Not available yet
+
+`curl -fsSL https://spicrawl.com/install.sh | sh` and Homebrew are planned but not live. Use one of the channels above.
+
+### Check the install
+
+```sh
+spicrawl version   # spicrawl 0.1.1 (go1.27.1, linux/amd64)
+```
+
+`spicrawl version --json` prints the same as `{version, go, os, arch}`. If the npm launcher says there is no prebuilt binary, your OS or CPU is not one of the 6 targets: use `go install`, or point `SPICRAWL_BINARY` at a binary you already have.
+
+## Set up Claude Code, Cursor, Codex or VS Code with one command
+
+```sh
+spicrawl init
+# or, without installing
+npx @spicrawl/cli init
+```
+
+`spicrawl init` configures Claude Code, Cursor, VS Code (Copilot) and Codex to use the hosted Spicrawl MCP server (`https://mcp.spicrawl.com/mcp`) and installs the Spicrawl [agent skill](https://docs.spicrawl.com/agents/skill) (`SKILL.md`). It detects the clients you use in the current directory and your home directory, prints the files it will create or change, and asks before writing. It merges a `spicrawl` entry into existing MCP configs and keeps every other server; re-running it is safe.
+
+| Client | `--client` | Project MCP config | With `--global` |
+|---|---|---|---|
+| Claude Code | `claude` | `.mcp.json` | `~/.claude.json` |
+| Cursor | `cursor` | `.cursor/mcp.json` | `~/.cursor/mcp.json` |
+| VS Code (Copilot) | `vscode` | `.vscode/mcp.json` | `<user config dir>/Code/User/mcp.json` |
+| Codex | `codex` | `.codex/config.toml` | `~/.codex/config.toml` (or `$CODEX_HOME`) |
+
+The skill goes to `spicrawl/SKILL.md` under `.claude/skills` (Claude Code), `.cursor/skills` (Cursor), `.github/skills` (VS Code) or `.agents/skills` (Codex); with `--global`, under `~/.claude/skills`, `~/.cursor/skills`, `~/.copilot/skills` or `~/.agents/skills`. Project paths are relative to `--dir` (default: the current directory). With `--client all` the skill is written only to `.claude/skills` and `.agents/skills`, since Cursor and VS Code also read `.claude/skills`.
+
+```sh
+spicrawl init --client claude,cursor --yes     # no prompt; required without a terminal
+spicrawl init --client all --global --yes      # user-level config for every client
+spicrawl init --client codex --agents-md --yes # also add a Spicrawl section to AGENTS.md
+```
+
+The API key is referenced, not copied: Claude Code, Cursor and Codex read `$SPICRAWL_API_KEY` from the environment of the shell that starts them, and VS Code asks for it once. The exception is `--global --client claude`: `~/.claude.json` cannot expand variables, so the key is written into it with mode 0600 and a warning. `--use-env=false` embeds the key everywhere.
+
+The two steps also run on their own: `spicrawl mcp install --client cursor` (add `--print` for the snippet only) and `spicrawl skill install --client all` (`--print > SKILL.md` to print it).
+
+<details>
+<summary>How to undo <code>spicrawl init</code></summary>
+
+There is no uninstall command. Remove the `spicrawl` entry from each MCP config (`mcpServers.spicrawl`; in VS Code `servers.spicrawl` and the `spicrawl-api-key` input; in Codex the `[mcp_servers.spicrawl]` table), delete the `spicrawl/` skill directory, and, if you used `--agents-md`, delete the block between `<!-- spicrawl:begin -->` and `<!-- spicrawl:end -->` in `AGENTS.md`.
+
+</details>
+
+For other clients (Gemini CLI, OpenCode, Factory Droid, Devin and more) use the plugins in [Spicrawl/agent-plugins](https://github.com/Spicrawl/agent-plugins). More in the [agent setup guide](https://docs.spicrawl.com/cli/agent-setup).
 
 ## Commands
 
@@ -140,7 +164,9 @@ Piped (or with `--json`), a scrape prints one object with the document under `co
 | `spicrawl version` | Print the CLI version, Go version and platform |
 | `spicrawl completion` | Generate shell completion for bash, zsh, fish or PowerShell |
 
-### Scrape a web page to Markdown
+`spicrawl --help` and `spicrawl <command> --help` list every flag. Global flags: `--api-key`, `--base-url`, `--json`, `-q/--quiet` and `--timeout` (default `3m`).
+
+### How to convert a web page to Markdown from the command line
 
 ```sh
 spicrawl scrape https://example.com/blog/launch --format markdown -o launch.md
@@ -153,9 +179,9 @@ spicrawl scrape https://example.com/docs --format markdown \
   --include 'article' --exclude 'nav' --exclude '.cookie-banner'
 ```
 
-Other formats: `--format html` (the API default), `text`, `json` or `pdf`. Add `--meta` to print the engine, credits, cache state, target status and request id to stderr. A target site that answers outside 2xx exits 6; accept a status with `--allowed-status 404`, and cap spend per request with `--max-cost`.
+Add `--meta` to print the engine, credits, cache state, target status and request id to stderr. A target site that answers outside 2xx exits 6; accept a status with `--allowed-status 404`, and cap spend per request with `--max-cost`.
 
-### Render JavaScript pages
+### How to scrape a JavaScript-rendered page
 
 ```sh
 spicrawl scrape https://example.com/pricing --render --wait-for '.plans' --format markdown
@@ -163,7 +189,7 @@ spicrawl scrape https://example.com/pricing --render --wait-for '.plans' --forma
 
 `--render` runs the page in a browser. `--wait-for` waits for a CSS selector (capped by `--wait-for-timeout`), `--wait` adds a fixed delay in milliseconds, and `--block images,fonts` skips resources you do not need.
 
-### Extract structured data
+### How to extract structured data from a web page
 
 ```sh
 # A CSS selector map; prints only the extracted data
@@ -181,40 +207,31 @@ spicrawl scrape https://example.com --links --json | jq -r '.links[]'
 
 AI extraction with a plain-language prompt or a JSON Schema (`--ai`, `--ai-schema`) is coming soon; see the [AI extraction guide](https://docs.spicrawl.com/guides/ai-extraction).
 
-### Screenshots and PDF
+### How to take a screenshot or save a page as PDF
 
 Screenshots and PDF output need the Chromium engine:
 
 ```sh
 spicrawl scrape https://example.com --engine chromium --screenshot --screenshot-full-page -o home.html
-spicrawl scrape https://example.com --engine chromium --screenshot --screenshot-format png \
-  --screenshot-selector '#hero' --screenshot-dir ./shots -o home.html
 spicrawl scrape https://example.com/report --engine chromium --format pdf -o report.pdf
 ```
 
-Screenshots are saved next to the `-o` file as `<name>.<label>.<format>`, or into `--screenshot-dir`. PDF is never written to a terminal: pass `-o FILE`, or `--json` to get it base64-encoded.
+Screenshots are saved next to the `-o` file as `<name>.<label>.<format>`, or into `--screenshot-dir`; `--screenshot-selector` and `--screenshot-format png|jpeg|webp` narrow them. PDF is never written to a terminal: pass `-o FILE`, or `--json` to get it base64-encoded.
 
-### Batch scrape a list of URLs
+### How to batch scrape thousands of URLs
 
-`spicrawl batch` submits a file of URLs (one per line, or `.json` / `.jsonl` items) as one server-side job of up to 10,000 URLs:
+`spicrawl batch` submits a file of URLs (one per line, or `.json` / `.jsonl` items) as one server-side job, up to 10,000 URLs and 1 MiB per submit:
 
 ```sh
-# Submit, render, and wait until the job finishes (up to 20 minutes)
-spicrawl batch submit urls.txt --render --name nightly --wait --max-wait 20m
-
-# Download every finished item as JSON Lines
-spicrawl batch results <job-id> --all -o results.jsonl
-
-# Capture the job id in a script
-id=$(spicrawl batch submit urls.txt --json | jq -r .id)
+id=$(spicrawl batch submit urls.txt --render --name nightly --json | jq -r .id)
 spicrawl batch wait "$id" --max-wait 10m    # exits 11 if the job is still running
-spicrawl batch results "$id" --status failed --all
+spicrawl batch results "$id" --all -o results.jsonl
 spicrawl batch retry "$id"                  # re-run the failed items
 ```
 
-Batch items currently return the raw page HTML: the batch worker applies `--render`, `--proxy` and (on rendered items) `--block`, and accepts but does not yet apply other scrape flags such as `--format markdown`. For Markdown or extraction per URL, use `spicrawl scrape -` with `--concurrency`. Results stay readable until the job's `results_expire_at` (72 hours after submission by default). More in the [batch guide](https://docs.spicrawl.com/cli/batch).
+Batch items currently return raw page HTML: the worker applies `--render`, `--proxy` and `--block`, and accepts but does not yet apply other scrape flags such as `--format markdown`. For Markdown or extraction per URL, use `spicrawl scrape - --concurrency 8 < urls.txt`. Results stay readable until the job's `results_expire_at` (72 hours after submission by default). More in the [batch guide](https://docs.spicrawl.com/cli/batch).
 
-### Reuse cookies with sessions
+### How to keep cookies and logins across scrapes
 
 A session keeps one engine and one cookie jar across many scrapes, so a login or a cart survives between requests:
 
@@ -224,53 +241,60 @@ spicrawl scrape https://example.com/account --session "$SID" --format markdown
 spicrawl sessions release "$SID"
 ```
 
-Save a session's cookies and storage, and seed a new session from them:
+`spicrawl sessions context <id> --json > login.json` saves the cookies and storage, and `sessions create --session-context login.json` seeds a new session from them. That file is a credential: treat it like a password.
 
-```sh
-spicrawl sessions context "$SID" --json > login.json
-spicrawl sessions create --engine chromium --session-context login.json
-```
-
-The context output is a credential: treat it like a password.
-
-### Use your own proxy
+### How to scrape through your own proxy
 
 ```sh
 spicrawl scrape https://example.com --proxy "$MY_PROXY_URL" --proxy-verify
 spicrawl batch submit urls.txt --proxy "$MY_PROXY_URL"
 ```
 
-`--proxy` works on `spicrawl scrape` and `spicrawl batch submit`. On `scrape`, `--proxy-verify` checks the proxy before the request runs. A request through your own proxy is priced like a direct one, with no proxy surcharge.
+On `scrape`, `--proxy-verify` checks the proxy before the request runs. Your own proxy adds no proxy surcharge.
+
+## CLI vs SDK vs MCP server vs REST API: which should I use?
+
+All four call the same Spicrawl API with the same API key and the same credits.
+
+| You are... | Use | Get it |
+|---|---|---|
+| In a terminal, a shell script or a CI job | The Spicrawl CLI | `npm install -g @spicrawl/cli` |
+| Writing Node.js or TypeScript code | The Spicrawl TypeScript SDK | [`@spicrawl/sdk`](https://www.npmjs.com/package/@spicrawl/sdk) ([GitHub](https://github.com/Spicrawl/sdk)) |
+| An AI agent or MCP client that should call scraping as tools | The Spicrawl MCP server (25 `spicrawl_*` tools) | Hosted at `https://mcp.spicrawl.com/mcp`, or local with `npx -y @spicrawl/mcp` ([`@spicrawl/mcp`](https://www.npmjs.com/package/@spicrawl/mcp), [GitHub](https://github.com/Spicrawl/mcp)) |
+| Installing Spicrawl as a plugin in Claude Code, Codex, Cursor, Gemini CLI or another agent | The Spicrawl agent plugins | [Spicrawl/agent-plugins](https://github.com/Spicrawl/agent-plugins) |
+| Any other language, or full control over the HTTP request | The REST API | `https://api.spicrawl.com`, documented in the [quickstart](https://docs.spicrawl.com/quickstart) |
+
+- If you want an agent to use Spicrawl with the least setup, run `spicrawl init`: it writes the MCP config and the skill for you.
+- If an agent already has a shell, it can call `spicrawl` directly instead of MCP: output is JSON when piped and the exit code says what went wrong.
+- If you need Markdown for a list of URLs, use `spicrawl scrape -` rather than `spicrawl batch`, because batch items return raw HTML today.
 
 ## Built for scripts and AI agents
 
 - **stdout is data only.** Progress, warnings and errors go to stderr; `-q` silences progress.
-- **JSON when piped.** Output is JSON whenever stdout is not a terminal. `--json` forces it; `--jsonl` prints one compact object per line. `spicrawl docs` and `spicrawl schema` print their document as is.
-- **Never prompts without a TTY.** `spicrawl login` without a key fails with exit 2 instead of waiting. `init`, `batch cancel` and `sessions delete` ask on a terminal and need `--yes` without one.
+- **JSON when piped.** Output is JSON whenever stdout is not a terminal; `--json` forces it and `--jsonl` prints one compact object per line (`docs` and `schema` print their document as is).
+- **Never prompts without a TTY.** `login` without a key exits 2; `init`, `batch cancel` and `sessions delete` need `--yes` without a terminal.
 - **Errors are machine-readable.** In JSON mode a failed API call writes the API's RFC 7807 problem document (`code`, `retryable`, `retry_after_seconds`, `diagnostics.hint`) to stderr; other failures write `{"error", "exit_code"}`.
-- **`-` reads stdin**, one URL per line.
 - **A failed target is a failure.** A target status outside 2xx (and outside `--allowed-status`) exits 6; the document is still written, and JSON output carries `target_error`.
-- **Request schemas offline.** `spicrawl schema scrape` prints the request body's JSON Schema from inside the binary, so an agent can validate a body before sending it.
 
 ### Exit codes
 
-Stable: codes are never renumbered, only added. `spicrawl exit-codes --json` prints them as `[{code, name, meaning}]`.
+There are 13 exit codes, 0 to 12. They are stable: never renumbered, only added. `spicrawl exit-codes --json` prints them as `[{code, name, meaning}]`.
 
-| Code | Meaning | What an agent should do |
-|---|---|---|
-| 0 | success | Use stdout. |
-| 1 | internal error: CLI bug, or a transient `ERR::INTERNAL::*` | Retry once; if it repeats, report it with the request id. |
-| 2 | usage error: bad flags or arguments, or an unreadable/malformed config file; nothing was sent | Fix the command (see `--help`); do not retry it unchanged. |
-| 3 | `ERR::AUTH::*`, or no API key configured | Set `SPICRAWL_API_KEY` or run `spicrawl login`; do not retry with the same key. |
-| 4 | `ERR::REQUEST::*`, `ERR::SECURITY::*`, `ERR::EXTRACT::INVALID_RULES`: fix the request | Change the parameter named in `diagnostics.hint`; do not retry unchanged. |
-| 5 | `ERR::LIMIT::*`: rate, concurrency, quota or `max_cost` | If `retryable`, wait `retry_after_seconds` and retry; otherwise stop and tell the user. |
-| 6 | `ERR::UPSTREAM::*`: the target site failed or served a bot challenge, or answered outside `--allowed-status` | Retry later or try `--render`; accept an expected status with `--allowed-status`. |
-| 7 | `ERR::PROXY::*` | Check the `--proxy` URL (`--proxy-verify`) or use another proxy. |
-| 8 | `ERR::ENGINE::*`, `ERR::EXTRACT::FAILED`, or `ERR::INTERNAL::UNAVAILABLE` with `retryable: false` (capability not available on this deployment) | Retry only if `retryable` is true; otherwise drop that feature. |
-| 9 | `ERR::SESSION::*` | Create a new session; if the session is busy, wait and retry. |
-| 10 | network: the Spicrawl API could not be reached (DNS, refused, TLS); nothing was sent | Safe to retry after a pause; check the network and `--base-url`. |
-| 11 | a `--wait` gave up before the job finished | The job is still running: resume with `spicrawl batch wait <id>`. |
-| 12 | timeout: the request was sent but `--timeout` expired; it may have run and been billed | Check `spicrawl logs` before retrying. |
+| Code | Name | Meaning | What an agent should do |
+|---|---|---|---|
+| 0 | `ok` | success | Use stdout. |
+| 1 | `internal` | CLI bug, or a transient `ERR::INTERNAL::*` | Retry once; if it repeats, report it with the request id. |
+| 2 | `usage` | bad flags or arguments, or an unreadable/malformed config file; nothing was sent | Fix the command (see `--help`); do not retry it unchanged. |
+| 3 | `auth` | `ERR::AUTH::*`, or no API key configured | Set `SPICRAWL_API_KEY` or run `spicrawl login`; do not retry with the same key. |
+| 4 | `request` | `ERR::REQUEST::*`, `ERR::SECURITY::*`, `ERR::EXTRACT::INVALID_RULES`: fix the request | Change the parameter named in `diagnostics.hint`; do not retry unchanged. |
+| 5 | `limit` | `ERR::LIMIT::*`: rate, concurrency, quota or `max_cost` | If `retryable`, wait `retry_after_seconds` and retry; otherwise stop and tell the user. |
+| 6 | `upstream` | `ERR::UPSTREAM::*`: the target site failed or served a bot challenge, or answered outside `--allowed-status` | Retry later or try `--render`; accept an expected status with `--allowed-status`. |
+| 7 | `proxy` | `ERR::PROXY::*` | Check the `--proxy` URL (`--proxy-verify`) or use another proxy. |
+| 8 | `engine` | `ERR::ENGINE::*`, `ERR::EXTRACT::FAILED`, or `ERR::INTERNAL::UNAVAILABLE` with `retryable: false` (capability not available on this deployment) | Retry only if `retryable` is true; otherwise drop that feature. |
+| 9 | `session` | `ERR::SESSION::*` | Create a new session; if the session is busy, wait and retry. |
+| 10 | `network` | the Spicrawl API could not be reached (DNS, refused, TLS); nothing was sent | Safe to retry after a pause; check the network and `--base-url`. |
+| 11 | `pending` | a `--wait` gave up before the job finished | The job is still running: resume with `spicrawl batch wait <id>`. |
+| 12 | `timeout` | the request was sent but `--timeout` expired; it may have run and been billed | Check `spicrawl logs` before retrying. |
 
 ## Configuration
 
@@ -287,91 +311,49 @@ Settings resolve in this order: command-line flag, environment variable, config 
 | Binary used by the npm launcher | | `SPICRAWL_BINARY` | | the binary bundled for your platform |
 | HTTP timeout per API call | `--timeout` | | | `3m` |
 
-```sh
-spicrawl config path      # where the config file lives
-spicrawl config get       # print saved values
-spicrawl config set base_url https://api.spicrawl.com
-spicrawl config unset api_key
-spicrawl auth status      # the key and base URL in use, and where each came from
-```
-
-The config file is written with mode 0600. For a self-hosted deployment, set `--base-url` or `SPICRAWL_BASE_URL`; the docs, MCP and skill URLs are derived from it. Override the docs location with, for example, `SPICRAWL_DOCS_URL=https://spicrawl.example.com/docs` (the legacy `SPICRAWL_DOCS_HOST` is still read when it is unset).
-
-**In CI**, store the key as a secret and export it as `SPICRAWL_API_KEY` instead of running `spicrawl login`; nothing is written to disk:
-
-```sh
-export SPICRAWL_API_KEY="$SPICRAWL_KEY"   # from your CI secret store
-spicrawl scrape https://example.com/status --format text --retry 3 -o status.txt
-```
+`spicrawl config path|get|set|unset` manages the file, which is written with mode 0600, and `spicrawl auth status` shows the key and base URL in use and where each came from. For a self-hosted deployment, set `--base-url` or `SPICRAWL_BASE_URL`; the docs, MCP and skill URLs are derived from it. Override the docs location with, for example, `SPICRAWL_DOCS_URL=https://spicrawl.example.com/docs` (the legacy `SPICRAWL_DOCS_HOST` is still read when it is unset).
 
 ## Beta limitations and coming soon
 
-Spicrawl is in beta. Today:
-
-- **AI extraction** (`--ai`, `--ai-schema`) is coming soon. Use `--extract` or `--autoparse` for structured data. See the [AI extraction guide](https://docs.spicrawl.com/guides/ai-extraction).
-- **Cloud browser** (`spicrawl browser url`) is coming soon.
-- **The managed proxy pool** (`--premium-proxy`, `--country`, `--sticky-key`) and stealth mode (`--stealth`) are coming soon. Bring your own proxy with `--proxy`.
-- **Batch items return raw HTML.** For Markdown or extraction per URL, use `spicrawl scrape -`.
-- **No whole-site crawl or sitemap command.** Collect the URLs (for example with `--links`) and scrape or batch the list.
-- **The `curl | sh` installer and Homebrew** are coming soon. Use npm or `go install`.
+Spicrawl is in beta. Coming soon: AI extraction (`--ai`, `--ai-schema`), the cloud browser (`spicrawl browser url`), the managed proxy pool (`--premium-proxy`, `--country`, `--sticky-key`), stealth mode (`--stealth`), the `spicrawl.com/install.sh` installer and Homebrew. Today, batch items return raw HTML, and there is no whole-site crawl or sitemap command: collect URLs with `--links` and scrape or batch the list.
 
 ## FAQ
 
 ### How do I scrape a website from the terminal?
 
-Install the CLI with `npm install -g @spicrawl/cli` (or run it with `npx @spicrawl/cli`), set `SPICRAWL_API_KEY` or run `spicrawl login` once, then run `spicrawl scrape <url>`. Add `--format markdown` for Markdown or `-o file` to save the result.
+Run `npx @spicrawl/cli scrape <url> --format markdown -o page.md` with `SPICRAWL_API_KEY` set.
 
-### How do I convert a web page to Markdown from the command line?
+### How do I save many web pages as Markdown?
 
-Run `spicrawl scrape <url> --format markdown`. The output keeps the main content by default and is ready to paste into an LLM prompt; add `--render` for pages that load their content with JavaScript.
+Put the URLs in a file and run `spicrawl scrape - --format markdown --concurrency 8 < urls.txt > pages.jsonl`. To collect a page's links first, run `spicrawl scrape <url> --links --json | jq -r '.links[]'`; there is no whole-site crawl command yet.
 
-### How do I save a website as Markdown from the command line?
+### How many URLs can one batch job take?
 
-Run `spicrawl scrape <url> --format markdown -o page.md` for one page. For many pages, put the URLs in a file and run `spicrawl scrape - --format markdown --concurrency 8 < urls.txt > pages.jsonl`; collect a page's links first with `spicrawl scrape <url> --links --json | jq -r '.links[]'`. There is no whole-site crawl command yet.
+Up to 10,000 URLs, and 1 MiB of request body, per `spicrawl batch submit`. A job created with `--open` accepts more items through `spicrawl batch append` until `spicrawl batch close`.
 
-### How do I scrape many URLs at once?
+### Does it render JavaScript?
 
-`spicrawl scrape - --concurrency 8 < urls.txt` scrapes a list in parallel from your machine, with every scrape flag available. For a large list that should keep running without your process, use `spicrawl batch submit urls.txt --wait` (up to 10,000 URLs per job), then `spicrawl batch results <id> --all -o results.jsonl`. Batch items currently return raw HTML.
+Yes: add `--render` to run the page in a browser, and `--wait-for '<css selector>'` to wait for the content. `--engine chromium` pins real Chromium, which screenshots and PDF need.
 
-### Can AI agents like Claude Code or Cursor use it?
+### Is Spicrawl free?
 
-Yes. Run `spicrawl init` to add the hosted MCP server and the agent skill to Claude Code, Cursor, VS Code or Codex. Agents can also call `spicrawl` directly from a shell: its output is JSON when piped and its exit codes are stable. See the [MCP guide](https://docs.spicrawl.com/agents/mcp).
+Spicrawl is priced in credits: each successful request draws on your organization's monthly credit allowance. The [credits page](https://docs.spicrawl.com/credits) lists 1 credit for a plain fetch, 3 with `--render` and 8 with `--engine chromium`; failed requests cost 0, and a cache hit is billed at the price of the fetch that stored it. `spicrawl usage summary` shows the current period against your allowance.
 
-### When should I use the CLI, the SDK or the MCP server?
+### Does it work with Claude Code, Cursor, Codex and VS Code?
 
-In a terminal, a shell script or CI, use the CLI. In Node.js or TypeScript code, use [`@spicrawl/sdk`](https://github.com/Spicrawl/sdk). For an AI agent that talks MCP, use the [hosted MCP server](https://docs.spicrawl.com/agents/mcp); `spicrawl init` sets it up for you.
+Yes: `spicrawl init` adds the hosted MCP server and the agent skill to all four. Agents can also call `spicrawl` from a shell, since its output is JSON when piped and its exit codes are stable.
+
+### Is there a hosted MCP server?
+
+Yes: `https://mcp.spicrawl.com/mcp`, authenticated with an `Authorization: Bearer <API key>` header, serving 25 `spicrawl_*` tools. The same tools run locally with `npx -y @spicrawl/mcp`; see [Spicrawl/mcp](https://github.com/Spicrawl/mcp) and the [MCP guide](https://docs.spicrawl.com/agents/mcp).
 
 ### Is the Spicrawl CLI open source?
 
 Yes. It is licensed under Apache-2.0, and the source is at [github.com/Spicrawl/cli](https://github.com/Spicrawl/cli).
 
-### Does it need Node.js?
-
-Only to install it from npm. The npm package is a small Node.js launcher (Node 16 or later) that runs a prebuilt native binary; the scraping runs in that binary. `go install` and the release archives need no Node.js at all.
-
-### Where is my API key stored?
-
-In a config file written with mode 0600, at `~/.config/spicrawl/config.json` on Linux (run `spicrawl config path` to see yours). Set `SPICRAWL_API_KEY` to skip the file entirely, or `SPICRAWL_CONFIG` to move it.
-
 ### How do I use it in CI?
 
-Set `SPICRAWL_API_KEY` as a secret environment variable and call `spicrawl` directly. Output is JSON when piped and exit codes are stable (`spicrawl exit-codes`), so a step can fail or branch on a specific error class.
-
-### Can I use my own proxy?
-
-Yes. Pass `--proxy <url>` to `spicrawl scrape` or `spicrawl batch submit`; on `scrape`, add `--proxy-verify` to check it before the request runs. The managed proxy pool is coming soon.
-
-### Which platforms are supported?
-
-Linux, macOS and Windows, each on x64 and arm64. The single `@spicrawl/cli` package bundles a binary for all six, and the launcher picks the right one at run time.
-
-### Why does `spicrawl` say there is no prebuilt binary?
-
-Your operating system or CPU is not one of the six bundled targets. Build it with `go install github.com/Spicrawl/cli/cmd/spicrawl@latest`, or point `SPICRAWL_BINARY` at a binary you already have.
-
-### Is there a JavaScript or TypeScript SDK?
-
-Yes: [`@spicrawl/sdk`](https://www.npmjs.com/package/@spicrawl/sdk) ([GitHub](https://github.com/Spicrawl/sdk)) calls the same API from Node.js code.
+Export the key from your CI secret store as `SPICRAWL_API_KEY` (nothing is written to disk) and call `spicrawl` directly. Output is JSON when piped and exit codes are stable (`spicrawl exit-codes`), so a step can fail or branch on a specific error class.
 
 ## Related
 
@@ -379,11 +361,13 @@ Yes: [`@spicrawl/sdk`](https://www.npmjs.com/package/@spicrawl/sdk) ([GitHub](ht
 |---|---|---|
 | [`@spicrawl/cli`](https://www.npmjs.com/package/@spicrawl/cli) ([GitHub](https://github.com/Spicrawl/cli)) | [![npm](https://img.shields.io/npm/v/@spicrawl/cli.svg)](https://www.npmjs.com/package/@spicrawl/cli) | [![downloads](https://img.shields.io/npm/dm/@spicrawl/cli.svg)](https://www.npmjs.com/package/@spicrawl/cli) |
 | [`@spicrawl/sdk`](https://www.npmjs.com/package/@spicrawl/sdk) ([GitHub](https://github.com/Spicrawl/sdk)) | [![npm](https://img.shields.io/npm/v/@spicrawl/sdk.svg)](https://www.npmjs.com/package/@spicrawl/sdk) | [![downloads](https://img.shields.io/npm/dm/@spicrawl/sdk.svg)](https://www.npmjs.com/package/@spicrawl/sdk) |
+| [`@spicrawl/mcp`](https://www.npmjs.com/package/@spicrawl/mcp) ([GitHub](https://github.com/Spicrawl/mcp)) | [![npm](https://img.shields.io/npm/v/@spicrawl/mcp.svg)](https://www.npmjs.com/package/@spicrawl/mcp) | [![downloads](https://img.shields.io/npm/dm/@spicrawl/mcp.svg)](https://www.npmjs.com/package/@spicrawl/mcp) |
 
 The versions and downloads are read live from the npm registry.
 
 - TypeScript SDK: [@spicrawl/sdk on npm](https://www.npmjs.com/package/@spicrawl/sdk) and [on GitHub](https://github.com/Spicrawl/sdk)
-- MCP server for AI agents: https://docs.spicrawl.com/agents/mcp
+- MCP server for AI agents: [@spicrawl/mcp on npm](https://www.npmjs.com/package/@spicrawl/mcp) and [on GitHub](https://github.com/Spicrawl/mcp); guide at https://docs.spicrawl.com/agents/mcp
+- Agent plugins for Claude Code, Codex, Cursor, Gemini CLI and more: https://github.com/Spicrawl/agent-plugins
 - Agent skill: https://docs.spicrawl.com/agents/skill
 - CLI documentation: https://docs.spicrawl.com/cli/overview
 - Full documentation: https://docs.spicrawl.com
