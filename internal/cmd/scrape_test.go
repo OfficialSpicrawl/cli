@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Spicrawl/cli/internal/output"
+	"github.com/OfficialSpicrawl/cli/internal/output"
 )
 
 // scrapeRunCLI wraps runCLI. cobra only gives a subcommand the root's

@@ -9,7 +9,7 @@ package main
 import (
 	"os"
 
-	"github.com/Spicrawl/cli/internal/cmd"
+	"github.com/OfficialSpicrawl/cli/internal/cmd"
 )
 
 func main() {

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Spicrawl/cli/internal/config"
+	"github.com/OfficialSpicrawl/cli/internal/config"
 )
 
 // authRun is runCLI with control over the config path and env key, so a test

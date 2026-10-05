@@ -4,10 +4,10 @@ The Spicrawl CLI is a command-line web scraper that turns any URL into Markdown,
 
 [![npm version](https://img.shields.io/npm/v/@spicrawl/cli.svg)](https://www.npmjs.com/package/@spicrawl/cli)
 [![npm downloads](https://img.shields.io/npm/dm/@spicrawl/cli.svg)](https://www.npmjs.com/package/@spicrawl/cli)
-[![license: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/Spicrawl/cli/blob/main/LICENSE)
-[![release](https://github.com/Spicrawl/cli/actions/workflows/release.yml/badge.svg)](https://github.com/Spicrawl/cli/actions/workflows/release.yml)
+[![license: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/OfficialSpicrawl/cli/blob/main/LICENSE)
+[![release](https://github.com/OfficialSpicrawl/cli/actions/workflows/release.yml/badge.svg)](https://github.com/OfficialSpicrawl/cli/actions/workflows/release.yml)
 
-[Docs](https://docs.spicrawl.com/cli/overview) · [Get an API key](https://app.spicrawl.com/signup) · [TypeScript SDK](https://github.com/Spicrawl/sdk) · [MCP server](https://github.com/Spicrawl/mcp) · [Agent plugins](https://github.com/Spicrawl/agent-plugins)
+[Docs](https://docs.spicrawl.com/cli/overview) · [Get an API key](https://app.spicrawl.com/signup) · [TypeScript SDK](https://github.com/OfficialSpicrawl/sdk) · [MCP server](https://github.com/OfficialSpicrawl/mcp) · [Agent plugins](https://github.com/OfficialSpicrawl/agent-plugins)
 
 ## Quickstart: scrape a web page to Markdown
 
@@ -68,24 +68,24 @@ npx @spicrawl/cli --help       # or run it without installing
 ### Install script from GitHub (Linux, macOS)
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/Spicrawl/cli/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/OfficialSpicrawl/cli/main/install.sh | sh
 ```
 
 It downloads the archive for your OS and CPU from the latest GitHub release, checks its SHA-256 against `checksums.txt`, and installs `spicrawl` into `~/.local/bin` (`SPICRAWL_INSTALL_DIR` changes it; `SPICRAWL_VERSION=v0.1.1` pins a release). It never prompts and never uses `sudo`.
 
 ### GitHub releases (prebuilt archives)
 
-Every [GitHub release](https://github.com/Spicrawl/cli/releases) has `spicrawl_<os>_<arch>.tar.gz` (`.zip` on Windows) for `linux`, `darwin` and `windows` on `amd64` and `arm64`, plus `checksums.txt`. The names carry no version, so the latest is always at the same URL:
+Every [GitHub release](https://github.com/OfficialSpicrawl/cli/releases) has `spicrawl_<os>_<arch>.tar.gz` (`.zip` on Windows) for `linux`, `darwin` and `windows` on `amd64` and `arm64`, plus `checksums.txt`. The names carry no version, so the latest is always at the same URL:
 
 ```sh
-curl -fsSL https://github.com/Spicrawl/cli/releases/latest/download/spicrawl_linux_amd64.tar.gz | tar -xz spicrawl
+curl -fsSL https://github.com/OfficialSpicrawl/cli/releases/latest/download/spicrawl_linux_amd64.tar.gz | tar -xz spicrawl
 ./spicrawl version
 ```
 
 ### go install (Go 1.27.1 or later)
 
 ```sh
-go install github.com/Spicrawl/cli/cmd/spicrawl@latest
+go install github.com/OfficialSpicrawl/cli/cmd/spicrawl@latest
 ```
 
 A binary built this way reports its version as `dev`.
@@ -138,7 +138,7 @@ There is no uninstall command. Remove the `spicrawl` entry from each MCP config 
 
 </details>
 
-For other clients (Gemini CLI, OpenCode, Factory Droid, Devin and more) use the plugins in [Spicrawl/agent-plugins](https://github.com/Spicrawl/agent-plugins). More in the [agent setup guide](https://docs.spicrawl.com/cli/agent-setup).
+For other clients (Gemini CLI, OpenCode, Factory Droid, Devin and more) use the plugins in [OfficialSpicrawl/agent-plugins](https://github.com/OfficialSpicrawl/agent-plugins). More in the [agent setup guide](https://docs.spicrawl.com/cli/agent-setup).
 
 ## Commands
 
@@ -259,9 +259,9 @@ All four call the same Spicrawl API with the same API key and the same credits.
 | You are... | Use | Get it |
 |---|---|---|
 | In a terminal, a shell script or a CI job | The Spicrawl CLI | `npm install -g @spicrawl/cli` |
-| Writing Node.js or TypeScript code | The Spicrawl TypeScript SDK | [`@spicrawl/sdk`](https://www.npmjs.com/package/@spicrawl/sdk) ([GitHub](https://github.com/Spicrawl/sdk)) |
-| An AI agent or MCP client that should call scraping as tools | The Spicrawl MCP server (25 `spicrawl_*` tools) | Hosted at `https://mcp.spicrawl.com/mcp`, or local with `npx -y @spicrawl/mcp` ([`@spicrawl/mcp`](https://www.npmjs.com/package/@spicrawl/mcp), [GitHub](https://github.com/Spicrawl/mcp)) |
-| Installing Spicrawl as a plugin in Claude Code, Codex, Cursor, Gemini CLI or another agent | The Spicrawl agent plugins | [Spicrawl/agent-plugins](https://github.com/Spicrawl/agent-plugins) |
+| Writing Node.js or TypeScript code | The Spicrawl TypeScript SDK | [`@spicrawl/sdk`](https://www.npmjs.com/package/@spicrawl/sdk) ([GitHub](https://github.com/OfficialSpicrawl/sdk)) |
+| An AI agent or MCP client that should call scraping as tools | The Spicrawl MCP server (25 `spicrawl_*` tools) | Hosted at `https://mcp.spicrawl.com/mcp`, or local with `npx -y @spicrawl/mcp` ([`@spicrawl/mcp`](https://www.npmjs.com/package/@spicrawl/mcp), [GitHub](https://github.com/OfficialSpicrawl/mcp)) |
+| Installing Spicrawl as a plugin in Claude Code, Codex, Cursor, Gemini CLI or another agent | The Spicrawl agent plugins | [OfficialSpicrawl/agent-plugins](https://github.com/OfficialSpicrawl/agent-plugins) |
 | Any other language, or full control over the HTTP request | The REST API | `https://api.spicrawl.com`, documented in the [quickstart](https://docs.spicrawl.com/quickstart) |
 
 - If you want an agent to use Spicrawl with the least setup, run `spicrawl init`: it writes the MCP config and the skill for you.
@@ -345,11 +345,11 @@ Yes: `spicrawl init` adds the hosted MCP server and the agent skill to all four.
 
 ### Is there a hosted MCP server?
 
-Yes: `https://mcp.spicrawl.com/mcp`, authenticated with an `Authorization: Bearer <API key>` header, serving 25 `spicrawl_*` tools. The same tools run locally with `npx -y @spicrawl/mcp`; see [Spicrawl/mcp](https://github.com/Spicrawl/mcp) and the [MCP guide](https://docs.spicrawl.com/agents/mcp).
+Yes: `https://mcp.spicrawl.com/mcp`, authenticated with an `Authorization: Bearer <API key>` header, serving 25 `spicrawl_*` tools. The same tools run locally with `npx -y @spicrawl/mcp`; see [OfficialSpicrawl/mcp](https://github.com/OfficialSpicrawl/mcp) and the [MCP guide](https://docs.spicrawl.com/agents/mcp).
 
 ### Is the Spicrawl CLI open source?
 
-Yes. It is licensed under Apache-2.0, and the source is at [github.com/Spicrawl/cli](https://github.com/Spicrawl/cli).
+Yes. It is licensed under Apache-2.0, and the source is at [github.com/OfficialSpicrawl/cli](https://github.com/OfficialSpicrawl/cli).
 
 ### How do I use it in CI?
 
@@ -359,20 +359,20 @@ Export the key from your CI secret store as `SPICRAWL_API_KEY` (nothing is writt
 
 | Package | Latest version | Downloads |
 |---|---|---|
-| [`@spicrawl/cli`](https://www.npmjs.com/package/@spicrawl/cli) ([GitHub](https://github.com/Spicrawl/cli)) | [![npm](https://img.shields.io/npm/v/@spicrawl/cli.svg)](https://www.npmjs.com/package/@spicrawl/cli) | [![downloads](https://img.shields.io/npm/dm/@spicrawl/cli.svg)](https://www.npmjs.com/package/@spicrawl/cli) |
-| [`@spicrawl/sdk`](https://www.npmjs.com/package/@spicrawl/sdk) ([GitHub](https://github.com/Spicrawl/sdk)) | [![npm](https://img.shields.io/npm/v/@spicrawl/sdk.svg)](https://www.npmjs.com/package/@spicrawl/sdk) | [![downloads](https://img.shields.io/npm/dm/@spicrawl/sdk.svg)](https://www.npmjs.com/package/@spicrawl/sdk) |
-| [`@spicrawl/mcp`](https://www.npmjs.com/package/@spicrawl/mcp) ([GitHub](https://github.com/Spicrawl/mcp)) | [![npm](https://img.shields.io/npm/v/@spicrawl/mcp.svg)](https://www.npmjs.com/package/@spicrawl/mcp) | [![downloads](https://img.shields.io/npm/dm/@spicrawl/mcp.svg)](https://www.npmjs.com/package/@spicrawl/mcp) |
+| [`@spicrawl/cli`](https://www.npmjs.com/package/@spicrawl/cli) ([GitHub](https://github.com/OfficialSpicrawl/cli)) | [![npm](https://img.shields.io/npm/v/@spicrawl/cli.svg)](https://www.npmjs.com/package/@spicrawl/cli) | [![downloads](https://img.shields.io/npm/dm/@spicrawl/cli.svg)](https://www.npmjs.com/package/@spicrawl/cli) |
+| [`@spicrawl/sdk`](https://www.npmjs.com/package/@spicrawl/sdk) ([GitHub](https://github.com/OfficialSpicrawl/sdk)) | [![npm](https://img.shields.io/npm/v/@spicrawl/sdk.svg)](https://www.npmjs.com/package/@spicrawl/sdk) | [![downloads](https://img.shields.io/npm/dm/@spicrawl/sdk.svg)](https://www.npmjs.com/package/@spicrawl/sdk) |
+| [`@spicrawl/mcp`](https://www.npmjs.com/package/@spicrawl/mcp) ([GitHub](https://github.com/OfficialSpicrawl/mcp)) | [![npm](https://img.shields.io/npm/v/@spicrawl/mcp.svg)](https://www.npmjs.com/package/@spicrawl/mcp) | [![downloads](https://img.shields.io/npm/dm/@spicrawl/mcp.svg)](https://www.npmjs.com/package/@spicrawl/mcp) |
 
 The versions and downloads are read live from the npm registry.
 
-- TypeScript SDK: [@spicrawl/sdk on npm](https://www.npmjs.com/package/@spicrawl/sdk) and [on GitHub](https://github.com/Spicrawl/sdk)
-- MCP server for AI agents: [@spicrawl/mcp on npm](https://www.npmjs.com/package/@spicrawl/mcp) and [on GitHub](https://github.com/Spicrawl/mcp); guide at https://docs.spicrawl.com/agents/mcp
-- Agent plugins for Claude Code, Codex, Cursor, Gemini CLI and more: https://github.com/Spicrawl/agent-plugins
+- TypeScript SDK: [@spicrawl/sdk on npm](https://www.npmjs.com/package/@spicrawl/sdk) and [on GitHub](https://github.com/OfficialSpicrawl/sdk)
+- MCP server for AI agents: [@spicrawl/mcp on npm](https://www.npmjs.com/package/@spicrawl/mcp) and [on GitHub](https://github.com/OfficialSpicrawl/mcp); guide at https://docs.spicrawl.com/agents/mcp
+- Agent plugins for Claude Code, Codex, Cursor, Gemini CLI and more: https://github.com/OfficialSpicrawl/agent-plugins
 - Agent skill: https://docs.spicrawl.com/agents/skill
 - CLI documentation: https://docs.spicrawl.com/cli/overview
 - Full documentation: https://docs.spicrawl.com
 - Docs index for LLMs: https://docs.spicrawl.com/llms.txt
-- Issues and feature requests: https://github.com/Spicrawl/cli/issues
+- Issues and feature requests: https://github.com/OfficialSpicrawl/cli/issues
 
 ## Development
 
@@ -384,10 +384,10 @@ make npm        # lay out the npm package in dist/npm/cli/ from the snapshot
 make spec       # refresh openapi.yaml from the docs site
 ```
 
-The design and the contract agents rely on are in [DESIGN.md](https://github.com/Spicrawl/cli/blob/main/DESIGN.md); the API wire contract is [openapi.yaml](https://github.com/Spicrawl/cli/blob/main/openapi.yaml).
+The design and the contract agents rely on are in [DESIGN.md](https://github.com/OfficialSpicrawl/cli/blob/main/DESIGN.md); the API wire contract is [openapi.yaml](https://github.com/OfficialSpicrawl/cli/blob/main/openapi.yaml).
 
-**Releasing:** bump `"version"` in [`npm/package.json`](https://github.com/Spicrawl/cli/blob/main/npm/package.json) and merge to main. When npm does not have that version yet, the [release workflow](https://github.com/Spicrawl/cli/blob/main/.github/workflows/release.yml) runs the tests, tags the commit `vX.Y.Z`, builds the six binaries with GoReleaser, creates the GitHub release with the archives and `checksums.txt`, and publishes `@spicrawl/cli` to npm. No manual tag is needed.
+**Releasing:** bump `"version"` in [`npm/package.json`](https://github.com/OfficialSpicrawl/cli/blob/main/npm/package.json) and merge to main. When npm does not have that version yet, the [release workflow](https://github.com/OfficialSpicrawl/cli/blob/main/.github/workflows/release.yml) runs the tests, tags the commit `vX.Y.Z`, builds the six binaries with GoReleaser, creates the GitHub release with the archives and `checksums.txt`, and publishes `@spicrawl/cli` to npm. No manual tag is needed.
 
 ## License
 
-Apache-2.0. See [LICENSE](https://github.com/Spicrawl/cli/blob/main/LICENSE).
+Apache-2.0. See [LICENSE](https://github.com/OfficialSpicrawl/cli/blob/main/LICENSE).

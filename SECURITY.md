@@ -4,8 +4,8 @@ Please don't report security problems in public issues.
 
 ## Reporting a vulnerability
 
-- **In this repository (the `spicrawl` CLI and `@spicrawl/cli`):** report it privately with [GitHub private vulnerability reporting](https://github.com/Spicrawl/cli/security/advisories/new).
-- **In the Spicrawl service** (spicrawl.com, app.spicrawl.com, api.spicrawl.com, docs.spicrawl.com or mcp.spicrawl.com): email support@spicrawl.com with "Security" in the subject. The service's disclosure policy is at https://spicrawl.com/security.
+- **In this repository (the `spicrawl` CLI and `@spicrawl/cli`):** report it privately with [GitHub private vulnerability reporting](https://github.com/OfficialSpicrawl/cli/security/advisories/new).
+- **In the Spicrawl service** (spicrawl.com, app.spicrawl.com, api.spicrawl.com, docs.spicrawl.com or mcp.spicrawl.com): email support@spicrawl.com with "Security" in the subject.
 
 Include what you found, steps to reproduce it, the affected version (`spicrawl version`) and the impact you expect. We'll acknowledge the report, keep you updated while we fix it, and credit you in the release notes if you'd like.
 

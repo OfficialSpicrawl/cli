@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Spicrawl/cli/internal/config"
+	"github.com/OfficialSpicrawl/cli/internal/config"
 )
 
 // docsServer serves a docs site at the root of its host, the way

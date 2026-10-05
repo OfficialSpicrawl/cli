@@ -18,9 +18,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Spicrawl/cli/internal/api"
-	"github.com/Spicrawl/cli/internal/exitcode"
-	"github.com/Spicrawl/cli/internal/output"
+	"github.com/OfficialSpicrawl/cli/internal/api"
+	"github.com/OfficialSpicrawl/cli/internal/exitcode"
+	"github.com/OfficialSpicrawl/cli/internal/output"
 )
 
 var (

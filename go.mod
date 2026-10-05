@@ -1,4 +1,4 @@
-module github.com/Spicrawl/cli
+module github.com/OfficialSpicrawl/cli
 
 go 1.27.1
 

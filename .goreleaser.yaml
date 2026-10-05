@@ -29,7 +29,7 @@ builds:
     flags:
       - -trimpath
     ldflags:
-      - -s -w -X github.com/Spicrawl/cli/internal/api.Version={{ .Version }}
+      - -s -w -X github.com/OfficialSpicrawl/cli/internal/api.Version={{ .Version }}
     mod_timestamp: "{{ .CommitTimestamp }}"
 
 archives:
@@ -61,7 +61,7 @@ changelog:
 
 release:
   github:
-    owner: Spicrawl
+    owner: OfficialSpicrawl
     name: cli
   draft: false
   prerelease: auto

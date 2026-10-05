@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Spicrawl/cli/internal/config"
+	"github.com/OfficialSpicrawl/cli/internal/config"
 )
 
 // configCmdKeys are the settable keys, in display order.

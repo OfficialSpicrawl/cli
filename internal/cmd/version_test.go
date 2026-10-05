@@ -4,7 +4,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/Spicrawl/cli/internal/api"
+	"github.com/OfficialSpicrawl/cli/internal/api"
 )
 
 func TestVersionJSON(t *testing.T) {

@@ -12,7 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Spicrawl/cli/internal/api"
+	"github.com/OfficialSpicrawl/cli/internal/api"
 )
 
 var (

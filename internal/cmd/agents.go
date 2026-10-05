@@ -34,8 +34,8 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/Spicrawl/cli/internal/config"
-	"github.com/Spicrawl/cli/internal/output"
+	"github.com/OfficialSpicrawl/cli/internal/config"
+	"github.com/OfficialSpicrawl/cli/internal/output"
 )
 
 const (

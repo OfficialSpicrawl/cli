@@ -11,7 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Spicrawl/cli/internal/config"
+	"github.com/OfficialSpicrawl/cli/internal/config"
 )
 
 var mcpFlags struct {

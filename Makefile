@@ -3,7 +3,7 @@
 .DEFAULT_GOAL := help
 .PHONY: help build test lint fmt install snapshot npm spec schema clean
 
-PKG      := github.com/Spicrawl/cli
+PKG      := github.com/OfficialSpicrawl/cli
 VERSION  ?= $(shell git describe --tags --always --dirty 2>/dev/null | sed 's/^v//' || echo dev)
 LDFLAGS  := -s -w -X $(PKG)/internal/api.Version=$(VERSION)
 GOFLAGS  := -trimpath

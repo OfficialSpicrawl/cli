@@ -14,8 +14,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
-	"github.com/Spicrawl/cli/internal/api"
-	"github.com/Spicrawl/cli/internal/output"
+	"github.com/OfficialSpicrawl/cli/internal/api"
+	"github.com/OfficialSpicrawl/cli/internal/output"
 )
 
 // batchSubmitScrapeFlags are the scrape flags "batch submit" registers: only

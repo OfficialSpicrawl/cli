@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Spicrawl/cli/internal/schema"
+	"github.com/OfficialSpicrawl/cli/internal/schema"
 )
 
 var schemaList bool

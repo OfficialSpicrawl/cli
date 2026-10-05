@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Spicrawl/cli/internal/exitcode"
+	"github.com/OfficialSpicrawl/cli/internal/exitcode"
 )
 
 func TestExitCodesJSON(t *testing.T) {

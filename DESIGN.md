@@ -80,7 +80,7 @@ skill's `api.spicrawl.com` / `mcp.spicrawl.com` / `docs.spicrawl.com` links
 ## Code layout
 
 ```
-cmd/spicrawl/main.go  entry point (go install github.com/Spicrawl/cli/cmd/spicrawl@latest)
+cmd/spicrawl/main.go  entry point (go install github.com/OfficialSpicrawl/cli/cmd/spicrawl@latest)
 internal/api        HTTP client, Problem, DoWithRetry
 internal/config     key/base resolution, config file
 internal/exitcode   exit codes

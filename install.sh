@@ -19,7 +19,7 @@ set -eu
 
 # The GitHub repo that hosts the release archives. Must match
 # release.github in .goreleaser.yaml.
-SPICRAWL_REPO="${SPICRAWL_REPO:-Spicrawl/cli}"
+SPICRAWL_REPO="${SPICRAWL_REPO:-OfficialSpicrawl/cli}"
 SPICRAWL_VERSION="${SPICRAWL_VERSION:-latest}"
 INSTALL_DIR="${SPICRAWL_INSTALL_DIR:-${HOME}/.local/bin}"
 
