@@ -71,7 +71,7 @@ npx @spicrawl/cli --help       # or run it without installing
 curl -fsSL https://raw.githubusercontent.com/OfficialSpicrawl/cli/main/install.sh | sh
 ```
 
-It downloads the archive for your OS and CPU from the latest GitHub release, checks its SHA-256 against `checksums.txt`, and installs `spicrawl` into `~/.local/bin` (`SPICRAWL_INSTALL_DIR` changes it; `SPICRAWL_VERSION=v0.1.1` pins a release). It never prompts and never uses `sudo`.
+It downloads the archive for your OS and CPU from the latest GitHub release, checks its SHA-256 against `checksums.txt`, and installs `spicrawl` into `~/.local/bin` (`SPICRAWL_INSTALL_DIR` changes it; `SPICRAWL_VERSION=v0.1.3` pins a release). It never prompts and never uses `sudo`.
 
 ### GitHub releases (prebuilt archives)
 
@@ -97,7 +97,7 @@ A binary built this way reports its version as `dev`.
 ### Check the install
 
 ```sh
-spicrawl version   # spicrawl 0.1.1 (go1.27.1, linux/amd64)
+spicrawl version   # spicrawl 0.1.3 (go1.27.1, linux/amd64)
 ```
 
 `spicrawl version --json` prints the same as `{version, go, os, arch}`. If the npm launcher says there is no prebuilt binary, your OS or CPU is not one of the 6 targets: use `go install`, or point `SPICRAWL_BINARY` at a binary you already have.
