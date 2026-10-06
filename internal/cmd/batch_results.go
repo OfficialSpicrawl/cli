@@ -89,7 +89,7 @@ func batchRunResults(cmd *cobra.Command, args []string) error {
 
 	raw := p.JSON || batchResultsOut != ""
 	var w io.Writer
-	closeOut := func() error { return nil }
+	closeOut := func(bool) error { return nil }
 	if raw {
 		if w, closeOut, err = batchOpenOut(batchResultsOut); err != nil {
 			return err
@@ -106,7 +106,7 @@ func batchRunResults(cmd *cobra.Command, args []string) error {
 		}
 		resp, err := c.DoWithRetry(cmd.Context(), api.Request{Path: path, Query: q, Accept: "application/x-ndjson"}, 3)
 		if err != nil {
-			_ = closeOut()
+			_ = closeOut(false)
 			return err
 		}
 		body := resp.Body
@@ -115,7 +115,7 @@ func batchRunResults(cmd *cobra.Command, args []string) error {
 				body = append(body, '\n')
 			}
 			if _, err := w.Write(body); err != nil {
-				_ = closeOut()
+				_ = closeOut(false)
 				return err
 			}
 			lines += bytes.Count(body, []byte{'\n'})
@@ -132,7 +132,7 @@ func batchRunResults(cmd *cobra.Command, args []string) error {
 		}
 		cursor = next
 	}
-	if err := closeOut(); err != nil {
+	if err := closeOut(true); err != nil {
 		return err
 	}
 
@@ -253,10 +253,10 @@ func batchRunContent(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if _, err := w.Write(doc); err != nil {
-		_ = closeOut()
+		_ = closeOut(false)
 		return err
 	}
-	if err := closeOut(); err != nil {
+	if err := closeOut(true); err != nil {
 		return err
 	}
 	if batchContentOut != "" && batchContentOut != "-" {

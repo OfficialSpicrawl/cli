@@ -1,11 +1,13 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -21,6 +23,7 @@ var mcpFlags struct {
 	url    string
 	useEnv bool
 	dir    string
+	force  bool
 }
 
 var mcpCmd = &cobra.Command{
@@ -33,7 +36,12 @@ var mcpInstallCmd = &cobra.Command{
 	Short: "Add the hosted Spicrawl MCP server to a client's config",
 	Long: `Merge a "spicrawl" server entry into an agent client's MCP config, keeping
 every other server and key in the file. Re-running is safe: an entry that is
-already correct is reported as unchanged.
+already correct is reported as unchanged. A file that is changed is first copied
+to <file>.bak, and a symlinked config is written through to its target. An
+existing "spicrawl" entry that differs from the one to write (say, one you
+customised) is not replaced unless you pass --force; the difference is shown.
+VS Code files may be JSONC (comments, trailing commas); comments do not survive
+a rewrite, so a warning is printed and the .bak copy keeps them.
 
 The server URL is --mcp-url, else $SPICRAWL_MCP_URL, else <API origin>/mcp, where
 the API origin is the scheme and host of the resolved base URL (--base-url,
@@ -69,6 +77,7 @@ func init() {
 	f.StringVar(&mcpFlags.url, "mcp-url", "", "MCP server URL (default: $"+agentEnvMCPURL+", then <API origin>/mcp from the base URL; "+agentPublicMCPURL+" for the hosted API)")
 	f.BoolVar(&mcpFlags.useEnv, "use-env", true, "reference $SPICRAWL_API_KEY instead of embedding the key, where the client supports it")
 	f.StringVar(&mcpFlags.dir, "dir", "", "project directory (default: current directory)")
+	f.BoolVar(&mcpFlags.force, "force", false, "replace an existing spicrawl entry that differs from the one to write")
 	mcpCmd.AddCommand(mcpInstallCmd)
 	rootCmd.AddCommand(mcpCmd)
 }
@@ -79,6 +88,7 @@ type mcpOptions struct {
 	UseEnv bool
 	Key    string // literal key, used only when an entry must embed it
 	Print  bool
+	Force  bool // replace an existing spicrawl entry that differs
 }
 
 func runMCPInstall(cmd *cobra.Command, _ []string) error {
@@ -96,7 +106,7 @@ func runMCPInstall(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	key, _ := agentAPIKey()
-	opt := mcpOptions{URL: ep.MCP, UseEnv: mcpFlags.useEnv, Key: key, Print: mcpFlags.print}
+	opt := mcpOptions{URL: ep.MCP, UseEnv: mcpFlags.useEnv, Key: key, Print: mcpFlags.print, Force: mcpFlags.force}
 
 	if mcpFlags.print {
 		return mcpPrint(p.JSON, clients, s, opt)
@@ -237,9 +247,9 @@ func mcpMergeJSON(c *agentClient, path string, s agentScope, opt mcpOptions) ([]
 	if err != nil && !os.IsNotExist(err) {
 		return nil, secret, false, fmt.Errorf("read %s: %w", path, err)
 	}
-	root, err := agentParseObject(old)
+	root, lossy, err := mcpParseConfig(old)
 	if err != nil {
-		return nil, secret, false, fmt.Errorf("parse %s: %v (it must be plain JSON without comments; fix it or merge the output of --print by hand)", path, err)
+		return nil, secret, false, fmt.Errorf("parse %s: %v (fix it or merge the output of --print by hand)", path, err)
 	}
 	serversKey := "mcpServers"
 	if c.MCPFormat == agentVSCodeJSON {
@@ -254,6 +264,11 @@ func mcpMergeJSON(c *agentClient, path string, s agentScope, opt mcpOptions) ([]
 	desired := agentRaw(entry)
 	current, had := servers.get(agentServerName)
 	changed := !had || !agentJSONEqual(current, desired)
+	if had && changed && !opt.Force {
+		o, _ := agentIndent(current)
+		n, _ := agentIndent(desired)
+		return nil, secret, false, mcpRefuse(path, string(o), string(n))
+	}
 	servers.set(agentServerName, desired)
 	root.set(serversKey, agentRaw(servers))
 
@@ -283,8 +298,114 @@ func mcpMergeJSON(c *agentClient, path string, s agentScope, opt mcpOptions) ([]
 	if !changed {
 		return old, secret, false, nil
 	}
+	if lossy {
+		Printer().Warn("%s has comments, which are dropped when it is rewritten (the original is kept as %s.bak)", path, path)
+	}
 	out, err := agentIndent(root)
 	return out, secret, true, err
+}
+
+// mcpParseConfig parses a client's JSON config. It accepts a UTF-8 BOM and,
+// as VS Code does for mcp.json, comments and trailing commas. lossy reports
+// that comments were present: rewriting the file drops them.
+func mcpParseConfig(b []byte) (root *agentJSONObject, lossy bool, err error) {
+	b = bytes.TrimPrefix(b, []byte("\xef\xbb\xbf"))
+	if root, err = agentParseObject(b); err == nil {
+		return root, false, nil
+	}
+	clean, comments := mcpStripJSONC(b)
+	if root2, err2 := agentParseObject(clean); err2 == nil {
+		return root2, comments, nil
+	}
+	return nil, false, err
+}
+
+// mcpStripJSONC removes // and /* */ comments and trailing commas, leaving
+// string contents alone, and reports whether it removed a comment.
+func mcpStripJSONC(b []byte) ([]byte, bool) {
+	out := make([]byte, 0, len(b))
+	comment, comma := false, -1 // comma: index in out of a comma not yet followed by a value
+	for i := 0; i < len(b); i++ {
+		c := b[i]
+		switch {
+		case c == '"':
+			j := i + 1
+			for j < len(b) && b[j] != '"' {
+				if b[j] == '\\' {
+					j++
+				}
+				j++
+			}
+			j = min(j, len(b)-1)
+			out, i, comma = append(out, b[i:j+1]...), j, -1
+		case c == '/' && i+1 < len(b) && b[i+1] == '/':
+			for i < len(b) && b[i] != '\n' {
+				i++
+			}
+			i--
+			comment = true
+		case c == '/' && i+1 < len(b) && b[i+1] == '*':
+			end := bytes.Index(b[i+2:], []byte("*/"))
+			if end < 0 {
+				return b, false // unterminated: let the parser report it
+			}
+			i += end + 3
+			comment = true
+		case c == ',':
+			comma = len(out)
+			out = append(out, c)
+		case c == '}' || c == ']':
+			if comma >= 0 {
+				out[comma] = ' '
+			}
+			out, comma = append(out, c), -1
+		case c == ' ' || c == '\t' || c == '\n' || c == '\r':
+			out = append(out, c)
+		default:
+			out, comma = append(out, c), -1
+		}
+	}
+	return out, comment
+}
+
+// mcpKeyRE matches a literal bearer token (not a ${VAR} or <PLACEHOLDER>).
+var mcpKeyRE = regexp.MustCompile(`(?i)(bearer )[^"'$<\s][^"'\s]*`)
+
+// mcpRefuse is the error for an existing spicrawl entry that differs from the
+// one we would write: it shows the difference briefly, with API keys masked.
+func mcpRefuse(path, oldText, newText string) error {
+	norm := func(t string) (lines []string) {
+		for _, l := range strings.Split(t, "\n") {
+			if l = strings.TrimRight(l, ", \t\r"); strings.TrimSpace(l) != "" {
+				lines = append(lines, l)
+			}
+		}
+		return
+	}
+	o, n := norm(oldText), norm(newText)
+	has := func(ls []string, l string) bool {
+		for _, x := range ls {
+			if x == l {
+				return true
+			}
+		}
+		return false
+	}
+	var d []string
+	for _, l := range o {
+		if !has(n, l) {
+			d = append(d, "  - "+mcpKeyRE.ReplaceAllString(l, "${1}****"))
+		}
+	}
+	for _, l := range n {
+		if !has(o, l) {
+			d = append(d, "  + "+mcpKeyRE.ReplaceAllString(l, "${1}****"))
+		}
+	}
+	if len(d) > 12 {
+		d = append(d[:12], fmt.Sprintf("  … %d more lines", len(d)-12))
+	}
+	return Usagef("%s: a %q server entry already exists and differs from the one to write (- existing, + new):\n%s\nre-run with --force to replace it (the file is copied to %s.bak first)", path, agentServerName, strings.Join(d, "\n"), path)
 }
 
 // mcpTOMLBlock renders the [mcp_servers.spicrawl] table.
@@ -936,6 +1057,9 @@ func mcpMergeTOML(path string, _ agentScope, opt mcpOptions) ([]byte, bool, bool
 	}
 	if out == string(old) {
 		return old, secret, false, nil
+	}
+	if (table >= 0 || inline >= 0) && !opt.Force && out != strings.TrimSuffix(text, "\n")+"\n" {
+		return nil, secret, false, mcpRefuse(path, text, out)
 	}
 	// Never write something we would refuse to read back.
 	check, err := tomlScan(strings.Split(strings.TrimSuffix(out, "\n"), "\n"))

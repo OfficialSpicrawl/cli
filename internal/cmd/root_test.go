@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -24,7 +25,7 @@ func TestExitCodesJSON(t *testing.T) {
 		t.Fatalf("%d entries, want %d", len(got), len(exitcode.Table))
 	}
 	for i, e := range got {
-		if e.Code != i || e.Name == "" || e.Meaning == "" {
+		if e.Code != exitcode.Table[i].Code || e.Name == "" || e.Meaning == "" {
 			t.Errorf("entry %d: %+v", i, e)
 		}
 	}
@@ -75,7 +76,8 @@ func TestUnavailableCapabilityIsEngine(t *testing.T) {
 
 func TestTimeoutAfterSendIsExit12(t *testing.T) {
 	release := make(chan struct{})
-	srv, reqs := newRecordingServer(t, func(_ http.ResponseWriter, _ *http.Request) { <-release })
+	var n atomic.Int32 // the recorder's slice is only safe to read under its lock
+	srv, _ := newRecordingServer(t, func(_ http.ResponseWriter, _ *http.Request) { n.Add(1); <-release })
 	defer close(release)
 	_, errb, code := runCLI(t, srv.URL, "--timeout", "150ms", "scrape", "https://example.com")
 	if code != exitcode.Timeout {
@@ -85,8 +87,8 @@ func TestTimeoutAfterSendIsExit12(t *testing.T) {
 		t.Errorf("stderr should point at spicrawl logs: %s", errb)
 	}
 	time.Sleep(20 * time.Millisecond)
-	if n := len(*reqs); n != 1 {
-		t.Errorf("%d requests sent, want 1 (a timed-out POST must not be retried)", n)
+	if got := n.Load(); got != 1 {
+		t.Errorf("%d requests sent, want 1 (a timed-out POST must not be retried)", got)
 	}
 }
 

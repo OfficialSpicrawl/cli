@@ -1,6 +1,6 @@
 # Spicrawl CLI: scrape websites to Markdown and JSON from the terminal
 
-The Spicrawl CLI is a command-line web scraper that turns any URL into Markdown, HTML, text or JSON, batch-scrapes up to 10,000 URLs per job, and connects Claude Code, Cursor, Codex and VS Code to Spicrawl over MCP, with JSON output and 13 stable exit codes for shell scripts, CI and AI agents.
+The Spicrawl CLI is a command-line web scraper that turns any URL into Markdown, HTML, text or JSON, batch-scrapes up to 10,000 URLs per job, and connects Claude Code, Cursor, Codex and VS Code to Spicrawl over MCP, with JSON output and 14 stable exit codes for shell scripts, CI and AI agents.
 
 [![npm version](https://img.shields.io/npm/v/@spicrawl/cli.svg)](https://www.npmjs.com/package/@spicrawl/cli)
 [![npm downloads](https://img.shields.io/npm/dm/@spicrawl/cli.svg)](https://www.npmjs.com/package/@spicrawl/cli)
@@ -50,7 +50,7 @@ The result is one JSON object with the page under `content`:
 - **Parallel scrapes from stdin.** `spicrawl scrape -` reads one URL per line and runs 4 requests at once by default (`--concurrency`), with every scrape flag available.
 - **Structured data without a model.** `--extract` (CSS selectors), `--autoparse` (JSON-LD, OpenGraph) and `--links`.
 - **One-command agent setup.** `spicrawl init` configures 4 clients (Claude Code, Cursor, VS Code and Codex) for the hosted MCP server and installs the agent skill.
-- **13 stable exit codes (0 to 12).** Each maps to an error class an agent can branch on; codes are never renumbered, only added.
+- **14 stable exit codes (0 to 12, and 130).** Each maps to an error class an agent can branch on; codes are never renumbered, only added.
 - **Offline request schemas.** `spicrawl schema` prints 4 JSON Schemas (`scrape`, `batch`, `batch-item`, `session`) from inside the binary.
 - **6 platforms.** Linux, macOS and Windows on x64 and arm64, built with GoReleaser.
 
@@ -71,7 +71,7 @@ npx @spicrawl/cli --help       # or run it without installing
 curl -fsSL https://raw.githubusercontent.com/OfficialSpicrawl/cli/main/install.sh | sh
 ```
 
-It downloads the archive for your OS and CPU from the latest GitHub release, checks its SHA-256 against `checksums.txt`, and installs `spicrawl` into `~/.local/bin` (`SPICRAWL_INSTALL_DIR` changes it; `SPICRAWL_VERSION=v0.1.3` pins a release). It never prompts and never uses `sudo`.
+It downloads the archive for your OS and CPU from the latest GitHub release, checks its SHA-256 against `checksums.txt`, and installs `spicrawl` into `~/.local/bin` (`SPICRAWL_INSTALL_DIR` changes it; `SPICRAWL_VERSION=v0.1.3` or `0.1.3` pins a release). It never prompts and never uses `sudo`.
 
 ### GitHub releases (prebuilt archives)
 
@@ -224,12 +224,12 @@ Screenshots are saved next to the `-o` file as `<name>.<label>.<format>`, or int
 
 ```sh
 id=$(spicrawl batch submit urls.txt --render --name nightly --json | jq -r .id)
-spicrawl batch wait "$id" --max-wait 10m    # exits 11 if the job is still running
+spicrawl batch wait "$id" --max-wait 10m    # exits 11 if still running, 4 if it failed or was cancelled
 spicrawl batch results "$id" --all -o results.jsonl
 spicrawl batch retry "$id"                  # re-run the failed items
 ```
 
-Batch items currently return raw page HTML: the worker applies `--render`, `--proxy` and `--block`, and accepts but does not yet apply other scrape flags such as `--format markdown`. For Markdown or extraction per URL, use `spicrawl scrape - --concurrency 8 < urls.txt`. Results stay readable until the job's `results_expire_at` (72 hours after submission by default). More in the [batch guide](https://docs.spicrawl.com/cli/batch).
+Each batch item is one fetch or render, returned as `html` (the default), `markdown`, `text` or `json` with `--format`. Screenshots, extraction (`--extract`, `--links`), actions, sessions, cache controls and PDF output are refused with a 400 at submit, before anything is queued or charged; use `spicrawl scrape - --concurrency 8 < urls.txt` for those. `batch wait` and `batch submit --wait` print the final job either way, and exit 4 when it ended `failed` or `cancelled`, so a script can tell it from `completed`; partial results stay readable with `batch results`. Results stay readable until the job's `results_expire_at` (72 hours after submission by default). More in the [batch guide](https://docs.spicrawl.com/cli/batch).
 
 ### How to keep cookies and logins across scrapes
 
@@ -266,7 +266,7 @@ All four call the same Spicrawl API with the same API key and the same credits.
 
 - If you want an agent to use Spicrawl with the least setup, run `spicrawl init`: it writes the MCP config and the skill for you.
 - If an agent already has a shell, it can call `spicrawl` directly instead of MCP: output is JSON when piped and the exit code says what went wrong.
-- If you need Markdown for a list of URLs, use `spicrawl scrape -` rather than `spicrawl batch`, because batch items return raw HTML today.
+- If you need Markdown for a list of URLs, use `spicrawl batch submit urls.txt --format markdown` for a server-side job, or `spicrawl scrape -` for one JSON line per URL as it finishes.
 
 ## Built for scripts and AI agents
 
@@ -278,7 +278,7 @@ All four call the same Spicrawl API with the same API key and the same credits.
 
 ### Exit codes
 
-There are 13 exit codes, 0 to 12. They are stable: never renumbered, only added. `spicrawl exit-codes --json` prints them as `[{code, name, meaning}]`.
+There are 14 exit codes: 0 to 12, and 130. They are stable: never renumbered, only added. `spicrawl exit-codes --json` prints them as `[{code, name, meaning}]`.
 
 | Code | Name | Meaning | What an agent should do |
 |---|---|---|---|
@@ -294,7 +294,8 @@ There are 13 exit codes, 0 to 12. They are stable: never renumbered, only added.
 | 9 | `session` | `ERR::SESSION::*` | Create a new session; if the session is busy, wait and retry. |
 | 10 | `network` | the Spicrawl API could not be reached (DNS, refused, TLS); nothing was sent | Safe to retry after a pause; check the network and `--base-url`. |
 | 11 | `pending` | a `--wait` gave up before the job finished | The job is still running: resume with `spicrawl batch wait <id>`. |
-| 12 | `timeout` | the request was sent but `--timeout` expired; it may have run and been billed | Check `spicrawl logs` before retrying. |
+| 12 | `timeout` | the request was sent but `--timeout` expired or the connection dropped; it may have run and been billed | Check `spicrawl logs` before retrying. |
+| 130 | `interrupted` | Ctrl-C | Nothing to do; a request already sent may still have run. |
 
 ## Configuration
 
@@ -315,7 +316,7 @@ Settings resolve in this order: command-line flag, environment variable, config 
 
 ## Beta limitations and coming soon
 
-Spicrawl is in beta. Coming soon: AI extraction (`--ai`, `--ai-schema`), the cloud browser (`spicrawl browser url`), the managed proxy pool (`--premium-proxy`, `--country`, `--sticky-key`), stealth mode (`--stealth`), the `spicrawl.com/install.sh` installer and Homebrew. Today, batch items return raw HTML, and there is no whole-site crawl or sitemap command: collect URLs with `--links` and scrape or batch the list.
+Spicrawl is in beta. Coming soon: AI extraction (`--ai`, `--ai-schema`), the cloud browser (`spicrawl browser url`), the managed proxy pool (`--premium-proxy`, `--country`, `--sticky-key`), stealth mode (`--stealth`), the `spicrawl.com/install.sh` installer and Homebrew. Today there is no whole-site crawl or sitemap command: collect URLs with `--links` and scrape or batch the list.
 
 ## FAQ
 

@@ -141,7 +141,7 @@ Unknown fields are rejected with `400`: send only the fields below.
 | `url` | string | **Required.** The page to fetch. |
 | `response_format` | string | `markdown` (best for LLMs), `html`, `text`, `json` (envelope with metadata), `pdf`. |
 | `js_render` | bool | The content is built by JavaScript (SPA, empty HTML shell). |
-| `impersonate` | bool | Fetch tier only: present a real browser's TLS/HTTP2 fingerprint. No JavaScript. POST only. |
+| `impersonate` | bool | Fetch tier only: present a current Chrome TLS/HTTP2 fingerprint. On by default and free; send `false` only to turn it off. |
 | `mode` | string | `auto` escalates fetch → obscura until one succeeds, billing only that rung. Not with `js_render` or `engine`. |
 | `engine` | string | Pin `fetch` / `obscura` / `chromium`. Not with `mode: auto`; `js_render` cannot pin `fetch`. |
 | `wait_for` / `wait_for_timeout` | string / int ms | CSS selector to wait for before capturing, and its cap. |
@@ -157,7 +157,7 @@ Unknown fields are rejected with `400`: send only the fields below.
 | `actions` | object[] | Browser workflow, at most 50 steps: `click`, `fill`, `wait_for`, `scroll`, `select`, `evaluate`, `screenshot`. |
 | `block_resources` | string[] | `images` `fonts` `media` `stylesheets` `scripts`, or `none`. |
 | `session_id` | string | Reuse a session's cookies and storage (see Sessions). Combine with `js_render` when you also send `actions` or `wait_for`. |
-| `cache` / `cache_ttl` | bool / int s | Cache is **on** (48h max). Send `cache: false` for prices, stock or anything time-sensitive. |
+| `cache` / `cache_ttl` | bool / int s | Cache is **on** (48h max). A hit is billed like the fetch that stored it: the cache saves time, not credits. Send `cache: false` for prices, stock or anything time-sensitive. |
 | `max_cost` | int | Refuse up front if the request would cost more credits than this. |
 | `proxy` / `proxy_verify` | string / bool | Your own proxy URL (+0 credits), optionally checked first. Use it when a site blocks our IPs or you need a specific country. |
 | `custom_headers` / `method` | object / string | Headers sent to the target (the field is `custom_headers`; `headers` is rejected). Default method `GET`. |
@@ -223,7 +223,7 @@ Every step accepts `label`, `timeout_ms` and `on_error` (`fail` or `skip`). `sec
 | `X-Credits-Remaining` | Monthly allowance left after this call (absent if the org has no limit). |
 | `X-Engine` | Engine that served it. |
 | `X-Final-Url` | URL after redirects. |
-| `Cache-State` | `hit` (0 credits), `miss` or `bypass`. |
+| `Cache-State` | `hit` (billed like the fetch that stored it), `miss` or `bypass`. |
 | `X-Warning` | Non-fatal decisions (a clamped `cache_ttl`, an ignored flag). |
 | `X-RateLimit-Limit` / `-Remaining` / `-Reset` | Rate limit state. |
 
@@ -299,8 +299,9 @@ allowance while it is open (24 credits for the default 3 minutes); unused minute
 | `chromium` | 8 |
 
 You pay for the engine that actually served (`X-Engine`). `ai_extract` adds +4. **Failures cost
-0.** Cache hits cost 0. A deployment may discount these prices: `X-Credits-Charged` and
-`X-Request-Cost` are authoritative.
+0.** A cache hit is billed at the same price as the fetch that stored it. The cache saves the
+fetch (latency and load on the target), not credits. A deployment may discount these prices:
+`X-Credits-Charged` and `X-Request-Cost` are authoritative.
 
 Each organization gets a monthly allowance (1,000 credits by default). The month starts on the
 day the organization was created and resets at 00:00 UTC on that day. What is left, and when it

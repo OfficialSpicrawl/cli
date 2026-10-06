@@ -30,14 +30,42 @@ type Client struct {
 	BaseURL string
 	APIKey  string
 	HTTP    *http.Client
+	// Notify, when set, receives progress lines (DoWithRetry waiting between
+	// attempts). The caller decides where they go and whether --quiet mutes them.
+	Notify func(format string, a ...any)
 }
 
 func New(baseURL, apiKey string, timeout time.Duration) *Client {
 	return &Client{
 		BaseURL: strings.TrimRight(baseURL, "/"),
 		APIKey:  apiKey,
-		HTTP:    &http.Client{Timeout: timeout},
+		HTTP:    &http.Client{Timeout: timeout, CheckRedirect: noMethodChangingRedirect},
 	}
+}
+
+// noMethodChangingRedirect follows redirects that keep the method (307/308,
+// or any redirect of a GET) and hands back the 3xx for the rest. Following a
+// 301/302/303 would silently turn a POST into a GET: the call would "succeed"
+// without the request ever being made. Do reports the 3xx as a *RedirectError.
+func noMethodChangingRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) >= 10 {
+		return errors.New("stopped after 10 redirects")
+	}
+	if req.Method != via[0].Method {
+		return http.ErrUseLastResponse
+	}
+	return nil
+}
+
+// RedirectError means the API answered with a redirect the CLI will not
+// follow. It is almost always a wrong --base-url (http instead of https).
+type RedirectError struct {
+	Status   int
+	Location string
+}
+
+func (e *RedirectError) Error() string {
+	return fmt.Sprintf("the API answered %d and redirects to %s; the CLI does not follow redirects that would change POST to GET: use that URL as --base-url / SPICRAWL_BASE_URL", e.Status, e.Location)
 }
 
 // Response is a completed call that the API answered with a 2xx.
@@ -76,6 +104,17 @@ type NetworkError struct{ Err error }
 func (e *NetworkError) Error() string { return "cannot reach the Spicrawl API: " + e.Err.Error() }
 func (e *NetworkError) Unwrap() error { return e.Err }
 
+// ConnectionLostError means the connection failed after the request was
+// written (reset, EOF, broken body). The server may have run the request,
+// and billed it, so blindly retrying can pay twice. It exits like a timeout.
+type ConnectionLostError struct{ Err error }
+
+func (e *ConnectionLostError) Error() string {
+	return "lost the connection to the Spicrawl API after the request was sent; the request may have run and been billed. " +
+		"Check `spicrawl logs` before retrying (" + e.Err.Error() + ")"
+}
+func (e *ConnectionLostError) Unwrap() error { return e.Err }
+
 // TimeoutError means the request was sent but no complete answer arrived
 // before the client-side timeout (--timeout). The server may have run the
 // request, and billed it, so blindly retrying can pay twice.
@@ -100,14 +139,18 @@ func isTimeout(err error) bool {
 }
 
 // transportError classifies a failure of the HTTP round trip. sent reports
-// whether the request headers were written to the connection: a timeout
-// before that point is a connection failure (nothing reached the API), a
-// timeout after it may have left the request running server-side.
+// whether the request headers were written to the connection. Before that
+// point (dial, DNS, refused, TLS) nothing reached the API: a NetworkError. After
+// it the server may have the request and may have run it: a timeout is a
+// TimeoutError, any other failure a ConnectionLostError. Neither is safe to retry.
 func transportError(err error, sent bool) error {
-	if sent && isTimeout(err) {
+	switch {
+	case !sent:
+		return &NetworkError{Err: err}
+	case isTimeout(err):
 		return &TimeoutError{Err: err}
 	}
-	return &NetworkError{Err: err}
+	return &ConnectionLostError{Err: err}
 }
 
 // Do sends the request. A non-2xx answer is returned as *Problem.
@@ -160,14 +203,22 @@ func (c *Client) Do(ctx context.Context, req Request) (*Response, error) {
 	defer resp.Body.Close()
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
-		if ctx.Err() == nil && isTimeout(err) {
-			return nil, &TimeoutError{Err: fmt.Errorf("read response: %w", err)}
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
 		}
-		return nil, &NetworkError{Err: fmt.Errorf("read response: %w", err)}
+		// The request was sent: only the answer is missing.
+		return nil, transportError(fmt.Errorf("read response: %w", err), true)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		if req.AllowNonProblem && !strings.HasPrefix(resp.Header.Get("Content-Type"), "application/problem+json") {
-			return &Response{Status: resp.StatusCode, Header: resp.Header, Body: b}, nil
+			// A target's status is relayed with X-Target-Status. A 3xx or 5xx without
+			// it is the API's own redirect or a gateway page in front of it.
+			if resp.Header.Get("X-Target-Status") != "" || (resp.StatusCode >= 400 && resp.StatusCode < 500) {
+				return &Response{Status: resp.StatusCode, Header: resp.Header, Body: b}, nil
+			}
+		}
+		if loc := resp.Header.Get("Location"); resp.StatusCode/100 == 3 && loc != "" {
+			return nil, &RedirectError{Status: resp.StatusCode, Location: loc}
 		}
 		return nil, parseProblem(resp, b)
 	}
@@ -222,7 +273,10 @@ func parseProblem(resp *http.Response, b []byte) *Problem {
 			Title:  http.StatusText(resp.StatusCode),
 			Detail: strings.TrimSpace(truncate(string(b), 300)),
 		}
-		p.Retryable = resp.StatusCode >= 500
+		// A gateway page says nothing about whether the API ran the request, so
+		// only a read is safe to resend; a POST may pay twice.
+		p.Retryable = resp.StatusCode >= 500 && resp.Request != nil &&
+			(resp.Request.Method == http.MethodGet || resp.Request.Method == http.MethodHead)
 	}
 	if p.Status == 0 {
 		p.Status = resp.StatusCode
@@ -245,8 +299,12 @@ func AsProblem(err error) (*Problem, bool) {
 	return p, ok
 }
 
+// maxRetryWait caps one wait between attempts: a Retry-After of an hour must
+// not hang the CLI.
+var maxRetryWait = time.Minute
+
 // DoWithRetry retries only what the server marked retryable, honouring
-// Retry-After, with exponential backoff capped at 30 s. attempts <= 1 means
+// Retry-After (capped at maxRetryWait), with exponential backoff capped at 30 s. attempts <= 1 means
 // no retry. Transport failures are never retried here; in particular a
 // *TimeoutError is returned at once, because the request may already have
 // run and been billed (a POST retried after a timeout can pay twice).
@@ -268,6 +326,12 @@ func (c *Client) DoWithRetry(ctx context.Context, req Request, attempts int) (*R
 		wait := backoff
 		if p.RetryAfterSeconds > 0 {
 			wait = time.Duration(p.RetryAfterSeconds) * time.Second
+		}
+		if wait > maxRetryWait {
+			wait = maxRetryWait
+		}
+		if c.Notify != nil {
+			c.Notify("retrying in %s (attempt %d of %d): %s", wait, i+1, attempts, p.Code)
 		}
 		select {
 		case <-ctx.Done():

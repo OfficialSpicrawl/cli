@@ -41,8 +41,8 @@
     },
     "impersonate": {
       "type": "boolean",
-      "default": false,
-      "description": "Fetch tier only: present a real browser TLS/HTTP2 fingerprint to pass passive fingerprint checks, at no extra cost and with no JavaScript. Ignored on render engines. POST only - the GET form rejects `impersonate` as an unknown query parameter. If omitted, the project's stored default applies."
+      "default": true,
+      "description": "Fetch tier only: present a current Chrome TLS/HTTP2 fingerprint, with matching browser headers and Accept-Encoding, to pass passive fingerprint checks. On by default, free, no JavaScript; `false` turns it off and the fetch uses a non-browser TLS handshake. Ignored on render engines. If omitted, the project's stored default applies, and `true` when the project sets none."
     },
     "mode": {
       "type": "string",
@@ -64,16 +64,16 @@
     "premium_proxy": {
       "type": "boolean",
       "default": false,
-      "description": "Coming soon. Use residential exits from the managed pool: fetch 10, obscura 25, chromium 32 credits (camoufox stays 25). If no residential exit is available the request fails 503 ERR::PROXY::EXHAUSTED rather than falling back; ignored (with X-Warning PROXY_FLAG_IGNORED) when `proxy` is set. If omitted, the project's stored default applies."
+      "description": "Coming soon. Use residential exits from the managed pool: fetch 10, obscura 25, chromium 32 credits (camoufox stays 25). If no residential exit is available the request fails 503 ERR::PROXY::EXHAUSTED rather than falling back; ignored (with X-Warning PROXY_FLAG_IGNORED) when `proxy` is set. A bot challenge from a named vendor is retried on a different exit (fetch tier), then climbs to camoufox; see \"Bot challenges\" in the operation description. If omitted, the project's stored default applies."
     },
     "proxy_country": {
       "type": "string",
       "pattern": "^[A-Za-z]{2}$",
-      "description": "Coming soon. ISO 3166-1 alpha-2 exit country (case-insensitive), within the residential pool. Requires premium_proxy=true (400 ERR::REQUEST::INCOMPATIBLE_FLAGS otherwise) unless `proxy` is set, in which case it is ignored with a warning; an unavailable country is 503 ERR::PROXY::EXHAUSTED, never substituted. If omitted, the project's stored default applies."
+      "description": "Coming soon. ISO 3166-1 alpha-2 exit country (case-insensitive), within the residential pool. Requires premium_proxy=true (400 ERR::REQUEST::INCOMPATIBLE_FLAGS otherwise) unless `proxy` is set, in which case it is ignored with a warning; an unavailable country is 503 ERR::PROXY::EXHAUSTED, never substituted. A browser render takes its timezone and locale from this country or, when it is omitted, from the country of the pool exit it was assigned. If omitted, the project's stored default applies."
     },
     "proxy": {
       "type": "string",
-      "description": "Your own proxy URL (http, https, socks5 or socks5h; credentials in userinfo). Takes precedence over premium_proxy/proxy_country and adds 0 proxy credits; loopback hosts are refused with 400 ERR::SECURITY::SSRF_BLOCKED. An unreachable proxy fails 502 ERR::PROXY::UNREACHABLE."
+      "description": "Your own proxy URL (http, https, socks5 or socks5h; credentials in userinfo). Takes precedence over premium_proxy/proxy_country and adds 0 proxy credits; loopback hosts are refused with 400 ERR::SECURITY::SSRF_BLOCKED. An unreachable proxy fails 502 ERR::PROXY::UNREACHABLE. A bot challenge from a named vendor climbs to camoufox when the proxy is http://; see \"Bot challenges\" in the operation description."
     },
     "proxy_verify": {
       "type": "boolean",
@@ -980,7 +980,7 @@
     "cache": {
       "type": "boolean",
       "default": true,
-      "description": "Serve a stored result younger than cache_ttl (Cache-State: hit, 0 credits). Only billable successes of GET-method requests without session_id or actions are stored. Set false for time-sensitive data; cache=false with cache_ttl>0 is 400 ERR::REQUEST::INCOMPATIBLE_FLAGS."
+      "description": "Serve a stored result younger than cache_ttl (Cache-State: hit). A hit is billed at the same price as the fetch that stored it: the cache saves the fetch (latency and load on the target), not credits. Only billable successes of GET-method requests without session_id or actions are stored. Set false for time-sensitive data; cache=false with cache_ttl>0 is 400 ERR::REQUEST::INCOMPATIBLE_FLAGS."
     },
     "cache_ttl": {
       "type": "integer",

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/OfficialSpicrawl/cli/internal/api"
 	"github.com/OfficialSpicrawl/cli/internal/config"
+	"github.com/OfficialSpicrawl/cli/internal/exitcode"
 )
 
 var (
@@ -43,11 +45,15 @@ options given here (changing them in the URL is refused). Mint a new URL for
 every connection. Clients that can set headers on the upgrade can skip the
 token and send "Authorization: Bearer <key>" to /v1/browser directly.
 
-Unlike sessions, the exit rotates unless you pass --sticky-key.`,
+Unlike sessions, the exit rotates unless you pass --sticky-key.
+
+-q prints only the URL, even when stdout is piped (--json keeps the JSON). On
+a server without a cloud browser it exits 8 ("cloud browser (CDP) is not enabled
+on this server").`,
 	Example: `  spicrawl browser url
   spicrawl browser url --engine obscura --region eu --ttl 600
   spicrawl browser url --country us --headless=false --sticky-key crawl-1
-  export SPICRAWL_BROWSER_URL="$(spicrawl browser url -q)"
+  export SPICRAWL_BROWSER_URL="$(spicrawl browser url -q)"   # -q: the bare URL, even when piped
   WS=$(spicrawl browser url --json | jq -r .url)`,
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, _ []string) error {
@@ -104,6 +110,12 @@ Unlike sessions, the exit rotates unless you pass --sticky-key.`,
 		}
 		resp, err := c.Do(cmd.Context(), api.Request{Method: http.MethodPost, Path: "/v1/browser/token", Body: body})
 		if err != nil {
+			// No such route (404) or a deployment without a CDP browser (501): permanent.
+			if prob, ok := api.AsProblem(err); ok && (prob.Status == http.StatusNotFound ||
+				prob.Status == http.StatusNotImplemented && prob.Code == "ERR::ENGINE::UNAVAILABLE") {
+				return &ExitError{Code: exitcode.Engine, Err: errors.New(
+					"cloud browser (CDP) is not enabled on this server; \"spicrawl status\" shows its cdp field")}
+			}
 			return err
 		}
 		var tok struct {
@@ -119,6 +131,9 @@ Unlike sessions, the exit rotates unless you pass --sticky-key.`,
 		}
 
 		p := Printer()
+		if p.Quiet && !flagJSON {
+			p.JSON = false // -q prints the bare URL even when piped; only an explicit --json overrides it
+		}
 		if strings.HasPrefix(ws, "ws://") {
 			p.Warn("ws:// is unencrypted: the browser token in this URL travels in cleartext (use an https base URL)")
 		}

@@ -80,7 +80,7 @@ func batchDisplayPath(path string) string {
 // batchSplitLines mirrors readLines for bytes already in memory.
 func batchSplitLines(b []byte) []string {
 	var out []string
-	for _, line := range strings.Split(string(b), "\n") {
+	for _, line := range strings.Split(strings.TrimPrefix(string(b), "\ufeff"), "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue

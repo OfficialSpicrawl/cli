@@ -398,6 +398,7 @@ type agentResult struct {
 	Action string `json:"action"` // created | updated | unchanged | skipped
 	Reason string `json:"reason,omitempty"`
 	Secret bool   `json:"secret,omitempty"` // the file now holds a literal API key
+	Backup string `json:"backup,omitempty"` // copy of the previous file, written before it was modified
 
 	content  []byte // what to write when applied
 	mode     os.FileMode
@@ -410,9 +411,12 @@ func agentApply(rs []*agentResult) error {
 		if r.Action != agentActionCreated && r.Action != agentActionUpdated {
 			continue
 		}
-		if err := agentWriteFile(r.File, r.content, r.mode, r.Secret); err != nil {
+		// A generated skill is not worth a backup; configs and AGENTS.md hold the user's own content.
+		bak, err := agentWriteFile(r.File, r.content, r.mode, r.Secret, r.Kind != "skill")
+		if err != nil {
 			return err
 		}
+		r.Backup = bak
 	}
 	return nil
 }
@@ -425,7 +429,14 @@ func agentReport(p *output.Printer, rs []*agentResult, s agentScope) error {
 	err := p.Result(rs, func(w io.Writer) {
 		rows := make([][]string, 0, len(rs))
 		for _, r := range rs {
-			rows = append(rows, []string{r.Client, r.Kind, r.Action, agentDisplayPath(r.File, s), r.Reason})
+			note := r.Reason
+			if r.Backup != "" {
+				if note != "" {
+					note += "; "
+				}
+				note += "backup: " + agentDisplayPath(r.Backup, s)
+			}
+			rows = append(rows, []string{r.Client, r.Kind, r.Action, agentDisplayPath(r.File, s), note})
 		}
 		p.Table([]string{"CLIENT", "KIND", "ACTION", "FILE", "NOTE"}, rows)
 	})
@@ -494,10 +505,22 @@ func agentPlanFile(r *agentResult, content []byte, mode os.FileMode) error {
 	return nil
 }
 
-// agentWriteFile writes atomically (temp file + rename). A non-secret write
-// keeps the mode of an existing file; a secret one always ends up 0600.
-func agentWriteFile(path string, data []byte, mode os.FileMode, secret bool) error {
-	if fi, err := os.Stat(path); err == nil && !secret {
+// agentWriteFile writes atomically (temp file + rename), through a symlink to
+// its target so the link survives. With backup, an existing file is first
+// copied to <file>.bak (same permissions); the copy's path is returned. A
+// non-secret write keeps the mode of an existing file; a secret one always
+// ends up 0600.
+func agentWriteFile(path string, data []byte, mode os.FileMode, secret, backup bool) (string, error) {
+	if real, err := filepath.EvalSymlinks(path); err == nil {
+		path = real
+	} else if l, err := os.Readlink(path); err == nil { // dangling link: create its target
+		if !filepath.IsAbs(l) {
+			l = filepath.Join(filepath.Dir(path), l)
+		}
+		path = l
+	}
+	fi, statErr := os.Stat(path)
+	if statErr == nil && !secret {
 		mode = fi.Mode().Perm()
 	}
 	if secret {
@@ -506,36 +529,48 @@ func agentWriteFile(path string, data []byte, mode os.FileMode, secret bool) err
 	if mode == 0 {
 		mode = 0o644
 	}
+	bak := ""
+	if backup && statErr == nil {
+		old, err := os.ReadFile(path)
+		if err == nil {
+			bak = path + ".bak"
+			_ = os.Remove(bak)
+			err = os.WriteFile(bak, old, fi.Mode().Perm())
+		}
+		if err != nil {
+			return "", fmt.Errorf("back up %s: %w", path, err)
+		}
+	}
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("create %s: %w", dir, err)
+		return "", fmt.Errorf("create %s: %w", dir, err)
 	}
 	f, err := os.CreateTemp(dir, "."+filepath.Base(path)+".tmp-*")
 	if err != nil {
-		return fmt.Errorf("write %s: %w", path, err)
+		return "", fmt.Errorf("write %s: %w", path, err)
 	}
 	tmp := f.Name()
 	defer os.Remove(tmp)
 	if err := f.Chmod(mode); err != nil {
 		f.Close()
-		return fmt.Errorf("write %s: %w", path, err)
+		return "", fmt.Errorf("write %s: %w", path, err)
 	}
 	if _, err := f.Write(data); err != nil {
 		f.Close()
-		return fmt.Errorf("write %s: %w", path, err)
+		return "", fmt.Errorf("write %s: %w", path, err)
 	}
 	if err := f.Close(); err != nil {
-		return fmt.Errorf("write %s: %w", path, err)
+		return "", fmt.Errorf("write %s: %w", path, err)
 	}
 	if err := os.Rename(tmp, path); err != nil {
-		return fmt.Errorf("write %s: %w", path, err)
+		return "", fmt.Errorf("write %s: %w", path, err)
 	}
 	if secret {
 		if err := os.Chmod(path, 0o600); err != nil {
-			return fmt.Errorf("restrict permissions of %s: %w", path, err)
+			return "", fmt.Errorf("restrict permissions of %s: %w", path, err)
 		}
 	}
-	return nil
+	return bak, nil
 }
 
 // agentAPIKey returns the configured key (flag > env > file), or "".
