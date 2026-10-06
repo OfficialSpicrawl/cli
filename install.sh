@@ -2,11 +2,11 @@
 #
 # Install the Spicrawl CLI (the spicrawl command).
 #
-#   curl -fsSL https://spicrawl.com/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/OfficialSpicrawl/cli/main/install.sh | sh
 #
 # Environment:
 #   SPICRAWL_INSTALL_DIR   where to put the binary (default: ~/.local/bin)
-#   SPICRAWL_VERSION       a release tag such as v1.2.3 (default: latest)
+#   SPICRAWL_VERSION       a release such as v1.2.3 or 1.2.3 (default: latest)
 #   SPICRAWL_REPO          GitHub owner/repo hosting the releases
 #   SPICRAWL_DOWNLOAD_URL  base URL holding the archives and checksums.txt
 #                        (a mirror; overrides SPICRAWL_REPO and SPICRAWL_VERSION)
@@ -51,6 +51,12 @@ if [ "$os" = darwin ] && [ "$arch" = amd64 ]; then
   fi
 fi
 
+# Release tags carry a "v"; accept the bare version too.
+case "$SPICRAWL_VERSION" in
+  latest | v*) ;;
+  *) SPICRAWL_VERSION="v${SPICRAWL_VERSION}" ;;
+esac
+
 archive="spicrawl_${os}_${arch}.tar.gz"
 if [ -n "${SPICRAWL_DOWNLOAD_URL:-}" ]; then
   base="${SPICRAWL_DOWNLOAD_URL%/}"
@@ -82,6 +88,14 @@ fi
 
 command -v tar >/dev/null 2>&1 || die "need tar"
 
+# download URL FILE: on failure say which URL and what to check.
+download() {
+  fetch "$1" "$2" || die "download failed: $1
+  The server was unreachable or has no such file (HTTP 404 means this release or platform does not exist).
+  Check your network, SPICRAWL_VERSION (a published tag such as v0.1.3), SPICRAWL_REPO and SPICRAWL_DOWNLOAD_URL,
+  or pick a release from https://github.com/${SPICRAWL_REPO}/releases"
+}
+
 # --- download and verify ----------------------------------------------------
 
 tmp=$(mktemp -d 2>/dev/null || mktemp -d -t spicrawl)
@@ -89,8 +103,8 @@ trap 'rm -rf "$tmp"' EXIT
 trap 'exit 130' INT TERM
 
 say "downloading ${base}/${archive}"
-fetch "${base}/${archive}" "${tmp}/${archive}" || die "download failed: ${base}/${archive}"
-fetch "${base}/checksums.txt" "${tmp}/checksums.txt" || die "download failed: ${base}/checksums.txt"
+download "${base}/${archive}" "${tmp}/${archive}"
+download "${base}/checksums.txt" "${tmp}/checksums.txt"
 
 want=$(awk -v f="$archive" '$2 == f || $2 == "*" f { print $1; exit }' "${tmp}/checksums.txt")
 [ -n "$want" ] || die "${archive} is not listed in checksums.txt"

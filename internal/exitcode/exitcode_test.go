@@ -22,11 +22,15 @@ func TestForProblem(t *testing.T) {
 }
 
 func TestTableIsComplete(t *testing.T) {
-	if len(Table) != Timeout+1 {
-		t.Fatalf("%d entries, want %d", len(Table), Timeout+1)
+	if len(Table) != Timeout+2 {
+		t.Fatalf("%d entries, want %d", len(Table), Timeout+2)
 	}
 	for i, e := range Table {
-		if e.Code != i || e.Name == "" || e.Meaning == "" {
+		want := i
+		if i == Timeout+1 {
+			want = Interrupted
+		}
+		if e.Code != want || e.Name == "" || e.Meaning == "" {
 			t.Errorf("entry %d: %+v", i, e)
 		}
 	}

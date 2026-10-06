@@ -6,6 +6,7 @@
 package output
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -51,13 +52,17 @@ func (p *Printer) Line(v any) error {
 }
 
 // RawJSON writes bytes that are already JSON, re-indented in JSON mode.
+// It re-indents the bytes instead of decoding them, so numbers beyond
+// float64 (ids, counters) and the API's key order survive, as in --jsonl.
 func (p *Printer) RawJSON(b []byte) error {
-	var v any
-	if err := json.Unmarshal(b, &v); err != nil {
+	var buf bytes.Buffer
+	if err := json.Indent(&buf, bytes.TrimSpace(b), "", "  "); err != nil {
 		_, err := p.Out.Write(b)
 		return err
 	}
-	return p.Value(v)
+	buf.WriteByte('\n')
+	_, err := p.Out.Write(buf.Bytes())
+	return err
 }
 
 // Result prints v as JSON in JSON mode, otherwise calls human.

@@ -144,7 +144,7 @@ func TestMCPInstallMCPURLOverride(t *testing.T) {
 	if w["url"] != "https://env.example/mcp" {
 		t.Errorf("url = %v", w["url"])
 	}
-	if _, _, code := agentRun(t, "mcp", "install", "--client", "cursor", "--dir", dir, "--mcp-url", "https://flag.example/mcp"); code != 0 {
+	if _, _, code := agentRun(t, "mcp", "install", "--client", "cursor", "--dir", dir, "--mcp-url", "https://flag.example/mcp", "--force"); code != 0 {
 		t.Fatal(code)
 	}
 	w = agentReadJSON(t, filepath.Join(dir, ".cursor", "mcp.json"))["mcpServers"].(map[string]any)["spicrawl"].(map[string]any)
@@ -213,7 +213,7 @@ approval_mode = "approve"
 [mcp_servers.other]
 command = "x"
 `)
-	rs, errOut, code := agentRun(t, "mcp", "install", "--client", "codex", "--dir", dir)
+	rs, errOut, code := agentRun(t, "mcp", "install", "--client", "codex", "--dir", dir, "--force")
 	if code != 0 || rs[0].Action != "updated" {
 		t.Fatalf("exit %d %+v: %s", code, rs, errOut)
 	}
@@ -323,10 +323,10 @@ func TestMCPInstallNeedsClient(t *testing.T) {
 func TestMCPInstallRefusesInvalidJSON(t *testing.T) {
 	dir, _ := agentTestEnv(t)
 	path := filepath.Join(dir, ".vscode", "mcp.json")
-	orig := "{\n  // comment\n  \"servers\": {}\n}\n"
+	orig := "{\n  \"servers\": {\n"
 	agentWrite(t, path, orig)
 	if _, _, code := agentRun(t, "mcp", "install", "--client", "vscode", "--dir", dir); code == 0 {
-		t.Fatal("want failure on JSONC")
+		t.Fatal("want failure on truncated JSON")
 	}
 	b, _ := os.ReadFile(path)
 	if string(b) != orig {
@@ -703,7 +703,7 @@ func agentCodexRun(t *testing.T, dir, content string, extra ...string) (string, 
 	t.Helper()
 	path := filepath.Join(dir, ".codex", "config.toml")
 	agentWrite(t, path, content)
-	_, errOut, code := agentRun(t, append([]string{"mcp", "install", "--client", "codex", "--dir", dir}, extra...)...)
+	_, errOut, code := agentRun(t, append([]string{"mcp", "install", "--client", "codex", "--dir", dir, "--force"}, extra...)...)
 	b, _ := os.ReadFile(path)
 	return string(b), errOut, code
 }

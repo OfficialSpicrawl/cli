@@ -98,29 +98,45 @@ func Save(f File) error {
 	if err != nil {
 		return err
 	}
-	tmp := p + ".tmp"
-	if err := os.WriteFile(tmp, append(b, '\n'), 0o600); err != nil {
-		return fmt.Errorf("write %s: %w", tmp, err)
+	// A fresh temp file (CreateTemp is 0600) rather than a fixed name: a stale
+	// world-readable "<path>.tmp" would otherwise keep its mode and carry the key.
+	tmp, err := os.CreateTemp(filepath.Dir(p), ".config-*.tmp")
+	if err != nil {
+		return fmt.Errorf("write %s: %w", p, err)
 	}
-	return os.Rename(tmp, p)
+	defer os.Remove(tmp.Name()) // no-op once renamed
+	_, werr := tmp.Write(append(b, '\n'))
+	if cerr := tmp.Close(); werr == nil {
+		werr = cerr
+	}
+	if werr != nil {
+		return fmt.Errorf("write %s: %w", tmp.Name(), werr)
+	}
+	return os.Rename(tmp.Name(), p)
 }
 
 // Resolve applies flag > env > file > default precedence.
 func Resolve(flagKey, flagBase string) (Resolved, error) {
 	r := Resolved{}
-	p, _ := Path()
-	r.Path = p
-	f, err := Load()
-	if err != nil {
-		return r, err
+	// The file is optional: with no $HOME (a container, cron) there is nowhere
+	// to look, and flags and env must still work.
+	var f File
+	if p, err := Path(); err == nil {
+		r.Path = p
+		if f, err = Load(); err != nil {
+			return r, err
+		}
 	}
-	switch {
+	// A key pasted or exported with a trailing newline would otherwise reach
+	// the Authorization header and fail as "cannot reach the API".
+	envKey, fileKey := strings.TrimSpace(os.Getenv(EnvAPIKey)), strings.TrimSpace(f.APIKey)
+	switch flagKey = strings.TrimSpace(flagKey); {
 	case flagKey != "":
 		r.APIKey, r.APIKeySource = flagKey, "flag"
-	case os.Getenv(EnvAPIKey) != "":
-		r.APIKey, r.APIKeySource = os.Getenv(EnvAPIKey), "env"
-	case f.APIKey != "":
-		r.APIKey, r.APIKeySource = f.APIKey, "file"
+	case envKey != "":
+		r.APIKey, r.APIKeySource = envKey, "env"
+	case fileKey != "":
+		r.APIKey, r.APIKeySource = fileKey, "file"
 	}
 	switch {
 	case flagBase != "":
@@ -139,13 +155,15 @@ func Resolve(flagKey, flagBase string) (Resolved, error) {
 // MaskKey shows enough of a key to recognise it and no more: the key's
 // prefix plus four secret characters. The width is derived from the prefix
 // rather than hard-coded, so a prefix rename cannot silently shift how much
-// secret is shown.
+// secret is shown. A key too short to hide at least minHidden characters
+// between the head and the last four is masked entirely.
 func MaskKey(k string) string {
 	keep := 16
 	if n := keyPrefixLen(k); n > 0 {
 		keep = n + 4
 	}
-	if len(k) <= keep {
+	const minHidden = 8
+	if len(k) < keep+4+minHidden {
 		return strings.Repeat("*", len(k))
 	}
 	return k[:keep] + "…" + k[len(k)-4:]

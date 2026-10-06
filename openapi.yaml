@@ -533,11 +533,12 @@ components:
             If omitted, the project's stored default applies.
         impersonate:
           type: boolean
-          default: false
-          description: 'Fetch tier only: present a real browser TLS/HTTP2 fingerprint to pass passive
-            fingerprint checks, at no extra cost and with no JavaScript. Ignored on render engines. POST
-            only - the GET form rejects `impersonate` as an unknown query parameter. If omitted, the project''s
-            stored default applies.'
+          default: true
+          description: 'Fetch tier only: present a current Chrome TLS/HTTP2 fingerprint, with matching
+            browser headers and Accept-Encoding, to pass passive fingerprint checks. On by default, free,
+            no JavaScript; `false` turns it off and the fetch uses a non-browser TLS handshake. Ignored
+            on render engines. If omitted, the project''s stored default applies, and `true` when the project sets
+            none.'
         mode:
           type: string
           enum:
@@ -564,19 +565,25 @@ components:
           description: 'Coming soon. Use residential exits from the managed pool: fetch 10, obscura 25, chromium 32
             credits (camoufox stays 25). If no residential exit is available the request fails 503 ERR::PROXY::EXHAUSTED
             rather than falling back; ignored (with X-Warning PROXY_FLAG_IGNORED) when `proxy` is set.
-            If omitted, the project''s stored default applies.'
+            A bot challenge from a named vendor is retried on a different exit (fetch tier), then climbs
+            to camoufox; see "Bot challenges" in the operation description. If omitted, the project''s stored default
+            applies.'
         proxy_country:
           type: string
           pattern: ^[A-Za-z]{2}$
           description: Coming soon. ISO 3166-1 alpha-2 exit country (case-insensitive), within the residential pool.
             Requires premium_proxy=true (400 ERR::REQUEST::INCOMPATIBLE_FLAGS otherwise) unless `proxy`
             is set, in which case it is ignored with a warning; an unavailable country is 503 ERR::PROXY::EXHAUSTED,
-            never substituted. If omitted, the project's stored default applies.
+            never substituted. A browser render takes its timezone and locale from this country or, when
+            it is omitted, from the country of the pool exit it was assigned. If omitted, the project's
+            stored default applies.
         proxy:
           type: string
           description: Your own proxy URL (http, https, socks5 or socks5h; credentials in userinfo). Takes
             precedence over premium_proxy/proxy_country and adds 0 proxy credits; loopback hosts are refused
             with 400 ERR::SECURITY::SSRF_BLOCKED. An unreachable proxy fails 502 ERR::PROXY::UNREACHABLE.
+            A bot challenge from a named vendor climbs to camoufox when the proxy is http://; see "Bot
+            challenges" in the operation description.
         proxy_verify:
           type: boolean
           default: false
@@ -772,9 +779,11 @@ components:
         cache:
           type: boolean
           default: true
-          description: 'Serve a stored result younger than cache_ttl (Cache-State: hit, 0 credits). Only
-            billable successes of GET-method requests without session_id or actions are stored. Set false
-            for time-sensitive data; cache=false with cache_ttl>0 is 400 ERR::REQUEST::INCOMPATIBLE_FLAGS.'
+          description: 'Serve a stored result younger than cache_ttl (Cache-State: hit). A hit is billed at
+            the same price as the fetch that stored it: the cache saves the fetch (latency and load on
+            the target), not credits. Only billable successes of GET-method requests without session_id
+            or actions are stored. Set false for time-sensitive data; cache=false with cache_ttl>0 is
+            400 ERR::REQUEST::INCOMPATIBLE_FLAGS.'
         cache_ttl:
           type: integer
           minimum: 0
@@ -1639,15 +1648,23 @@ components:
         job-level value, overridden by the item's value (an explicit `false` on an item wins), with the project's
         dashboard defaults underneath both. Validation happens for every item at submission.
 
-        IMPORTANT — what the current batch worker actually executes: only `js_render`, `stealth`, `premium_proxy`,
-        `proxy_country`, `proxy` (always with verify off) and, on rendered items, `block_resources`. Requests are always
-        GET and the payload is the raw page (HTML, or the decoded body for non-rendered fetches). Every other field is
-        accepted, validated and counted in the credit reservation for parity with /v1/scrape, but has no effect on the
-        batch result. If you need extraction, screenshots, actions, sessions or a non-HTML `response_format`, use /v1/scrape.
+        What the batch worker executes: each item is one fetch or one render, and the document is returned as
+        `response_format` (`html` by default, `json`, `markdown` or `text`). A field is either honoured on a batch item
+        or refused at submission, never accepted and skipped. Refused with 400 INVALID_PARAMETER, naming every offending
+        field, with nothing queued or charged: `actions`, `screenshot` and its options, `network_capture`, `extract`,
+        `extract_preset`, `ai_extract`, `autoparse`, `links`, `session_id`, `cache`/`cache_ttl`, `original_status`,
+        `allowed_status_codes`, `parse_pdf=true`, `mode=auto`, `response_format=pdf`, and a non-GET `method` with
+        `js_render` or `stealth`. A value that asks for nothing (`screenshot: false`, an empty list) is accepted. A
+        refusal caused by a project default says so in `detail`. Use /v1/scrape for those fields.
+
+        A batch item is priced when it is accepted, so a bot challenge never climbs it to camoufox or retries it on a
+        different exit the way it can a /v1/scrape request with `premium_proxy` or `proxy`.
       properties:
         method:
           $ref: '#/components/schemas/ScrapeRequest/properties/method'
-          description: Validated as on /v1/scrape, but the batch worker always sends GET. Leave unset.
+          description: >-
+            Honoured on fetched items. A method other than GET with `js_render` or `stealth` is refused with
+            400, because a browser navigation is always a GET.
         js_render:
           $ref: '#/components/schemas/ScrapeRequest/properties/js_render'
           description: Render the page with the obscura browser engine. Honoured by the batch worker.
@@ -1658,12 +1675,14 @@ components:
             Honoured by the batch worker. Default false (or the project default).
         impersonate:
           $ref: '#/components/schemas/ScrapeRequest/properties/impersonate'
-          description: Validated and priced as on /v1/scrape; not applied by the batch worker.
+          description: Applied by the batch worker on fetched items. Default true, as on /v1/scrape; false on
+            the item, the job or the project defaults opts out.
         mode:
           $ref: '#/components/schemas/ScrapeRequest/properties/mode'
-          description: Validated and priced as on /v1/scrape (`auto` reserves the dearest tier). The batch
-            worker does not escalate; it runs fetch unless `js_render` or `stealth` is set. Cannot be
-            combined with `engine` (400 INCOMPATIBLE_FLAGS).
+          description: >-
+            `auto` is refused on batch with 400 INVALID_PARAMETER, also when it comes from the project
+            defaults; the batch worker does not escalate. It runs the engine that `engine`, `js_render` or
+            `stealth` selects.
         engine:
           $ref: '#/components/schemas/ScrapeRequest/properties/engine'
           description: |
@@ -1683,30 +1702,38 @@ components:
           description: Coming soon. Exit country for pool proxies. Honoured by the batch worker.
         proxy:
           $ref: '#/components/schemas/ScrapeRequest/properties/proxy'
-          description: Your own proxy URL; wins over the pool flags. Honoured by the batch worker (without
-            proxy verification).
+          description: >-
+            Your own proxy URL; wins over the pool flags. Honoured by the batch worker.
         proxy_verify:
           $ref: '#/components/schemas/ScrapeRequest/properties/proxy_verify'
-          description: Validated as on /v1/scrape; the batch worker always sends the custom proxy with
-            verification off.
+          description: >-
+            Honoured by the batch worker: the custom proxy is probed before the engine cost is spent.
         session_id:
           $ref: '#/components/schemas/ScrapeRequest/properties/session_id'
-          description: Validated as on /v1/scrape; batch items do not run inside a session. Not applied.
+          description: >-
+            Batch items do not run inside a session. Refused on batch with 400 INVALID_PARAMETER (nothing
+            queued or charged); use /v1/scrape.
         sticky_key:
           $ref: '#/components/schemas/ScrapeRequest/properties/sticky_key'
-          description: Coming soon. Validated as on /v1/scrape; not applied by the batch worker.
+          description: >-
+            Coming soon. Honoured by the batch worker: equal keys are pinned to the same pool exit.
         wait:
           $ref: '#/components/schemas/ScrapeRequest/properties/wait'
-          description: Validated as on /v1/scrape; not applied by the batch worker.
+          description: >-
+            Honoured on rendered items.
         wait_for:
           $ref: '#/components/schemas/ScrapeRequest/properties/wait_for'
-          description: Validated as on /v1/scrape; not applied by the batch worker.
+          description: >-
+            Honoured on rendered items.
         wait_for_timeout:
           $ref: '#/components/schemas/ScrapeRequest/properties/wait_for_timeout'
-          description: Validated as on /v1/scrape; not applied by the batch worker.
+          description: >-
+            Honoured on rendered items.
         actions:
           $ref: '#/components/schemas/ScrapeRequest/properties/actions'
-          description: Validated as on /v1/scrape; the batch worker does not run browser actions.
+          description: >-
+            The batch worker does not run browser actions. A non-empty list is refused on batch with 400
+            INVALID_PARAMETER (nothing queued or charged); use /v1/scrape.
         block_resources:
           $ref: '#/components/schemas/ScrapeRequest/properties/block_resources'
           description: Resource classes to block while rendering. Honoured on rendered items only; unset
@@ -1714,82 +1741,107 @@ components:
             the project default when unset.
         headless:
           $ref: '#/components/schemas/ScrapeRequest/properties/headless'
-          description: Validated as on /v1/scrape (the project default for headless is NOT merged on batch).
-            `false` needs chromium, which batch cannot pin. Not applied by the batch worker.
+          description: >-
+            Honoured on rendered items (the project default for headless is NOT merged on batch).
         screenshot:
           $ref: '#/components/schemas/ScrapeRequest/properties/screenshot'
-          description: Validated and priced as on /v1/scrape; the batch worker returns no screenshot.
-            With `engine` fetch/obscura it is a 400.
+          description: >-
+            The batch worker returns no screenshot. `true` is refused on batch with 400 INVALID_PARAMETER
+            (nothing queued or charged); use /v1/scrape.
         screenshot_fullpage:
           $ref: '#/components/schemas/ScrapeRequest/properties/screenshot_fullpage'
-          description: Validated as on /v1/scrape; not applied by the batch worker.
+          description: >-
+            Refused on batch with 400 INVALID_PARAMETER (nothing queued or charged); use /v1/scrape.
         screenshot_selector:
           $ref: '#/components/schemas/ScrapeRequest/properties/screenshot_selector'
-          description: Validated as on /v1/scrape; not applied by the batch worker.
+          description: >-
+            Refused on batch with 400 INVALID_PARAMETER (nothing queued or charged); use /v1/scrape.
         screenshot_format:
           $ref: '#/components/schemas/ScrapeRequest/properties/screenshot_format'
-          description: Validated as on /v1/scrape; not applied by the batch worker.
+          description: >-
+            Refused on batch with 400 INVALID_PARAMETER (nothing queued or charged); use /v1/scrape.
         screenshot_quality:
           $ref: '#/components/schemas/ScrapeRequest/properties/screenshot_quality'
-          description: Validated as on /v1/scrape; not applied by the batch worker.
+          description: >-
+            Refused on batch with 400 INVALID_PARAMETER (nothing queued or charged); use /v1/scrape.
         custom_headers:
           $ref: '#/components/schemas/ScrapeRequest/properties/custom_headers'
-          description: Validated as on /v1/scrape; the batch worker does not send custom headers.
+          description: >-
+            Honoured by the batch worker on every item. Falls back to the project default when unset.
         autoparse:
           $ref: '#/components/schemas/ScrapeRequest/properties/autoparse'
-          description: Validated as on /v1/scrape; not applied by the batch worker.
+          description: >-
+            Refused on batch with 400 INVALID_PARAMETER (nothing queued or charged); use /v1/scrape.
         links:
           $ref: '#/components/schemas/ScrapeRequest/properties/links'
-          description: Validated as on /v1/scrape; not applied by the batch worker.
+          description: >-
+            Refused on batch with 400 INVALID_PARAMETER (nothing queued or charged); use /v1/scrape. Also
+            refused when it comes from the project defaults, and `detail` says so.
         network_capture:
           $ref: '#/components/schemas/ScrapeRequest/properties/network_capture'
-          description: Validated as on /v1/scrape (see NetworkCapture); not applied by the batch worker.
+          description: >-
+            Refused on batch with 400 INVALID_PARAMETER (nothing queued or charged); use /v1/scrape.
         extract:
           $ref: '#/components/schemas/ScrapeRequest/properties/extract'
-          description: Validated as on /v1/scrape; the batch worker returns the raw page, not extracted
-            fields.
+          description: >-
+            Refused on batch with 400 INVALID_PARAMETER (nothing queued or charged); use /v1/scrape.
         extract_preset:
           $ref: '#/components/schemas/ScrapeRequest/properties/extract_preset'
-          description: Validated as on /v1/scrape; not applied by the batch worker.
+          description: >-
+            Refused on batch with 400 INVALID_PARAMETER (nothing queued or charged); use /v1/scrape.
         ai_extract:
           $ref: '#/components/schemas/ScrapeRequest/properties/ai_extract'
-          description: Validated as on /v1/scrape (see AIExtract); not applied by the batch worker.
+          description: >-
+            Refused on batch with 400 INVALID_PARAMETER (nothing queued or charged); use /v1/scrape.
         main_content_only:
           $ref: '#/components/schemas/ScrapeRequest/properties/main_content_only'
-          description: Validated as on /v1/scrape; not applied by the batch worker.
+          description: >-
+            Honoured on `markdown` and `text` items. Unset means off. Falls back to the project default when
+            unset.
         include_tags:
           $ref: '#/components/schemas/ScrapeRequest/properties/include_tags'
-          description: Validated as on /v1/scrape; not applied by the batch worker.
+          description: >-
+            Honoured on `markdown` and `text` items.
         exclude_tags:
           $ref: '#/components/schemas/ScrapeRequest/properties/exclude_tags'
-          description: Validated as on /v1/scrape; not applied by the batch worker.
+          description: >-
+            Honoured on `markdown` and `text` items.
         parse_pdf:
           $ref: '#/components/schemas/ScrapeRequest/properties/parse_pdf'
-          description: Validated as on /v1/scrape (default true); not applied by the batch worker.
+          description: >-
+            The batch worker has no PDF parser. `true` is refused on batch with 400 INVALID_PARAMETER (nothing
+            queued or charged); use /v1/scrape. `false` is accepted.
         response_format:
           $ref: '#/components/schemas/ScrapeRequest/properties/response_format'
-          description: Validated as on /v1/scrape, but the batch worker always returns the raw page body
-            regardless of this value (no markdown, json, text or pdf conversion).
+          description: >-
+            Honoured. `html` (the default) and `json` return the document as retrieved; `markdown` and `text`
+            run the same conversion as /v1/scrape. A document that is not HTML (a PDF, an image, JSON) fails a
+            `markdown` or `text` item with EXTRACTION_FAILED; request `html` to get it as retrieved. `pdf` is
+            refused with 400, also when it comes from the project defaults.
         cache:
           $ref: '#/components/schemas/ScrapeRequest/properties/cache'
-          description: Validated as on /v1/scrape, but on batch it defaults to false (not true) and the
-            worker never reads from the cache.
+          description: >-
+            Batch never reads from the result cache. `true` is refused on batch with 400 INVALID_PARAMETER
+            (nothing queued or charged); use /v1/scrape.
         cache_ttl:
           $ref: '#/components/schemas/ScrapeRequest/properties/cache_ttl'
-          description: Validated as on /v1/scrape; `0` does not imply `cache=false` on batch. Not applied
-            by the batch worker.
+          description: >-
+            A non-zero value is refused on batch with 400 INVALID_PARAMETER (nothing queued or charged); use
+            /v1/scrape.
         max_cost:
           $ref: '#/components/schemas/ScrapeRequest/properties/max_cost'
           description: Per-ITEM credit ceiling, checked at submission against the item's dearest outcome
             (400 if exceeded). For a ceiling on the whole run use `credit_budget`.
         original_status:
           $ref: '#/components/schemas/ScrapeRequest/properties/original_status'
-          description: Validated as on /v1/scrape; not applied (result lines always carry the target status
-            in `http_status`).
+          description: >-
+            Refused on batch with 400 INVALID_PARAMETER (nothing queued or charged); use /v1/scrape. Result
+            lines always carry the target status in `http_status`.
         allowed_status_codes:
           $ref: '#/components/schemas/ScrapeRequest/properties/allowed_status_codes'
-          description: Validated as on /v1/scrape; not applied. Billing is fixed to target statuses 200,
-            404 and 410.
+          description: >-
+            Refused on batch with 400 INVALID_PARAMETER (nothing queued or charged); use /v1/scrape. Billing
+            is fixed to target statuses 200, 404 and 410.
     BatchItem:
       description: |
         One URL of a batch: a /v1/scrape request object (every BatchScrapeParams field plus `url`) and an optional
@@ -2021,8 +2073,10 @@ components:
           type: object
           additionalProperties: true
           description: The job-level scrape parameters as stored (your top-level BatchScrapeParams, without
-            `url`), plus `credit_budget_micro` — the run ceiling the worker enforces. Always present,
-            possibly only `credit_budget_micro`.
+            `url`), plus two keys the API sets and you cannot — `credit_budget_micro`, the run ceiling the
+            worker enforces, and `default_proxy_tier` (`direct` or `datacenter`), the exit an item that sets
+            no `proxy`, `premium_proxy`, `proxy_country` or `sticky_key` takes, decided at submission the way
+            `/v1/scrape` decides it. Always present, possibly only those two.
         total_items:
           type: integer
           format: int64
@@ -2217,8 +2271,9 @@ components:
       properties:
         content:
           type: string
-          description: The worker's stored `result` value as raw JSON text (currently a JSON string literal
-            holding the page HTML, so JSON-decode it once to get the HTML). May be a byte prefix when
+          description: The worker's stored `result` value as raw JSON text (a JSON string literal
+            holding the document in the item's `response_format`, so JSON-decode it once to get the html,
+            markdown or text). May be a byte prefix when
             `truncated`, in which case it is not valid JSON.
         bytes:
           type: integer
@@ -3783,18 +3838,20 @@ paths:
         Fetch one URL synchronously and return it as html, markdown, text, a PDF, or a JSON envelope with extracted data.
 
         Choosing an engine (cheapest first):
-        - Default (fetch, 1 credit): plain HTTP, no JavaScript. Add `impersonate=true` (POST only, free) when a site rejects non-browser TLS fingerprints.
+        - Default (fetch, 1 credit): plain HTTP, no JavaScript, presenting a current Chrome TLS/HTTP2 fingerprint (`impersonate`, on by default and free; `impersonate=false` turns it off).
         - `js_render=true` (obscura, 3): content is built by JavaScript, or you need wait/wait_for/actions/block_resources/network_capture.
         - `engine=chromium` (8): needed for screenshot and response_format=pdf. `stealth=true` (camoufox) is coming soon.
         - `mode=auto`: unsure - escalates through the available engines, bills only the rung that worked.
         - Managed proxy pools (`premium_proxy`) are coming soon; during the beta pass your own proxy with `proxy`.
         Browser-only flags on the fetch tier are a 400, never silently ignored.
 
-        Billing: failures cost 0 (errors, bot challenges, timeouts, target statuses other than 200/404/410 unless listed in allowed_status_codes, undelivered screenshots); cache hits cost 0. Check X-Credits-Charged.
+        Billing: failures cost 0 (errors, bot challenges, timeouts, target statuses other than 200/404/410 unless listed in allowed_status_codes, undelivered screenshots). A cache hit is billed at the same price as the fetch that stored it: the cache saves the fetch (latency and load on the target), not credits. Like any request, a hit is refused with 402 when the monthly allowance cannot cover its price. Check X-Credits-Charged.
+
+        Bot challenges: a challenge page attributed to a named vendor (Cloudflare, DataDome, PerimeterX, Akamai) is never returned as a success. A fetch through a managed pool exit that meets one is retried once on a different exit, free (GET/HEAD/OPTIONS only, not with `sticky_key` or `session_id`, never on your own `proxy`). With `premium_proxy=true` or your own `proxy`, no `engine` pin and no `mode=auto`, a request whose page is still a challenge then climbs to camoufox, which waits out or clicks through the interstitial. Only the rung that returned the page is billed (camoufox 25, or the first rung's price), and 0 if every rung was challenged (502 ERR::UPSTREAM::CHALLENGE). A transport error, a refusal with no vendor marker (such as a bare 403) or a non-billable status such as 404 does not climb. The climb is left off for a non-GET method, headless=false, response_format=pdf, a screenshot, actions, a `proxy` that is not http://, a max_cost below the camoufox price, or a deployment without camoufox; an allowance that covers the first rung but not camoufox runs the request without it. X-Engine names the engine that served, each abandoned rung adds an `X-Warning: ESCALATED`, and diagnostics.attempts lists every attempt (in the JSON envelope on a successful climb). Batch items never climb.
 
         Status: the HTTP status is the platform's. A blocked or erroring site is usually still HTTP 200 - read envelope `status` or X-Target-Status for the site's answer. Errors are application/problem+json; retry only when `retryable` is true.
 
-        Not idempotent: there is no idempotency key, and each call performs (and bills) a new scrape unless served from cache. GET and POST accept the same parameters and behave identically, except that GET does not accept `impersonate`.
+        Not idempotent: there is no idempotency key, and each call bills again, whether it performs a new scrape or is served from cache. GET and POST accept the same parameters and behave identically.
       security:
       - bearerAuth: []
       x-spicrawl-scope: scrape
@@ -3825,7 +3882,7 @@ paths:
         ai_extract: 4
         ai_extract_note: added on top of the engine price; the only additive item
         failures: 0
-        cache_hit: 0
+        cache_hit: the price of the fetch that stored it
         billable_target_statuses:
         - 200
         - 404
@@ -3833,6 +3890,8 @@ paths:
         billable_target_statuses_note: plus any in allowed_status_codes; other target statuses return
           the body at 0
         mode_auto: bills only the rung that succeeded; reserves the dearest rung against the monthly allowance
+        challenge_escalation: with premium_proxy or proxy, a vendor challenge may climb to camoufox; bills
+          only the rung that returned the page, 0 if every rung was challenged; batch items never climb
         impersonate: 0
         extract_autoparse_links_network_capture: 0
       parameters:
@@ -3882,6 +3941,18 @@ paths:
         schema:
           type: boolean
           default: false
+      - name: impersonate
+        in: query
+        required: false
+        description: Fetch tier only. Present a current Chrome TLS/HTTP2 fingerprint, with matching browser
+          headers and Accept-Encoding, to pass passive fingerprint checks. On by default, free, no JavaScript;
+          `impersonate=false` turns it off and the fetch uses a non-browser TLS handshake. Ignored on render
+          engines.
+          If omitted, the project's stored default applies, and true when the project sets none. Accepts
+          true/false/1/0; a bare `?impersonate` means true.
+        schema:
+          type: boolean
+          default: true
       - name: mode
         in: query
         required: false
@@ -3913,9 +3984,10 @@ paths:
         required: false
         description: 'Coming soon. Use residential exits from the managed pool: fetch 10, obscura 25, chromium 32 credits
           (camoufox stays 25). If no residential exit is available the request fails 503 ERR::PROXY::EXHAUSTED
-          rather than falling back; ignored (with X-Warning PROXY_FLAG_IGNORED) when `proxy` is set. If
-          omitted, the project''s stored default applies. Accepts true/false/1/0; a bare `?premium_proxy`
-          means true.'
+          rather than falling back; ignored (with X-Warning PROXY_FLAG_IGNORED) when `proxy` is set. A
+          bot challenge from a named vendor is retried on a different exit (fetch tier), then climbs to
+          camoufox; see "Bot challenges" in the operation description. If omitted, the project''s stored default applies.
+          Accepts true/false/1/0; a bare `?premium_proxy` means true.'
         schema:
           type: boolean
           default: false
@@ -3925,7 +3997,9 @@ paths:
         description: Coming soon. ISO 3166-1 alpha-2 exit country (case-insensitive), within the residential pool.
           Requires premium_proxy=true (400 ERR::REQUEST::INCOMPATIBLE_FLAGS otherwise) unless `proxy`
           is set, in which case it is ignored with a warning; an unavailable country is 503 ERR::PROXY::EXHAUSTED,
-          never substituted. If omitted, the project's stored default applies.
+          never substituted. A browser render takes its timezone and locale from this country or, when
+          it is omitted, from the country of the pool exit it was assigned. If omitted, the project's
+          stored default applies.
         schema:
           type: string
           pattern: ^[A-Za-z]{2}$
@@ -3935,6 +4009,8 @@ paths:
         description: Your own proxy URL (http, https, socks5 or socks5h; credentials in userinfo). Takes
           precedence over premium_proxy/proxy_country and adds 0 proxy credits; loopback hosts are refused
           with 400 ERR::SECURITY::SSRF_BLOCKED. An unreachable proxy fails 502 ERR::PROXY::UNREACHABLE.
+          A bot challenge from a named vendor climbs to camoufox when the proxy is http://; see "Bot
+          challenges" in the operation description.
         schema:
           type: string
       - name: proxy_verify
@@ -4235,10 +4311,11 @@ paths:
       - name: cache
         in: query
         required: false
-        description: 'Serve a stored result younger than cache_ttl (Cache-State: hit, 0 credits). Only
-          billable successes of GET-method requests without session_id or actions are stored. Set false
-          for time-sensitive data; cache=false with cache_ttl>0 is 400 ERR::REQUEST::INCOMPATIBLE_FLAGS.
-          Accepts true/false/1/0; a bare `?cache` means true.'
+        description: 'Serve a stored result younger than cache_ttl (Cache-State: hit). A hit is billed at
+          the same price as the fetch that stored it: the cache saves the fetch (latency and load on the
+          target), not credits. Only billable successes of GET-method requests without session_id or
+          actions are stored. Set false for time-sensitive data; cache=false with cache_ttl>0 is 400
+          ERR::REQUEST::INCOMPATIBLE_FLAGS. Accepts true/false/1/0; a bare `?cache` means true.'
         schema:
           type: boolean
           default: true
@@ -4315,13 +4392,13 @@ paths:
               schema:
                 type: string
             X-Credits-Charged:
-              description: Credits actually billed; 0 on any failure, cache hit, or non-billable target
-                status.
+              description: Credits actually billed; 0 on any failure or non-billable target status. A
+                cache hit is billed at the same price as the fetch that stored it.
               schema:
                 type: integer
             X-Request-Cost:
-              description: Price of the engine/proxy tier that ran (0 on a cache hit). Differs from X-Credits-Charged
-                exactly when nothing was billed.
+              description: Price of the engine/proxy tier that ran (on a cache hit, the tier that fetched
+                the stored copy). Differs from X-Credits-Charged exactly when nothing was billed.
               schema:
                 type: integer
             X-Credits-Remaining:
@@ -4333,7 +4410,8 @@ paths:
                 type: integer
                 minimum: 0
             X-Engine:
-              description: Engine that ran.
+              description: Engine that ran. After an escalation (mode=auto, or a bot challenge climbing
+                to camoufox), the rung that served the page.
               schema:
                 type: string
                 enum:
@@ -4502,18 +4580,20 @@ paths:
         Fetch one URL synchronously and return it as html, markdown, text, a PDF, or a JSON envelope with extracted data.
 
         Choosing an engine (cheapest first):
-        - Default (fetch, 1 credit): plain HTTP, no JavaScript. Add `impersonate=true` (POST only, free) when a site rejects non-browser TLS fingerprints.
+        - Default (fetch, 1 credit): plain HTTP, no JavaScript, presenting a current Chrome TLS/HTTP2 fingerprint (`impersonate`, on by default and free; `impersonate=false` turns it off).
         - `js_render=true` (obscura, 3): content is built by JavaScript, or you need wait/wait_for/actions/block_resources/network_capture.
         - `engine=chromium` (8): needed for screenshot and response_format=pdf. `stealth=true` (camoufox) is coming soon.
         - `mode=auto`: unsure - escalates through the available engines, bills only the rung that worked.
         - Managed proxy pools (`premium_proxy`) are coming soon; during the beta pass your own proxy with `proxy`.
         Browser-only flags on the fetch tier are a 400, never silently ignored.
 
-        Billing: failures cost 0 (errors, bot challenges, timeouts, target statuses other than 200/404/410 unless listed in allowed_status_codes, undelivered screenshots); cache hits cost 0. Check X-Credits-Charged.
+        Billing: failures cost 0 (errors, bot challenges, timeouts, target statuses other than 200/404/410 unless listed in allowed_status_codes, undelivered screenshots). A cache hit is billed at the same price as the fetch that stored it: the cache saves the fetch (latency and load on the target), not credits. Like any request, a hit is refused with 402 when the monthly allowance cannot cover its price. Check X-Credits-Charged.
+
+        Bot challenges: a challenge page attributed to a named vendor (Cloudflare, DataDome, PerimeterX, Akamai) is never returned as a success. A fetch through a managed pool exit that meets one is retried once on a different exit, free (GET/HEAD/OPTIONS only, not with `sticky_key` or `session_id`, never on your own `proxy`). With `premium_proxy=true` or your own `proxy`, no `engine` pin and no `mode=auto`, a request whose page is still a challenge then climbs to camoufox, which waits out or clicks through the interstitial. Only the rung that returned the page is billed (camoufox 25, or the first rung's price), and 0 if every rung was challenged (502 ERR::UPSTREAM::CHALLENGE). A transport error, a refusal with no vendor marker (such as a bare 403) or a non-billable status such as 404 does not climb. The climb is left off for a non-GET method, headless=false, response_format=pdf, a screenshot, actions, a `proxy` that is not http://, a max_cost below the camoufox price, or a deployment without camoufox; an allowance that covers the first rung but not camoufox runs the request without it. X-Engine names the engine that served, each abandoned rung adds an `X-Warning: ESCALATED`, and diagnostics.attempts lists every attempt (in the JSON envelope on a successful climb). Batch items never climb.
 
         Status: the HTTP status is the platform's. A blocked or erroring site is usually still HTTP 200 - read envelope `status` or X-Target-Status for the site's answer. Errors are application/problem+json; retry only when `retryable` is true.
 
-        Not idempotent: there is no idempotency key, and each call performs (and bills) a new scrape unless served from cache. GET and POST accept the same parameters and behave identically, except that GET does not accept `impersonate`.
+        Not idempotent: there is no idempotency key, and each call bills again, whether it performs a new scrape or is served from cache. GET and POST accept the same parameters and behave identically.
       security:
       - bearerAuth: []
       x-spicrawl-scope: scrape
@@ -4544,7 +4624,7 @@ paths:
         ai_extract: 4
         ai_extract_note: added on top of the engine price; the only additive item
         failures: 0
-        cache_hit: 0
+        cache_hit: the price of the fetch that stored it
         billable_target_statuses:
         - 200
         - 404
@@ -4552,6 +4632,8 @@ paths:
         billable_target_statuses_note: plus any in allowed_status_codes; other target statuses return
           the body at 0
         mode_auto: bills only the rung that succeeded; reserves the dearest rung against the monthly allowance
+        challenge_escalation: with premium_proxy or proxy, a vendor challenge may climb to camoufox; bills
+          only the rung that returned the page, 0 if every rung was challenged; batch items never climb
         impersonate: 0
         extract_autoparse_links_network_capture: 0
       requestBody:
@@ -4609,13 +4691,13 @@ paths:
               schema:
                 type: string
             X-Credits-Charged:
-              description: Credits actually billed; 0 on any failure, cache hit, or non-billable target
-                status.
+              description: Credits actually billed; 0 on any failure or non-billable target status. A
+                cache hit is billed at the same price as the fetch that stored it.
               schema:
                 type: integer
             X-Request-Cost:
-              description: Price of the engine/proxy tier that ran (0 on a cache hit). Differs from X-Credits-Charged
-                exactly when nothing was billed.
+              description: Price of the engine/proxy tier that ran (on a cache hit, the tier that fetched
+                the stored copy). Differs from X-Credits-Charged exactly when nothing was billed.
               schema:
                 type: integer
             X-Credits-Remaining:
@@ -4627,7 +4709,8 @@ paths:
                 type: integer
                 minimum: 0
             X-Engine:
-              description: Engine that ran.
+              description: Engine that ran. After an escalation (mode=auto, or a bot challenge climbing
+                to camoufox), the rung that served the page.
               schema:
                 type: string
                 enum:

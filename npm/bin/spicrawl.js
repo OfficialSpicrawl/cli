@@ -49,11 +49,11 @@ const bin = binaryPath();
 const child = spawn(bin, process.argv.slice(2), { stdio: "inherit" });
 
 // Forward termination signals so an agent that kills `npx @spicrawl/cli` stops the
-// real process too. Ctrl-C already reaches the child via the process group.
-for (const sig of ["SIGTERM", "SIGHUP"]) {
+// real process too. The exit handler below then re-raises the child's signal (or
+// returns its code), so this process ends the way the child did.
+for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
   process.on(sig, () => child.kill(sig));
 }
-process.on("SIGINT", () => {});
 
 child.on("error", (err) => {
   process.stderr.write(`spicrawl: failed to run ${path.basename(bin)}: ${err.message}\n`);

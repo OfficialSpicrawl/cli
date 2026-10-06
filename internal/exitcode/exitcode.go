@@ -19,7 +19,9 @@ const (
 	Session  = 9  // ERR::SESSION::*
 	Network  = 10 // could not reach the Spicrawl API at all; nothing was sent
 	Pending  = 11 // a --wait gave up before the job finished
-	Timeout  = 12 // the request was sent but --timeout expired; it may have run and been billed
+	Timeout  = 12 // the request was sent but --timeout expired or the connection dropped; it may have run and been billed
+
+	Interrupted = 130 // Ctrl-C (128 + SIGINT); the usual shell convention
 )
 
 // Entry describes one exit code for `spicrawl exit-codes`.
@@ -44,7 +46,8 @@ var Table = []Entry{
 	{Session, "session", "ERR::SESSION::*"},
 	{Network, "network", "the Spicrawl API could not be reached (DNS, refused, TLS); nothing was sent"},
 	{Pending, "pending", "a --wait gave up before the job finished"},
-	{Timeout, "timeout", "timed out waiting for the API; the request may have run and been billed: check `spicrawl logs` before retrying"},
+	{Timeout, "timeout", "timed out waiting for the API, or the connection dropped after the request was sent; the request may have run and been billed: check `spicrawl logs` before retrying"},
+	{Interrupted, "interrupted", "stopped with Ctrl-C"},
 }
 
 // ForCode returns the exit code for an API error code such as

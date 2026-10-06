@@ -36,7 +36,7 @@ func addScrapeFlags(cmd *cobra.Command) *scrapeFlags {
 	f.StringVar(&s.method, "method", "", "HTTP method sent to the target (default GET)")
 	f.BoolVar(&s.render, "render", false, "render JavaScript in a browser (js_render)")
 	f.BoolVar(&s.stealth, "stealth", false, "hardened browser fingerprint (camoufox; dearest tier)")
-	f.BoolVar(&s.impersonate, "impersonate", false, "fetch tier: present a real browser TLS/HTTP2 fingerprint")
+	f.BoolVar(&s.impersonate, "impersonate", false, "fetch tier: present a real browser TLS/HTTP2 fingerprint (on by default; --impersonate=false turns it off)")
 	f.StringVar(&s.engine, "engine", "", "pin the engine: fetch|obscura|chromium|camoufox")
 	f.StringVar(&s.mode, "mode", "", "auto: escalate through tiers until one succeeds")
 	f.BoolVar(&s.premium, "premium-proxy", false, "residential exits (priced higher; fails rather than falling back)")
@@ -73,7 +73,7 @@ func addScrapeFlags(cmd *cobra.Command) *scrapeFlags {
 	f.IntVar(&s.maxCost, "max-cost", 0, "refuse if the request would cost more credits than this")
 	f.StringSliceVar(&s.allowedStatus, "allowed-status", nil, "extra target statuses to accept, e.g. 403: billed as a success (200/404/410 always are), ends --mode auto escalation, and scrape exits 0 instead of 6 on them")
 	f.BoolVar(&s.originalStatus, "original-status", false, "API answers with the target's status on its HTTP status line (the CLI reads the target status either way)")
-	f.StringVar(&s.body, "body", "", "raw request body as JSON or @file; flags override its fields")
+	f.StringVar(&s.body, "body", "", "raw request body as JSON or @file; flags override its fields (nested objects are merged key by key)")
 	return s
 }
 
@@ -83,6 +83,9 @@ func (s *scrapeFlags) build() (map[string]any, error) {
 	if s.body != "" {
 		if err := decodeJSONArg("--body", s.body, &body); err != nil {
 			return nil, err
+		}
+		if body == nil { // --body null
+			return nil, Usagef("--body: want a JSON object, got null")
 		}
 	}
 	set := func(flag, field string, v any) {
@@ -137,7 +140,7 @@ func (s *scrapeFlags) build() (map[string]any, error) {
 		body["cache"] = false
 	}
 	if len(s.headers) > 0 {
-		h := map[string]string{}
+		h := map[string]any{}
 		for _, raw := range s.headers {
 			name, val, ok := strings.Cut(raw, ":")
 			if !ok || strings.TrimSpace(name) == "" {
@@ -145,7 +148,7 @@ func (s *scrapeFlags) build() (map[string]any, error) {
 			}
 			h[strings.TrimSpace(name)] = strings.TrimSpace(val)
 		}
-		body["custom_headers"] = h
+		mergeField(body, "custom_headers", h)
 	}
 	if len(s.allowedStatus) > 0 {
 		codes := make([]int, 0, len(s.allowedStatus))
@@ -170,8 +173,9 @@ func (s *scrapeFlags) build() (map[string]any, error) {
 		if err := decodeJSONArg("--"+j.flag, j.val, &v); err != nil {
 			return nil, err
 		}
-		body[j.field] = v
+		mergeField(body, j.field, v)
 	}
+	// ai_extract below replaces --body's: prompt and schema are alternatives.
 	if s.aiPrompt != "" && s.aiSchema != "" {
 		return nil, Usagef("--ai and --ai-schema are mutually exclusive: the API takes a prompt or a schema, not both")
 	}
@@ -186,6 +190,20 @@ func (s *scrapeFlags) build() (map[string]any, error) {
 		body["ai_extract"] = map[string]any{"schema": schema}
 	}
 	return body, nil
+}
+
+// mergeField sets dst[k] = v. When both are JSON objects they are merged
+// recursively, so a flag overrides leaf fields and keeps --body's siblings.
+func mergeField(dst map[string]any, k string, v any) {
+	d, dok := dst[k].(map[string]any)
+	s, sok := v.(map[string]any)
+	if !dok || !sok {
+		dst[k] = v
+		return
+	}
+	for k2, v2 := range s {
+		mergeField(d, k2, v2)
+	}
 }
 
 // decodeJSONArg parses a flag value that is inline JSON or @path (@- = stdin).

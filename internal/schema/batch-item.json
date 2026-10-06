@@ -6,7 +6,7 @@
   "allOf": [
     {
       "type": "object",
-      "description": "The /v1/scrape request object as accepted by batch, minus `url`. Field names, types and validation are exactly\nScrapeRequest's (enforced by a parity test); each property below references it. Every item is merged as\njob-level value, overridden by the item's value (an explicit `false` on an item wins), with the project's\ndashboard defaults underneath both. Validation happens for every item at submission.\n\nIMPORTANT — what the current batch worker actually executes: only `js_render`, `stealth`, `premium_proxy`,\n`proxy_country`, `proxy` (always with verify off) and, on rendered items, `block_resources`. Requests are always\nGET and the payload is the raw page (HTML, or the decoded body for non-rendered fetches). Every other field is\naccepted, validated and counted in the credit reservation for parity with /v1/scrape, but has no effect on the\nbatch result. If you need extraction, screenshots, actions, sessions or a non-HTML `response_format`, use /v1/scrape.\n",
+      "description": "The /v1/scrape request object as accepted by batch, minus `url`. Field names, types and validation are exactly\nScrapeRequest's (enforced by a parity test); each property below references it. Every item is merged as\njob-level value, overridden by the item's value (an explicit `false` on an item wins), with the project's\ndashboard defaults underneath both. Validation happens for every item at submission.\n\nWhat the batch worker executes: each item is one fetch or one render, and the document is returned as\n`response_format` (`html` by default, `json`, `markdown` or `text`). A field is either honoured on a batch item\nor refused at submission, never accepted and skipped. Refused with 400 INVALID_PARAMETER, naming every offending\nfield, with nothing queued or charged: `actions`, `screenshot` and its options, `network_capture`, `extract`,\n`extract_preset`, `ai_extract`, `autoparse`, `links`, `session_id`, `cache`/`cache_ttl`, `original_status`,\n`allowed_status_codes`, `parse_pdf=true`, `mode=auto`, `response_format=pdf`, and a non-GET `method` with\n`js_render` or `stealth`. A value that asks for nothing (`screenshot: false`, an empty list) is accepted. A\nrefusal caused by a project default says so in `detail`. Use /v1/scrape for those fields.\n\nA batch item is priced when it is accepted, so a bot challenge never climbs it to camoufox or retries it on a\ndifferent exit the way it can a /v1/scrape request with `premium_proxy` or `proxy`.\n",
       "properties": {
         "method": {
           "type": "string",
@@ -20,7 +20,7 @@
             "OPTIONS"
           ],
           "default": "GET",
-          "description": "Validated as on /v1/scrape, but the batch worker always sends GET. Leave unset."
+          "description": "Honoured on fetched items. A method other than GET with `js_render` or `stealth` is refused with 400, because a browser navigation is always a GET."
         },
         "js_render": {
           "type": "boolean",
@@ -34,15 +34,15 @@
         },
         "impersonate": {
           "type": "boolean",
-          "default": false,
-          "description": "Validated and priced as on /v1/scrape; not applied by the batch worker."
+          "default": true,
+          "description": "Applied by the batch worker on fetched items. Default true, as on /v1/scrape; false on the item, the job or the project defaults opts out."
         },
         "mode": {
           "type": "string",
           "enum": [
             "auto"
           ],
-          "description": "Validated and priced as on /v1/scrape (`auto` reserves the dearest tier). The batch worker does not escalate; it runs fetch unless `js_render` or `stealth` is set. Cannot be combined with `engine` (400 INCOMPATIBLE_FLAGS)."
+          "description": "`auto` is refused on batch with 400 INVALID_PARAMETER, also when it comes from the project defaults; the batch worker does not escalate. It runs the engine that `engine`, `js_render` or `stealth` selects."
         },
         "engine": {
           "type": "string",
@@ -66,38 +66,38 @@
         },
         "proxy": {
           "type": "string",
-          "description": "Your own proxy URL; wins over the pool flags. Honoured by the batch worker (without proxy verification)."
+          "description": "Your own proxy URL; wins over the pool flags. Honoured by the batch worker."
         },
         "proxy_verify": {
           "type": "boolean",
           "default": false,
-          "description": "Validated as on /v1/scrape; the batch worker always sends the custom proxy with verification off."
+          "description": "Honoured by the batch worker: the custom proxy is probed before the engine cost is spent."
         },
         "session_id": {
           "type": "string",
-          "description": "Validated as on /v1/scrape; batch items do not run inside a session. Not applied."
+          "description": "Batch items do not run inside a session. Refused on batch with 400 INVALID_PARAMETER (nothing queued or charged); use /v1/scrape."
         },
         "sticky_key": {
           "type": "string",
-          "description": "Coming soon. Validated as on /v1/scrape; not applied by the batch worker."
+          "description": "Coming soon. Honoured by the batch worker: equal keys are pinned to the same pool exit."
         },
         "wait": {
           "type": "integer",
           "minimum": 0,
           "maximum": 30000,
           "default": 0,
-          "description": "Validated as on /v1/scrape; not applied by the batch worker."
+          "description": "Honoured on rendered items."
         },
         "wait_for": {
           "type": "string",
-          "description": "Validated as on /v1/scrape; not applied by the batch worker."
+          "description": "Honoured on rendered items."
         },
         "wait_for_timeout": {
           "type": "integer",
           "minimum": 0,
           "maximum": 120000,
           "default": 0,
-          "description": "Validated as on /v1/scrape; not applied by the batch worker."
+          "description": "Honoured on rendered items."
         },
         "actions": {
           "type": "array",
@@ -620,7 +620,7 @@
               }
             ]
           },
-          "description": "Validated as on /v1/scrape; the batch worker does not run browser actions."
+          "description": "The batch worker does not run browser actions. A non-empty list is refused on batch with 400 INVALID_PARAMETER (nothing queued or charged); use /v1/scrape."
         },
         "block_resources": {
           "type": "array",
@@ -653,21 +653,21 @@
         },
         "headless": {
           "type": "boolean",
-          "description": "Validated as on /v1/scrape (the project default for headless is NOT merged on batch). `false` needs chromium, which batch cannot pin. Not applied by the batch worker."
+          "description": "Honoured on rendered items (the project default for headless is NOT merged on batch)."
         },
         "screenshot": {
           "type": "boolean",
           "default": false,
-          "description": "Validated and priced as on /v1/scrape; the batch worker returns no screenshot. With `engine` fetch/obscura it is a 400."
+          "description": "The batch worker returns no screenshot. `true` is refused on batch with 400 INVALID_PARAMETER (nothing queued or charged); use /v1/scrape."
         },
         "screenshot_fullpage": {
           "type": "boolean",
           "default": false,
-          "description": "Validated as on /v1/scrape; not applied by the batch worker."
+          "description": "Refused on batch with 400 INVALID_PARAMETER (nothing queued or charged); use /v1/scrape."
         },
         "screenshot_selector": {
           "type": "string",
-          "description": "Validated as on /v1/scrape; not applied by the batch worker."
+          "description": "Refused on batch with 400 INVALID_PARAMETER (nothing queued or charged); use /v1/scrape."
         },
         "screenshot_format": {
           "type": "string",
@@ -677,31 +677,31 @@
             "jpg",
             "webp"
           ],
-          "description": "Validated as on /v1/scrape; not applied by the batch worker."
+          "description": "Refused on batch with 400 INVALID_PARAMETER (nothing queued or charged); use /v1/scrape."
         },
         "screenshot_quality": {
           "type": "integer",
           "minimum": 0,
           "maximum": 100,
           "default": 0,
-          "description": "Validated as on /v1/scrape; not applied by the batch worker."
+          "description": "Refused on batch with 400 INVALID_PARAMETER (nothing queued or charged); use /v1/scrape."
         },
         "custom_headers": {
           "type": "object",
           "additionalProperties": {
             "type": "string"
           },
-          "description": "Validated as on /v1/scrape; the batch worker does not send custom headers."
+          "description": "Honoured by the batch worker on every item. Falls back to the project default when unset."
         },
         "autoparse": {
           "type": "boolean",
           "default": false,
-          "description": "Validated as on /v1/scrape; not applied by the batch worker."
+          "description": "Refused on batch with 400 INVALID_PARAMETER (nothing queued or charged); use /v1/scrape."
         },
         "links": {
           "type": "boolean",
           "default": false,
-          "description": "Validated as on /v1/scrape; not applied by the batch worker."
+          "description": "Refused on batch with 400 INVALID_PARAMETER (nothing queued or charged); use /v1/scrape. Also refused when it comes from the project defaults, and `detail` says so."
         },
         "network_capture": {
           "allOf": [
@@ -762,7 +762,7 @@
               }
             }
           ],
-          "description": "Validated as on /v1/scrape (see NetworkCapture); not applied by the batch worker."
+          "description": "Refused on batch with 400 INVALID_PARAMETER (nothing queued or charged); use /v1/scrape."
         },
         "extract": {
           "allOf": [
@@ -885,11 +885,11 @@
               ]
             }
           ],
-          "description": "Validated as on /v1/scrape; the batch worker returns the raw page, not extracted fields."
+          "description": "Refused on batch with 400 INVALID_PARAMETER (nothing queued or charged); use /v1/scrape."
         },
         "extract_preset": {
           "type": "string",
-          "description": "Validated as on /v1/scrape; not applied by the batch worker."
+          "description": "Refused on batch with 400 INVALID_PARAMETER (nothing queued or charged); use /v1/scrape."
         },
         "ai_extract": {
           "allOf": [
@@ -933,30 +933,30 @@
               ]
             }
           ],
-          "description": "Validated as on /v1/scrape (see AIExtract); not applied by the batch worker."
+          "description": "Refused on batch with 400 INVALID_PARAMETER (nothing queued or charged); use /v1/scrape."
         },
         "main_content_only": {
           "type": "boolean",
-          "description": "Validated as on /v1/scrape; not applied by the batch worker."
+          "description": "Honoured on `markdown` and `text` items. Unset means off. Falls back to the project default when unset."
         },
         "include_tags": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "Validated as on /v1/scrape; not applied by the batch worker."
+          "description": "Honoured on `markdown` and `text` items."
         },
         "exclude_tags": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "Validated as on /v1/scrape; not applied by the batch worker."
+          "description": "Honoured on `markdown` and `text` items."
         },
         "parse_pdf": {
           "type": "boolean",
           "default": true,
-          "description": "Validated as on /v1/scrape (default true); not applied by the batch worker."
+          "description": "The batch worker has no PDF parser. `true` is refused on batch with 400 INVALID_PARAMETER (nothing queued or charged); use /v1/scrape. `false` is accepted."
         },
         "response_format": {
           "type": "string",
@@ -968,18 +968,18 @@
             "pdf"
           ],
           "default": "html",
-          "description": "Validated as on /v1/scrape, but the batch worker always returns the raw page body regardless of this value (no markdown, json, text or pdf conversion)."
+          "description": "Honoured. `html` (the default) and `json` return the document as retrieved; `markdown` and `text` run the same conversion as /v1/scrape. A document that is not HTML (a PDF, an image, JSON) fails a `markdown` or `text` item with EXTRACTION_FAILED; request `html` to get it as retrieved. `pdf` is refused with 400, also when it comes from the project defaults."
         },
         "cache": {
           "type": "boolean",
           "default": true,
-          "description": "Validated as on /v1/scrape, but on batch it defaults to false (not true) and the worker never reads from the cache."
+          "description": "Batch never reads from the result cache. `true` is refused on batch with 400 INVALID_PARAMETER (nothing queued or charged); use /v1/scrape."
         },
         "cache_ttl": {
           "type": "integer",
           "minimum": 0,
           "default": 172800,
-          "description": "Validated as on /v1/scrape; `0` does not imply `cache=false` on batch. Not applied by the batch worker."
+          "description": "A non-zero value is refused on batch with 400 INVALID_PARAMETER (nothing queued or charged); use /v1/scrape."
         },
         "max_cost": {
           "type": "integer",
@@ -990,7 +990,7 @@
         "original_status": {
           "type": "boolean",
           "default": false,
-          "description": "Validated as on /v1/scrape; not applied (result lines always carry the target status in `http_status`)."
+          "description": "Refused on batch with 400 INVALID_PARAMETER (nothing queued or charged); use /v1/scrape. Result lines always carry the target status in `http_status`."
         },
         "allowed_status_codes": {
           "type": "array",
@@ -999,7 +999,7 @@
             "minimum": 100,
             "maximum": 599
           },
-          "description": "Validated as on /v1/scrape; not applied. Billing is fixed to target statuses 200, 404 and 410."
+          "description": "Refused on batch with 400 INVALID_PARAMETER (nothing queued or charged); use /v1/scrape. Billing is fixed to target statuses 200, 404 and 410."
         }
       }
     }

@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -91,7 +92,9 @@ func Client() (*api.Client, error) {
 	if r.APIKey == "" {
 		return nil, ErrNoKey
 	}
-	return api.New(r.BaseURL, r.APIKey, flagTimeout), nil
+	c := api.New(r.BaseURL, r.APIKey, flagTimeout)
+	c.Notify = Printer().Info // retry waits; muted by --quiet
+	return c, nil
 }
 
 // ErrNoKey is returned when no API key is configured anywhere.
@@ -122,11 +125,45 @@ func Execute() int {
 	// second Execute in one process (tests) would inherit the first run's
 	// cancelled context. Set it on every command explicitly.
 	setContextTree(rootCmd, ctx)
+	rootCmd.InitDefaultCompletionCmd() // cobra adds it lazily; groups are fixed up below
+	requireKnownSubcommand(rootCmd)
 	err := rootCmd.ExecuteContext(ctx)
 	if err == nil {
 		return exitcode.OK
 	}
+	if ctx.Err() != nil { // Ctrl-C: whatever error the command made of it, say so briefly
+		Printer().Info("interrupted")
+		return exitcode.Interrupted
+	}
 	return report(err)
+}
+
+// requireKnownSubcommand makes a typo under a group command (batch, sessions,
+// mcp, ...) a usage error. cobra prints help and exits 0 for a group with no
+// Run, whatever follows it, and only suggests corrections for the root.
+func requireKnownSubcommand(c *cobra.Command) {
+	for _, sub := range c.Commands() {
+		requireKnownSubcommand(sub)
+	}
+	if c.Parent() == nil || !c.HasSubCommands() || c.Runnable() {
+		return
+	}
+	c.Args = func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			return nil
+		}
+		msg := fmt.Sprintf("unknown command %q for %q", args[0], cmd.CommandPath())
+		if cmd.SuggestionsMinimumDistance <= 0 {
+			cmd.SuggestionsMinimumDistance = 2 // cobra's own default, which it only applies for the root
+		}
+		if s := cmd.SuggestionsFor(args[0]); len(s) > 0 {
+			msg += "; did you mean " + strings.Join(s, " or ") + "?"
+		}
+		return Usagef("%s", msg)
+	}
+	c.RunE = func(cmd *cobra.Command, _ []string) error { return cmd.Help() }
+	// Runnable would add a "spicrawl batch [flags]" line to the help; keep it as before.
+	c.SetUsageTemplate(strings.Replace(c.UsageTemplate(), "{{if .Runnable}}", "{{if and .Runnable (not .HasAvailableSubCommands)}}", 1))
 }
 
 func setContextTree(c *cobra.Command, ctx context.Context) {
@@ -160,17 +197,19 @@ func ExitCode(err error) int {
 		ue *UsageError
 		ne *api.NetworkError
 		te *api.TimeoutError
+		ce *api.ConnectionLostError
+		re *api.RedirectError
 		fe *config.FileError
 		ee *ExitError
 	)
 	switch {
 	case errors.As(err, &ee):
 		return ee.Code
-	case errors.As(err, &ue), errors.As(err, &fe):
+	case errors.As(err, &ue), errors.As(err, &fe), errors.As(err, &re):
 		return exitcode.Usage
 	case errors.Is(err, ErrNoKey):
 		return exitcode.Auth
-	case errors.As(err, &te):
+	case errors.As(err, &te), errors.As(err, &ce):
 		return exitcode.Timeout
 	case errors.As(err, &ne):
 		return exitcode.Network

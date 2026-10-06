@@ -51,7 +51,8 @@ var statusCmd = &cobra.Command{
   GET /v1/requests?limit=1 the key is accepted
 
 Exit codes: 0 all good, 3 the key is missing or rejected, 10 the API could not
-be reached. A reachable API that reports not ready still exits 0; read
+be reached; it also exits with the transport error's code when the connection
+fails during the key check. A reachable API that reports not ready still exits 0; read
 "ready" and "checks".`,
 	Example: `  spicrawl status
   spicrawl status --json | jq .workers
@@ -77,6 +78,7 @@ be reached. A reachable API that reports not ready still exits 0; read
 		}
 
 		f := false
+		var keyCheckErr error // the key check could not reach the API
 		if r.APIKey == "" {
 			rep.KeyValid = &f
 			rep.KeyError = "no API key configured"
@@ -94,6 +96,9 @@ be reached. A reachable API that reports not ready still exits 0; read
 				rep.KeyError = prob.Error()
 			default:
 				rep.KeyError = err.Error() // could not tell; key_valid stays null
+				if !isProb {
+					keyCheckErr = err // transport failure, not an API answer
+				}
 			}
 
 			if rep.KeyValid != nil && *rep.KeyValid {
@@ -113,7 +118,7 @@ be reached. A reachable API that reports not ready still exits 0; read
 			}
 			return &ExitError{Code: exitcode.Auth, Err: errors.New("the API rejected the key: " + rep.KeyError)}
 		}
-		return nil
+		return keyCheckErr
 	},
 }
 

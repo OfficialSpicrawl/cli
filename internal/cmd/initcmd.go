@@ -22,6 +22,7 @@ var initFlags struct {
 	useEnv   bool
 	agentsMD bool
 	dir      string
+	force    bool
 }
 
 // Swapped out by tests.
@@ -43,6 +44,10 @@ With the default base URL (the hosted API) the MCP URL is ` + agentPublicMCPURL 
 and the skill ` + docsPublicURL + agentSkillFile + `. $` + docsEnvURL + ` sets the
 docs URL the skill is read from.
 
+Changed files are copied to <file>.bak first and symlinked configs are written
+through. An existing "spicrawl" MCP entry that differs from the one to write is
+not replaced unless you pass --force.
+
 Without a terminal on stdin, --yes is required. See "spicrawl mcp install
 --help" for how the API key is referenced in each client's config.`,
 	Example: `  spicrawl init
@@ -62,6 +67,7 @@ func init() {
 	f.BoolVar(&initFlags.useEnv, "use-env", true, "reference $SPICRAWL_API_KEY instead of embedding the key, where the client supports it")
 	f.BoolVar(&initFlags.agentsMD, "agents-md", false, "also add a Spicrawl section to AGENTS.md")
 	f.StringVar(&initFlags.dir, "dir", "", "project directory (default: current directory)")
+	f.BoolVar(&initFlags.force, "force", false, "replace an existing spicrawl MCP entry that differs from the one to write")
 	rootCmd.AddCommand(initCmd)
 }
 
@@ -87,7 +93,7 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	p.Info("MCP server: %s", ep.MCP)
 
 	key, _ := agentAPIKey()
-	opt := mcpOptions{URL: ep.MCP, UseEnv: initFlags.useEnv, Key: key}
+	opt := mcpOptions{URL: ep.MCP, UseEnv: initFlags.useEnv, Key: key, Force: initFlags.force}
 
 	var rs []*agentResult
 	for _, c := range clients {

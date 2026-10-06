@@ -54,8 +54,14 @@ Output
   --ai, --autoparse, --links, --network-capture, --screenshot) the envelope is
   printed as-is. When it answers with the raw document, the CLI wraps it:
     {"url","final_url","status","engine","proxy_source","credits_charged",
-     "request_cost","cache_state","request_id","warnings","content_type","content"}
-  where status is the target site's status (X-Target-Status).
+     "credits","request_cost","cache_state","request_id","warnings",
+     "content_type","content"}
+  where status is the target site's status (X-Target-Status). The two shapes
+  share url, final_url, status, engine, proxy_source, warnings and content;
+  the envelope names the credits "credits", so the wrapper repeats
+  credits_charged under that name. Only the wrapper has request_cost,
+  cache_state, request_id and content_type (the envelope leaves them to the
+  response headers); only the envelope has headers, truncated, data, links...
   --jsonl prints that same object as one compact JSON line, in every mode
   (also on a terminal), so a single scrape can be appended to a .jsonl file.
 
@@ -64,8 +70,8 @@ Target status
   returns HTTP 200 with the site's status in X-Target-Status (envelope
   "status") and the site's body. The CLI treats any target status outside
   2xx as a failure unless it is listed in --allowed-status: the document is
-  still printed (or written with -o), stderr gets "target returned 503" and
-  the exit code is 6 (upstream). In JSON mode the object also carries
+  still printed (not written with -o, see Files), stderr gets "target returned
+  503" and the exit code is 6 (upstream). In JSON mode the object also carries
   "target_error": "target returned 503". --allowed-status 404 makes a 404 page
   exit 0. --original-status only moves the target's status onto the API's HTTP
   status line; the CLI reads the target status either way, so exit codes and
@@ -76,11 +82,19 @@ Target status
   "content"; in human mode -o FILE is required.
 
 Files
-  -o FILE writes the document (raw bytes for pdf) to FILE instead of stdout. In
-  JSON mode stdout then carries the metadata object without the written field,
-  plus "output": FILE. Screenshots in the envelope are saved next to FILE as
-  <FILE stem>.<label>.<format> (or into --screenshot-dir as <label>.<format>);
-  their base64 "data" is replaced by "file" in the printed JSON.
+  -o FILE writes the document (raw bytes for pdf) to FILE instead of stdout;
+  "-o -" is stdout. The write is atomic (temp file in the same directory, then
+  rename). In JSON mode stdout then carries the metadata object without the
+  written field, plus "output": FILE. Screenshots in the envelope are saved
+  next to FILE as <FILE stem>.<label>.<format> (or into --screenshot-dir as
+  <label>.<format>, repeated labels get -2, -3...); their base64 "data" is
+  replaced by "file" in the printed JSON.
+
+  A target failure (status outside 2xx and --allowed-status) writes neither
+  FILE nor the screenshots next to it, so an earlier good FILE survives; the
+  exit code is 6 and in JSON mode the document stays in the printed object.
+  If FILE (or a screenshot) cannot be written, the result is printed to stdout
+  as JSON instead of being lost, and the exit code is 1.
 
 Many URLs
   "spicrawl scrape -" reads URLs from stdin, one per line (blank lines and #
@@ -90,7 +104,9 @@ Many URLs
   URL in the input), or {"index","url","error"} where error is the API's
   problem document. A target status outside 2xx/--allowed-status keeps the
   result and adds "target_error". Exit code is 0 when every URL succeeded,
-  else the code of the first failure.`,
+  else the code of the first failure. If stdout cannot be written the run
+  stops at once (exit 1) instead of billing the remaining URLs; Ctrl-C also
+  stops it, including while stdin is idle.`,
 	Example: `  # A page as clean markdown, for an LLM context window
   spicrawl scrape https://example.com/blog/launch --format markdown
 
@@ -121,7 +137,7 @@ Many URLs
 func init() {
 	scrapeFlagSet = addScrapeFlags(scrapeCmd)
 	f := scrapeCmd.Flags()
-	f.StringVarP(&scrapeOutput, "output", "o", "", "write the document to FILE instead of stdout (screenshots are saved next to it)")
+	f.StringVarP(&scrapeOutput, "output", "o", "", "write the document to FILE instead of stdout, '-' = stdout (not written when the target fails; screenshots are saved next to it)")
 	f.StringVar(&scrapeScreenshotDir, "screenshot-dir", "", "directory to save screenshots in (default: next to -o FILE)")
 	f.BoolVar(&scrapeJSONL, "jsonl", false, "print the result as one compact JSON line, even on a terminal (always on for '-')")
 	f.IntVar(&scrapeConcurrency, "concurrency", 4, "with '-': parallel requests")
@@ -146,7 +162,11 @@ func scrapeRun(cmd *cobra.Command, args []string) error {
 		return scrapeRunMany(cmd.Context(), p, body)
 	}
 	machine := p.JSON || scrapeJSONL
-	if format, _ := body["response_format"].(string); format == "pdf" && !machine && scrapeOutput == "" {
+	outFile := scrapeOutput // "-" is stdout, as everywhere else
+	if outFile == "-" {
+		outFile = ""
+	}
+	if format, _ := body["response_format"].(string); format == "pdf" && !machine && outFile == "" {
 		return Usagef("--format pdf is binary: pass -o FILE (or --json to get it base64-encoded)")
 	}
 	client, err := Client()
@@ -163,40 +183,55 @@ func scrapeRun(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	targetErr := res.checkTarget(body)
+	// An error page must not replace a good file from an earlier run: -o (and
+	// the screenshots next to it) is written only for a target that is ok.
+	write := outFile != ""
+	if write && targetErr != nil {
+		write = false
+		p.Warn("not writing %s: the target failed (--allowed-status accepts it)", outFile)
+	}
+	// A failed write must not lose the billed result: it is printed instead.
+	var writeErr error
+	printInstead := func(err error) {
+		writeErr = fmt.Errorf("%w (the result is printed to stdout instead)", err)
+		machine = true
+	}
 
 	// Screenshots: save when there is somewhere to put them.
 	if shots := scrapeScreenshots(res.obj); len(shots) > 0 {
 		dir, stem := scrapeScreenshotDir, ""
-		if dir == "" && scrapeOutput != "" {
-			dir = filepath.Dir(scrapeOutput)
-			stem = strings.TrimSuffix(filepath.Base(scrapeOutput), filepath.Ext(scrapeOutput)) + "."
+		if dir == "" && write {
+			dir = filepath.Dir(outFile)
+			stem = strings.TrimSuffix(filepath.Base(outFile), filepath.Ext(outFile)) + "."
 		}
 		if dir != "" {
 			paths, err := scrapeSaveScreenshots(shots, dir, stem)
-			if err != nil {
-				return err
-			}
-			res.modified = true
+			res.modified = res.modified || len(paths) > 0
 			for _, path := range paths {
 				p.Info("saved screenshot %s", path)
 			}
+			if err != nil {
+				printInstead(err)
+			}
 		} else if !machine {
-			p.Info("%d screenshot(s) not saved: pass -o FILE or --screenshot-dir DIR", len(shots))
+			p.Info("%d screenshot(s) not saved: pass --screenshot-dir DIR, or -o FILE for a successful target", len(shots))
 		}
 	}
 
 	doc, docField := res.document(body)
-	if scrapeOutput != "" {
-		if err := os.WriteFile(scrapeOutput, doc, 0o644); err != nil {
-			return fmt.Errorf("write %s: %w", scrapeOutput, err)
+	if write {
+		if err := writeFileAtomic(outFile, doc); err != nil {
+			write = false
+			printInstead(fmt.Errorf("write %s: %w", outFile, err))
+		} else {
+			p.Info("wrote %d bytes to %s", len(doc), outFile)
 		}
-		p.Info("wrote %d bytes to %s", len(doc), scrapeOutput)
 	}
 
 	if machine {
-		if scrapeOutput != "" {
+		if write {
 			delete(res.obj, docField)
-			res.obj["output"] = scrapeOutput
+			res.obj["output"] = outFile
 			res.modified = true
 		}
 		var err error
@@ -217,10 +252,13 @@ func scrapeRun(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
+		if writeErr != nil {
+			return writeErr
+		}
 		return targetErr
 	}
 
-	if scrapeOutput == "" {
+	if outFile == "" {
 		if !res.text {
 			return Usagef("the response is binary (%s): pass -o FILE", res.mediaType)
 		}
@@ -371,13 +409,15 @@ func scrapeResultOf(url string, resp *api.Response) (*scrapeResult, error) {
 	if warnings == nil {
 		warnings = []string{}
 	}
+	credits := scrapeHeaderInt(h, "X-Credits-Charged")
 	r.obj = map[string]any{
 		"url":             url,
 		"final_url":       h.Get("X-Final-Url"),
 		"status":          scrapeHeaderInt(h, "X-Target-Status"),
 		"engine":          h.Get("X-Engine"),
 		"proxy_source":    h.Get("X-Proxy-Source"),
-		"credits_charged": scrapeHeaderInt(h, "X-Credits-Charged"),
+		"credits_charged": credits,
+		"credits":         credits, // the envelope's name for it
 		"request_cost":    scrapeHeaderInt(h, "X-Request-Cost"),
 		"cache_state":     h.Get("Cache-State"),
 		"request_id":      h.Get("X-Request-Id"),
@@ -404,9 +444,12 @@ func (r *scrapeResult) document(body map[string]any) ([]byte, string) {
 	}
 	if scrapeWantsData(body) {
 		if data, ok := r.obj["data"]; ok && data != nil {
-			b, err := json.MarshalIndent(data, "", "  ")
-			if err == nil {
-				return append(b, '\n'), "data"
+			var buf bytes.Buffer
+			enc := json.NewEncoder(&buf)
+			enc.SetEscapeHTML(false) // a human reads <, > and & as they are
+			enc.SetIndent("", "  ")
+			if err := enc.Encode(data); err == nil {
+				return buf.Bytes(), "data"
 			}
 		}
 	}
@@ -501,27 +544,30 @@ func scrapeSaveScreenshots(shots []map[string]any, dir, prefix string) ([]string
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("screenshot dir: %w", err)
 	}
-	seen := map[string]int{}
+	used := map[string]bool{} // lower-cased: macOS and Windows ignore case
 	var paths []string
 	for i, s := range shots {
 		raw, err := base64.StdEncoding.DecodeString(s["data"].(string))
 		if err != nil {
 			return paths, fmt.Errorf("screenshot %d: bad base64: %w", i, err)
 		}
-		label := scrapeSafeName(fmt.Sprint(s["label"]))
-		if label == "" || label == "<nil>" {
+		l, _ := s["label"].(string)
+		label := scrapeSafeName(l)
+		if label == "" {
 			label = "screenshot"
 		}
-		if n := seen[label]; n > 0 {
-			label = fmt.Sprintf("%s-%d", label, n+1)
+		// Unique per shot: "a", "a-2", "a" must not share a file.
+		base := label
+		for n := 2; used[strings.ToLower(label)]; n++ {
+			label = fmt.Sprintf("%s-%d", base, n)
 		}
-		seen[label]++
+		used[strings.ToLower(label)] = true
 		ext, _ := s["format"].(string)
 		if ext == "" {
 			ext = "png"
 		}
 		path := filepath.Join(dir, prefix+label+"."+scrapeSafeName(ext))
-		if err := os.WriteFile(path, raw, 0o644); err != nil {
+		if err := writeFileAtomic(path, raw); err != nil {
 			return paths, fmt.Errorf("write %s: %w", path, err)
 		}
 		delete(s, "data")
@@ -529,6 +575,35 @@ func scrapeSaveScreenshots(shots []map[string]any, dir, prefix string) ([]string
 		paths = append(paths, path)
 	}
 	return paths, nil
+}
+
+// writeFileAtomic writes data to path through a temp file in the same
+// directory and a rename, so a failed write never truncates an existing file.
+// An existing file keeps its mode; devices and symlinks are written in place.
+func writeFileAtomic(path string, data []byte) error {
+	perm := os.FileMode(0o644)
+	if st, err := os.Lstat(path); err == nil {
+		if !st.Mode().IsRegular() {
+			return os.WriteFile(path, data, perm)
+		}
+		perm = st.Mode().Perm()
+	}
+	tmp := fmt.Sprintf("%s.%d.tmp", path, os.Getpid())
+	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, perm)
+	if err != nil {
+		return err
+	}
+	_, err = f.Write(data)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil {
+		err = os.Rename(tmp, path)
+	}
+	if err != nil {
+		os.Remove(tmp)
+	}
+	return err
 }
 
 func scrapeSafeName(s string) string {
@@ -549,7 +624,10 @@ func scrapeRunMany(ctx context.Context, p *output.Printer, base map[string]any) 
 	if scrapeConcurrency < 1 {
 		return Usagef("--concurrency must be at least 1")
 	}
-	urls, err := readLines("-")
+	urls, err := readStdinLinesCtx(ctx)
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
 	if err != nil {
 		return Usagef("read stdin: %v", err)
 	}
@@ -566,10 +644,16 @@ func scrapeRunMany(ctx context.Context, p *output.Printer, base map[string]any) 
 		url   string
 	}
 	jobs := make(chan job)
+	// runCtx ends with ctx (Ctrl-C) or when stdout stops accepting results:
+	// requests nobody can read are not worth billing.
+	runCtx, stop := context.WithCancel(ctx)
+	defer stop()
 	var (
 		mu        sync.Mutex
+		ok        int
 		failed    int
 		firstCode int
+		writeErr  error
 	)
 	emit := func(line map[string]any, code int) {
 		mu.Lock()
@@ -579,8 +663,14 @@ func scrapeRunMany(ctx context.Context, p *output.Printer, base map[string]any) 
 			if firstCode == exitcode.OK {
 				firstCode = code
 			}
+		} else {
+			ok++
 		}
-		_ = p.Line(line)
+		if writeErr == nil {
+			if writeErr = p.Line(line); writeErr != nil {
+				stop()
+			}
+		}
 	}
 	one := func(j job) {
 		body := make(map[string]any, len(base)+1)
@@ -588,7 +678,7 @@ func scrapeRunMany(ctx context.Context, p *output.Printer, base map[string]any) 
 			body[k] = v
 		}
 		body["url"] = j.url
-		resp, err := scrapeDo(ctx, client, body)
+		resp, err := scrapeDo(runCtx, client, body)
 		var res *scrapeResult
 		if err == nil {
 			res, err = scrapeResultOf(j.url, resp)
@@ -629,7 +719,7 @@ feed:
 	for i, u := range urls {
 		select {
 		case jobs <- job{index: i + 1, url: u}:
-		case <-ctx.Done():
+		case <-runCtx.Done():
 			break feed
 		}
 	}
@@ -637,7 +727,14 @@ feed:
 	wg.Wait()
 
 	if !p.JSON {
-		p.Info("%d ok, %d failed", len(urls)-failed, failed)
+		if notRun := len(urls) - ok - failed; notRun > 0 {
+			p.Info("%d ok, %d failed, %d not run", ok, failed, notRun)
+		} else {
+			p.Info("%d ok, %d failed", ok, failed)
+		}
+	}
+	if writeErr != nil {
+		return fmt.Errorf("write results to stdout: %w (stopped after %d of %d URLs)", writeErr, ok+failed, len(urls))
 	}
 	if ctx.Err() != nil {
 		return ctx.Err()

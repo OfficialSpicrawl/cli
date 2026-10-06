@@ -3,10 +3,12 @@ package cmd
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -15,6 +17,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/OfficialSpicrawl/cli/internal/api"
+	"github.com/OfficialSpicrawl/cli/internal/exitcode"
 	"github.com/OfficialSpicrawl/cli/internal/output"
 )
 
@@ -129,7 +132,7 @@ read as JSON items, anything else as URLs).
 
 Scrape flags set job-wide defaults; items override them. Prints the job; with
 --wait, polls until the job finishes and prints the final job (exit 11 if
---max-wait elapses first).
+--max-wait elapses first, exit 4 if the job failed or was cancelled).
 
 Each item is one fetch or render, returned as html (default), markdown, text
 or json (--format). Only the scrape flags batch accepts are offered here; the
@@ -238,11 +241,15 @@ var (
 
 var batchWaitCmd = &cobra.Command{
 	Use:   "wait <id>",
-	Short: "Poll a job until it finishes, then print it (exit 11 on --max-wait)",
+	Short: "Poll a job until it finishes, then print it (exit 11 on --max-wait, 4 if failed or cancelled)",
 	Long: `Poll GET /v1/batch/{id} until the job is completed, failed or cancelled, then
 print the job. If --max-wait elapses first, prints the last job seen and exits
 11, so a script can resume with the same command. --max-wait 0 waits forever.
-Rate limits (429) are honoured: the next poll waits for Retry-After.`,
+A job that ends failed or cancelled is printed too, but exits 4: only completed
+exits 0 (partial results stay readable with "batch results").
+Rate limits (429) are honoured: the next poll waits for Retry-After. Transient
+5xx answers and network errors are retried with backoff; five polls in a row
+failing that way gives up with that error.`,
 	Example: `  spicrawl batch wait 01J9Z6V0Q8M4K2T7R3N5B1C9XA --max-wait 10m
   spicrawl batch wait "$id" --poll 10s --json | jq '.progress'
 
@@ -270,6 +277,13 @@ func batchWaitAndPrint(cmd *cobra.Command, c *api.Client, p *output.Printer, id 
 		}
 		if werr == nil && !p.JSON && job.Status != "" {
 			p.Info("\nnext: spicrawl batch results %s --all -o %s.jsonl", job.ID, job.ID)
+		}
+		if werr == nil && (job.Status == "failed" || job.Status == "cancelled") {
+			msg := fmt.Sprintf("batch %s %s (%d of %d items finished)", id, job.Status, job.Progress.Completed, job.Progress.Total)
+			if e := strings.TrimSpace(job.ErrorCode + " " + job.ErrorMessage); e != "" {
+				msg += ": " + e
+			}
+			return &ExitError{Code: exitcode.Request, Err: errors.New(msg)}
 		}
 	}
 	return werr
@@ -625,14 +639,42 @@ func init() {
 	rootCmd.AddCommand(batchCmd)
 }
 
-// batchOpenOut returns the writer for -o (or stdout) and a closer.
-func batchOpenOut(path string) (io.Writer, func() error, error) {
+// batchOpenOut returns the writer for -o (or stdout) and a finisher. A regular
+// file is written to a temp file next to it: finish(true) renames it into
+// place, finish(false) discards it, so a failed run never truncates or
+// half-overwrites an existing file. Devices and pipes (/dev/stdout) are
+// written directly.
+func batchOpenOut(path string) (io.Writer, func(commit bool) error, error) {
 	if path == "" || path == "-" {
-		return stdout, func() error { return nil }, nil
+		return stdout, func(bool) error { return nil }, nil
 	}
-	f, err := os.Create(path)
+	if r, err := filepath.EvalSymlinks(path); err == nil {
+		path = r // replace the file a symlink points at, not the link
+	}
+	old, statErr := os.Stat(path)
+	if statErr == nil && !old.Mode().IsRegular() {
+		f, err := os.Create(path)
+		if err != nil {
+			return nil, nil, Usagef("-o: %v", err)
+		}
+		return f, func(bool) error { return f.Close() }, nil
+	}
+	tmp := filepath.Join(filepath.Dir(path), fmt.Sprintf(".%s.%d.tmp", filepath.Base(path), os.Getpid()))
+	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666)
 	if err != nil {
 		return nil, nil, Usagef("-o: %v", err)
 	}
-	return f, f.Close, nil
+	if statErr == nil {
+		_ = f.Chmod(old.Mode().Perm())
+	}
+	return f, func(commit bool) error {
+		err := f.Close()
+		if commit && err == nil {
+			err = os.Rename(tmp, path)
+		}
+		if err != nil || !commit {
+			_ = os.Remove(tmp)
+		}
+		return err
+	}, nil
 }

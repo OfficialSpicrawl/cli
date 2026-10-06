@@ -129,7 +129,7 @@ spicrawl batch list [--status S] [--limit N]
 spicrawl batch get <id>
 spicrawl batch results <id> [--status S] [--all] [-o FILE]   JSONL
 spicrawl batch content <id> <seq> [-o FILE]                   one item's document
-spicrawl batch wait <id> [--max-wait 30m]                     exit 11 when it gives up
+spicrawl batch wait <id> [--max-wait 30m]                     exit 11 when it gives up, 4 if failed/cancelled
 spicrawl batch cancel <id> [--yes]                           --yes required without a TTY
 spicrawl batch retry|close <id>
 spicrawl batch append <id> <file|->

@@ -134,11 +134,18 @@ Needs a key with the read scope.`,
 var usageSummaryCmd = &cobra.Command{
 	Use:   "summary",
 	Short: "Current-period usage against the plan allowance (GET /v1/usage/summary)",
-	Long: `Usage for the billing period covering now, with the plan's credit allowance.
-When no subscription covers now, the period is the calendar month and there
-is no allowance; that is not a bill preview.`,
+	Long: `Usage for the billing period covering now, with the plan's included credits
+and the monthly allowance the API enforces. When no subscription covers now, the
+period is the allowance month and the free plan's allowance applies; that is not
+a bill preview.
+
+"allowance" is what requests are checked against: requests are refused once it
+is used up, and its used figure includes credits held for in-flight work (open
+browser sessions, unfinished batch items), so it can run ahead of "credits".
+The allowance line is absent when the API could not read its counter (a
+warning says so).`,
 	Example: `  spicrawl usage summary
-  spicrawl usage summary --json | jq .credits.remaining_micro`,
+  spicrawl usage summary --json | jq .allowance.remaining_micro`,
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		body, err := usageGet(cmd.Context(), "/v1/usage/summary", nil)
@@ -165,6 +172,13 @@ is no allowance; that is not a bill preview.`,
 				Overage   int64  `json:"overage_micro"`
 				UsedBP    *int64 `json:"used_basis_points"`
 			} `json:"credits"`
+			Allowance *struct {
+				Limit     int64  `json:"limit_micro"`
+				Used      int64  `json:"used_micro"`
+				Remaining int64  `json:"remaining_micro"`
+				Unlimited bool   `json:"unlimited"`
+				ResetsAt  string `json:"resets_at"`
+			} `json:"allowance"`
 			Metrics  map[string]int64 `json:"metrics"`
 			Warnings []string         `json:"warnings"`
 		}
@@ -194,6 +208,14 @@ is no allowance; that is not a bill preview.`,
 				fmt.Fprintf(w, ", %s overage", logsCredits(c.Overage))
 			}
 			fmt.Fprintln(w)
+		}
+		if a := s.Allowance; a != nil {
+			if a.Unlimited {
+				fmt.Fprintf(w, "%-12s unlimited (no monthly ceiling is enforced), %s used, resets %s\n", "allowance:", logsCredits(a.Used), a.ResetsAt)
+			} else {
+				fmt.Fprintf(w, "%-12s %s of %s used (incl. credits held for in-flight work), %s remaining, resets %s\n", "allowance:",
+					logsCredits(a.Used), logsCredits(a.Limit), logsCredits(a.Remaining), a.ResetsAt)
+			}
 		}
 		fmt.Fprintln(w)
 		cols := usageColumns(s.Metrics)
