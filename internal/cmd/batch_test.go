@@ -359,8 +359,11 @@ func TestBatchSubmitRegistersOnlyAcceptedScrapeFlags(t *testing.T) {
 	if fl := f.Lookup("wait"); fl == nil || fl.Value.Type() != "bool" {
 		t.Errorf("--wait must stay the boolean job wait: %+v", fl)
 	}
-	if u := f.Lookup("engine").Usage; strings.Contains(u, "chromium|") || !strings.Contains(u, "refused") {
-		t.Errorf("--engine help should not offer chromium: %q", u)
+	// The API ignores engine and headless: still accepted, no longer advertised.
+	for _, name := range []string{"engine", "headless"} {
+		if !f.Lookup(name).Hidden {
+			t.Errorf("--%s should be hidden: the API ignores it", name)
+		}
 	}
 
 	srv, reqs := newRecordingServer(t, func(w http.ResponseWriter, r *http.Request) {})
@@ -388,7 +391,7 @@ func TestBatchSubmitAcceptedFlagsMapToFields(t *testing.T) {
 	_, errOut, code := batchRunCLI(t, srv.URL, "batch", "submit", urls, "--render", "--render-wait", "1500",
 		"--wait-for", "#price", "--wait-for-timeout", "4000", "--format", "markdown", "--main-content",
 		"--include", "main", "--exclude", "nav", "--header", "X-Trace: abc", "--headless=false",
-		"--impersonate", "--sticky-key", "k1", "--max-cost", "5", "--engine", "obscura")
+		"--impersonate", "--sticky-key", "k1", "--max-cost", "5", "--engine", "js")
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, errOut)
 	}
@@ -397,7 +400,7 @@ func TestBatchSubmitAcceptedFlagsMapToFields(t *testing.T) {
 		"urls": "[https://example.com/1]", "js_render": true, "wait": 1500.0, "wait_for": "#price",
 		"wait_for_timeout": 4000.0, "response_format": "markdown", "main_content_only": true,
 		"include_tags": "[main]", "exclude_tags": "[nav]", "custom_headers": "map[X-Trace:abc]",
-		"headless": false, "impersonate": true, "sticky_key": "k1", "max_cost": 5.0, "engine": "obscura",
+		"headless": false, "impersonate": true, "sticky_key": "k1", "max_cost": 5.0, "engine": "js",
 	}
 	for k, v := range want {
 		if fmt.Sprint(body[k]) != fmt.Sprint(v) {

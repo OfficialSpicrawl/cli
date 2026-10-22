@@ -32,48 +32,43 @@
     "js_render": {
       "type": "boolean",
       "default": false,
-      "description": "Render in a browser engine (obscura; 3 credits datacenter, 25 residential) so JavaScript runs. Required by every browser-only flag unless stealth or mode=auto is set; cannot be combined with mode=auto. If omitted, the project's stored default applies."
+      "description": "Run the page's JavaScript before capture (3 credits on datacenter or your own proxy; 25 on managed residential exits, coming soon). Required by every browser-only flag unless stealth or mode=auto is set; cannot be combined with mode=auto. If omitted, the project's stored default applies."
     },
     "stealth": {
       "type": "boolean",
       "default": false,
-      "description": "Coming soon. Render in the hardened camoufox browser, flat 25 credits at any proxy tier; wins over js_render when both are set. Cannot be combined with mode=auto or with an engine pin other than camoufox; returns 503 ERR::ENGINE::UNAVAILABLE where camoufox is not deployed. If omitted, the project's stored default applies."
+      "description": "Coming soon. Render with full-browser rendering hardened against bot detection, flat 25 credits at any proxy tier; wins over js_render when both are set. Cannot be combined with mode=auto; returns 503 ERR::ENGINE::UNAVAILABLE where it is not available. If omitted, the project's stored default applies."
     },
     "impersonate": {
       "type": "boolean",
       "default": true,
-      "description": "Fetch tier only: present a current Chrome TLS/HTTP2 fingerprint, with matching browser headers and Accept-Encoding, to pass passive fingerprint checks. On by default, free, no JavaScript; `false` turns it off and the fetch uses a non-browser TLS handshake. Ignored on render engines. If omitted, the project's stored default applies, and `true` when the project sets none."
+      "description": "Fetch tier only: present a current browser TLS/HTTP2 fingerprint, with matching browser headers and Accept-Encoding, to pass passive fingerprint checks. On by default, free, no JavaScript; `false` turns it off and the fetch uses a non-browser TLS handshake. Ignored on rendered requests. If omitted, the project's stored default applies, and `true` when the project sets none."
     },
     "mode": {
       "type": "string",
       "enum": [
         "auto"
       ],
-      "description": "`auto` escalates through the available engines (fetch -> obscura) until a rung returns a usable page, billing only the rung that succeeded (0 if all fail) while reserving the dearest rung against quota. Incompatible with js_render, stealth and engine. If omitted, the project's stored default applies."
+      "description": "`auto` escalates through the rendering tiers (plain fetch, then JavaScript rendering) until one returns a usable page, billing only the rung that succeeded (0 if all fail) while reserving the dearest rung against quota. Incompatible with js_render and stealth. If omitted, the project's stored default applies."
     },
     "engine": {
       "type": "string",
-      "enum": [
-        "fetch",
-        "obscura",
-        "camoufox",
-        "chromium"
-      ],
-      "description": "Engine `camoufox` is coming soon. Pin the execution engine (case-insensitive); disables escalation and is never substituted. chromium (8 credits datacenter, 32 residential) is the only engine supporting headless=false; screenshots and pdf need camoufox or chromium. An unentitled engine is 403 ERR::AUTH::ENGINE_NOT_ENTITLED, an undeployed one 503 ERR::ENGINE::UNAVAILABLE, both at 0 credits. If omitted, the project's stored default applies."
+      "deprecated": true,
+      "description": "Deprecated and ignored; rendering is chosen automatically from the request's flags and the page, and you are billed for the rendering tier actually used (`X-Engine`). Accepted so existing clients keep working. The response carries `X-Warning: ENGINE_IGNORED`."
     },
     "premium_proxy": {
       "type": "boolean",
       "default": false,
-      "description": "Coming soon. Use residential exits from the managed pool: fetch 10, obscura 25, chromium 32 credits (camoufox stays 25). If no residential exit is available the request fails 503 ERR::PROXY::EXHAUSTED rather than falling back; ignored (with X-Warning PROXY_FLAG_IGNORED) when `proxy` is set. A bot challenge from a named vendor is retried on a different exit (fetch tier), then climbs to camoufox; see \"Bot challenges\" in the operation description. If omitted, the project's stored default applies."
+      "description": "Coming soon; not available yet, so bring your own `proxy` (residential works best). Will use residential exits from the managed pool: 10 credits for a plain fetch, 25 with JavaScript rendering, 32 with full-browser rendering (stealth stays 25). If no residential exit is available the request fails 503 ERR::PROXY::EXHAUSTED rather than falling back; ignored (with X-Warning PROXY_FLAG_IGNORED) when `proxy` is set. See \"Bot challenges\" in the operation description. If omitted, the project's stored default applies."
     },
     "proxy_country": {
       "type": "string",
       "pattern": "^[A-Za-z]{2}$",
-      "description": "Coming soon. ISO 3166-1 alpha-2 exit country (case-insensitive), within the residential pool. Requires premium_proxy=true (400 ERR::REQUEST::INCOMPATIBLE_FLAGS otherwise) unless `proxy` is set, in which case it is ignored with a warning; an unavailable country is 503 ERR::PROXY::EXHAUSTED, never substituted. A browser render takes its timezone and locale from this country or, when it is omitted, from the country of the pool exit it was assigned. If omitted, the project's stored default applies."
+      "description": "Coming soon. ISO 3166-1 alpha-2 exit country (case-insensitive), within the residential pool. Requires premium_proxy=true (400 ERR::REQUEST::INCOMPATIBLE_FLAGS otherwise) unless `proxy` is set, in which case it is kept as the render environment hint (browser timezone and locale follow it) while the custom URL stays the exit; an unavailable country is 503 ERR::PROXY::EXHAUSTED, never substituted. A browser render takes its timezone and locale from this country or, when it is omitted, from the country of the pool exit it was assigned. If omitted, the project's stored default applies."
     },
     "proxy": {
       "type": "string",
-      "description": "Your own proxy URL (http, https, socks5 or socks5h; credentials in userinfo). Takes precedence over premium_proxy/proxy_country and adds 0 proxy credits; loopback hosts are refused with 400 ERR::SECURITY::SSRF_BLOCKED. An unreachable proxy fails 502 ERR::PROXY::UNREACHABLE. A bot challenge from a named vendor climbs to camoufox when the proxy is http://; see \"Bot challenges\" in the operation description."
+      "description": "Your own proxy URL (http, https, socks5 or socks5h; credentials in userinfo). Takes precedence over premium_proxy and adds 0 proxy credits; proxy_country is kept as the render environment hint; loopback hosts are refused with 400 ERR::SECURITY::SSRF_BLOCKED. An unreachable proxy fails 502 ERR::PROXY::UNREACHABLE. A bot challenge from a named vendor is escalated automatically to stronger rendering on the same exit when the proxy is http:// (residential works best); see \"Bot challenges\" in the operation description."
     },
     "proxy_verify": {
       "type": "boolean",
@@ -82,7 +77,7 @@
     },
     "session_id": {
       "type": "string",
-      "description": "Reuse a session's cookies and storage (created via /v1/sessions); the session's engine is used and pinning a different engine is 400 ERR::REQUEST::INCOMPATIBLE_FLAGS. Checked before any work, at 0 credits and not retryable - an unknown, malformed or other organization's id is 404 ERR::SESSION::NOT_FOUND, a released session 410 ERR::SESSION::RELEASED, an expired one 410 ERR::SESSION::EXPIRED. A successful request increments the session's `usage_count`, sets `last_used_at` and slides `expires_at`. Requests with a session are never cached."
+      "description": "Reuse a session's cookies and storage (created via /v1/sessions); the request runs with the session's own rendering. Checked before any work, at 0 credits and not retryable - an unknown, malformed or other organization's id is 404 ERR::SESSION::NOT_FOUND, a released session 410 ERR::SESSION::RELEASED, an expired one 410 ERR::SESSION::EXPIRED. A successful request increments the session's `usage_count`, sets `last_used_at` and slides `expires_at`. Requests with a session are never cached."
     },
     "sticky_key": {
       "type": "string",
@@ -93,7 +88,7 @@
       "minimum": 0,
       "maximum": 30000,
       "default": 0,
-      "description": "Milliseconds to wait after load before capture. Browser-only: needs js_render, stealth, an engine pin with a browser, or mode=auto, else 400 ERR::REQUEST::INCOMPATIBLE_FLAGS."
+      "description": "Milliseconds to wait after load before capture. Browser-only: needs js_render, stealth, or mode=auto, else 400 ERR::REQUEST::INCOMPATIBLE_FLAGS."
     },
     "wait_for": {
       "type": "string",
@@ -549,7 +544,7 @@
           {
             "type": "object",
             "title": "screenshot",
-            "description": "Capture a screenshot mid-workflow (needs camoufox or chromium); returned under `screenshots` with this step's label.",
+            "description": "Capture a screenshot mid-workflow (needs full-browser rendering); returned under `screenshots` with this step's label.",
             "required": [
               "screenshot"
             ],
@@ -627,7 +622,7 @@
           }
         ]
       },
-      "description": "Ordered browser workflow (click, fill, scroll, ...), validated before anything is spent. Browser-only; disables the default image/font blocking and makes the request uncacheable. A failed step ends the request at 0 credits unless that step has on_error=skip."
+      "description": "Ordered browser workflow (click, fill, scroll, ...), validated before anything is spent. Browser-only and makes the request uncacheable. A failed step ends the request at 0 credits unless that step has on_error=skip."
     },
     "block_resources": {
       "type": "array",
@@ -656,16 +651,17 @@
           "other"
         ]
       },
-      "description": "Subresource classes the browser must not load (plural and short aliases accepted, case-insensitive). If omitted, renders block image+font except for screenshot, pdf, actions, or a network_capture of images/fonts; an explicit list replaces that default and `none` (alone) blocks nothing. Any value other than `none` is browser-only. If omitted, the project's stored default applies."
+      "description": "Subresource classes the browser must not load (plural and short aliases accepted, case-insensitive). If omitted, full-browser rendering blocks nothing, so images and fonts load, including for screenshot, pdf, actions and anti-bot escalation. A list blocks exactly the classes named and `none` (alone) blocks nothing. Any value other than `none` is browser-only. If omitted, the project's stored default applies."
     },
     "headless": {
       "type": "boolean",
-      "description": "false runs the browser on a real display (1920x1080 screen instead of 800x600); only engine=chromium supports it, anything else is 400 ERR::REQUEST::CAPABILITY_UNSUPPORTED at 0 credits. Either value requires a browser engine; omit to use the deployment default (headless). Headful renders skip the warm pool and add ~1s. If omitted, the project's stored default applies."
+      "deprecated": true,
+      "description": "Deprecated and ignored. Rendering is chosen automatically. Accepted so existing clients keep working. The response carries `X-Warning: ENGINE_IGNORED`."
     },
     "screenshot": {
       "type": "boolean",
       "default": false,
-      "description": "Capture a screenshot; forces the JSON envelope (image base64 under `screenshots`). Needs a rasterising engine (camoufox or chromium) - otherwise 400 ERR::REQUEST::CAPABILITY_UNSUPPORTED at 0 credits. mode=auto cannot satisfy it (its fetch rung has no rasteriser). If the image is not delivered the page is still returned but charged 0."
+      "description": "Capture a screenshot; forces the JSON envelope (image base64 under `screenshots`). Rendered with full-browser rendering - on a deployment without it, 400 ERR::REQUEST::CAPABILITY_UNSUPPORTED at 0 credits. mode=auto cannot satisfy it (its fetch rung has no rasteriser). If the image is not delivered the page is still returned but charged 0."
     },
     "screenshot_fullpage": {
       "type": "boolean",
@@ -975,7 +971,7 @@
         "pdf"
       ],
       "default": "html",
-      "description": "Body shape: html/markdown/text return the document itself, json the envelope, pdf a browser-printed PDF (needs camoufox or chromium). extract, autoparse, links, ai_extract, network_capture or screenshot override this to the JSON envelope with X-Warning FORMAT_COERCED. A non-HTML target (image, binary) requested as markdown/text fails 502 ERR::EXTRACT::FAILED at 0 credits. If omitted, the project's stored default applies."
+      "description": "Body shape: html/markdown/text return the document itself, json the envelope, pdf a PDF printed by a real browser (needs full-browser rendering). extract, autoparse, links, ai_extract, network_capture or screenshot override this to the JSON envelope with X-Warning FORMAT_COERCED. A non-HTML target (image, binary) requested as markdown/text fails 502 ERR::EXTRACT::FAILED at 0 credits. If omitted, the project's stored default applies."
     },
     "cache": {
       "type": "boolean",

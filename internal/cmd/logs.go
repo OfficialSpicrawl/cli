@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/OfficialSpicrawl/cli/internal/api"
+	"github.com/OfficialSpicrawl/cli/internal/output"
 	"github.com/OfficialSpicrawl/cli/internal/ui"
 )
 
@@ -191,7 +192,7 @@ Status is one of: success, failed, timeout, blocked, rejected, cancelled.
 					row = append(row, logsDash(e.ProjectID))
 				}
 				rows = append(rows, append(row,
-					e.Status, logsOptInt(e.HTTPStatus), logsDash(e.Engine),
+					e.Status, logsOptInt(e.HTTPStatus), logsDash(output.Tier(e.Engine)),
 					logsCredits(e.CreditsMicro), logsSpan(e.Spans.Total), e.URL,
 				))
 			}
@@ -286,10 +287,10 @@ func logsWriteEntry(w io.Writer, u *ui.UI, e *logsEntry) {
 	kv("status", e.Status)
 	kv("url", e.URL)
 	kv("http status", logsOptInt(e.HTTPStatus))
-	kv("engine", logsDash(e.Engine))
+	kv("engine", logsDash(output.Tier(e.Engine)))
 	kv("credits", logsCredits(e.CreditsMicro))
 	kv("error", e.ErrorCode)
-	kv("error detail", e.ErrorDetail)
+	kv("error detail", output.PublicText(e.ErrorDetail))
 	if e.Attempts > 0 {
 		kv("attempts", strconv.Itoa(e.Attempts))
 	}
@@ -332,9 +333,9 @@ func logsWriteEntry(w io.Writer, u *ui.UI, e *logsEntry) {
 
 	if e.Blocked != nil {
 		fmt.Fprintln(w, "\n"+u.Bold("blocked:"))
-		pkv("vendor", logsDash(e.Blocked.Vendor))
-		pkv("rule", e.Blocked.Rule)
-		pkv("signal", e.Blocked.Signal)
+		pkv("vendor", logsDash(output.PublicText(e.Blocked.Vendor)))
+		pkv("rule", output.PublicText(e.Blocked.Rule))
+		pkv("signal", output.PublicText(e.Blocked.Signal))
 	}
 }
 

@@ -11,14 +11,14 @@ import (
 	"time"
 )
 
-const sessionsTestBody = `{"id":"01J9ZQ4M7R3T8VX2K5N6P0B1CD","project_id":"p","engine":"chromium","status":"active","sticky_key":"s1","proxy":{"tier":"residential","country":"de"},"created_at":"2026-09-22T00:00:00Z","last_used_at":null,"expires_at":"2026-09-22T02:00:00Z","usage_count":0,"context":null}`
+const sessionsTestBody = `{"id":"01J9ZQ4M7R3T8VX2K5N6P0B1CD","project_id":"p","engine":"browser","status":"active","sticky_key":"s1","proxy":{"tier":"residential","country":"de"},"created_at":"2026-09-22T00:00:00Z","last_used_at":null,"expires_at":"2026-09-22T02:00:00Z","usage_count":0,"context":null}`
 
 func TestSessionsCreateMapsFlags(t *testing.T) {
 	srv, reqs := newRecordingServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusCreated)
 		_, _ = w.Write([]byte(sessionsTestBody))
 	})
-	out, errb, code := runCLI(t, srv.URL, "sessions", "create", "--engine", "Chromium", "--ttl", "7200", "--country", "DE", "--sticky-key", "login-1")
+	out, errb, code := runCLI(t, srv.URL, "sessions", "create", "--engine", "Browser", "--ttl", "7200", "--country", "DE", "--sticky-key", "login-1")
 	if code != 0 {
 		t.Fatalf("exit %d, stderr %s", code, errb)
 	}
@@ -28,7 +28,7 @@ func TestSessionsCreateMapsFlags(t *testing.T) {
 	}
 	var body map[string]any
 	_ = json.Unmarshal(r.Body, &body)
-	want := map[string]any{"engine": "chromium", "ttl_seconds": 7200.0, "proxy_country": "de", "premium_proxy": true, "sticky_key": "login-1"}
+	want := map[string]any{"engine": "browser", "ttl_seconds": 7200.0, "proxy_country": "de", "premium_proxy": true, "sticky_key": "login-1"}
 	if len(body) != len(want) {
 		t.Fatalf("body %v, want %v", body, want)
 	}
@@ -39,6 +39,34 @@ func TestSessionsCreateMapsFlags(t *testing.T) {
 	}
 	if !strings.Contains(out, `"id": "01J9ZQ4M7R3T8VX2K5N6P0B1CD"`) {
 		t.Errorf("stdout %s", out)
+	}
+}
+
+// Engine names from before tiers still work: sent as typed, with a notice that
+// does not repeat the name. Anything else is a usage error that lists the tiers.
+func TestSessionsCreateEngineTiersAndLegacyNames(t *testing.T) {
+	for _, legacy := range []string{"obscura", "chromium", "camoufox"} {
+		srv, reqs := newRecordingServer(t, func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(sessionsTestBody))
+		})
+		_, errb, code := runCLI(t, srv.URL, "sessions", "create", "--engine", legacy)
+		if code != 0 {
+			t.Fatalf("%s: exit %d: %s", legacy, code, errb)
+		}
+		var body map[string]any
+		_ = json.Unmarshal((*reqs)[0].Body, &body)
+		if body["engine"] != legacy {
+			t.Errorf("%s: sent %v", legacy, body["engine"])
+		}
+		if !strings.Contains(errb, "warning: --engine: this value is deprecated; use fetch, js or browser") || strings.Contains(errb, legacy) {
+			t.Errorf("%s: stderr %q", legacy, errb)
+		}
+	}
+	srv, reqs := newRecordingServer(t, func(w http.ResponseWriter, r *http.Request) {})
+	_, errb, code := runCLI(t, srv.URL, "sessions", "create", "--engine", "nope")
+	if code != 2 || len(*reqs) != 0 || !strings.Contains(errb, "--engine must be fetch, js or browser") {
+		t.Errorf("exit %d, %d requests, stderr %q", code, len(*reqs), errb)
 	}
 }
 
@@ -71,14 +99,14 @@ func TestSessionsListAllFollowsCursor(t *testing.T) {
 		}
 		_, _ = w.Write([]byte(`{"sessions":[` + sessionsTestBody + `]}`))
 	})
-	out, errb, code := runCLI(t, srv.URL, "sessions", "list", "--all", "--status", "active", "--engine", "chromium", "--limit", "1")
+	out, errb, code := runCLI(t, srv.URL, "sessions", "list", "--all", "--status", "active", "--engine", "browser", "--limit", "1")
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, errb)
 	}
 	if len(*reqs) != 2 {
 		t.Fatalf("%d requests, want 2", len(*reqs))
 	}
-	if q := (*reqs)[0].Query; q != "engine=chromium&limit=1&status=active" {
+	if q := (*reqs)[0].Query; q != "engine=browser&limit=1&status=active" {
 		t.Errorf("first query %q", q)
 	}
 	if q := (*reqs)[1].Query; !strings.Contains(q, "cursor=1790000000000000000.ABC") {

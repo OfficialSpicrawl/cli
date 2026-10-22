@@ -8,15 +8,15 @@ import (
 const (
 	gSessionID = "01J9ZQ4M7R3T8VX2K5N6P0B1CD"
 
-	gSession = `{"id":"` + gSessionID + `","project_id":"proj_01J9Z","engine":"chromium","status":"active","sticky_key":"login-1",` +
+	gSession = `{"id":"` + gSessionID + `","project_id":"proj_01J9Z","engine":"browser","status":"active","sticky_key":"login-1",` +
 		`"proxy":{"tier":"residential","country":"de","region_pool":"eu"},"created_at":"2026-09-22T00:00:00Z","last_used_at":"2026-09-22T00:30:00Z",` +
 		`"expires_at":"2026-09-22T02:00:00Z","hard_expires_at":"2026-09-23T00:00:00Z","usage_count":7,"context":null}`
 
-	gSessionNew = `{"id":"` + gSessionID + `","project_id":"proj_01J9Z","engine":"obscura","status":"active","sticky_key":null,` +
+	gSessionNew = `{"id":"` + gSessionID + `","project_id":"proj_01J9Z","engine":"js","status":"active","sticky_key":null,` +
 		`"proxy":{"tier":"datacenter"},"created_at":"2026-09-22T00:00:00Z","last_used_at":null,"expires_at":"2026-09-22T00:30:00Z",` +
-		`"usage_count":0,"warnings":["engine obscura cannot persist IndexedDB"]}`
+		`"usage_count":0,"warnings":["ttl_seconds was reduced to this organization's maximum"]}`
 
-	gSessionReleased = `{"id":"` + gSessionID + `","project_id":"proj_01J9Z","engine":"chromium","status":"released","sticky_key":"login-1",` +
+	gSessionReleased = `{"id":"` + gSessionID + `","project_id":"proj_01J9Z","engine":"browser","status":"released","sticky_key":"login-1",` +
 		`"proxy":{"tier":"residential","country":"de"},"created_at":"2026-09-22T00:00:00Z","last_used_at":"2026-09-22T00:30:00Z",` +
 		`"expires_at":"2026-09-22T02:00:00Z","released_at":"2026-09-22T00:45:00Z","retired":"released by the caller","usage_count":7}`
 
@@ -33,7 +33,7 @@ func init() {
 	del := goldenServe(map[string]http.HandlerFunc{"DELETE /v1/sessions/{id}": func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }})
 
 	goldenAdd(
-		goldenCase{name: "sessions/create", args: []string{"sessions", "create", "--engine", "obscura"}, server: one("POST", "/v1/sessions", gSessionNew, 201)},
+		goldenCase{name: "sessions/create", args: []string{"sessions", "create", "--engine", "js"}, server: one("POST", "/v1/sessions", gSessionNew, 201)},
 		goldenCase{name: "sessions/create_session_context_file", args: []string{"sessions", "create", "--session-context", "{dir}/ctx.json"}, server: one("POST", "/v1/sessions", gSession, 201),
 			setup: func(t *testing.T, e *goldenEnv) { goldenWrite(t, e.Dir, "ctx.json", gSessionContext) }},
 		goldenCase{name: "sessions/create_usage_error", args: []string{"sessions", "create", "--rotate-ip", "--sticky-key", "k1"}, stderr: true},

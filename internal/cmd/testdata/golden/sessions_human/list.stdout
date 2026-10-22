@@ -1,3 +1,3 @@
-ID                          ENGINE    STATUS    EXIT            USES  EXPIRES
-01J9ZQ4M7R3T8VX2K5N6P0B1CD  chromium  active    residential/de  7     <TIMESTAMP>
-01J9ZQ4M7R3T8VX2K5N6P0B1CD  chromium  released  residential/de  7     <TIMESTAMP>
+ID                          ENGINE   STATUS    EXIT            USES  EXPIRES
+01J9ZQ4M7R3T8VX2K5N6P0B1CD  browser  active    residential/de  7     <TIMESTAMP>
+01J9ZQ4M7R3T8VX2K5N6P0B1CD  browser  released  residential/de  7     <TIMESTAMP>

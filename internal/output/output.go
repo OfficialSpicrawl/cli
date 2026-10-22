@@ -107,15 +107,17 @@ func (p *Printer) Table(headers []string, rows [][]string) {
 	tw.Flush()
 }
 
-// Info writes a progress or status line to stderr unless --quiet.
+// Info writes a progress or status line to stderr unless --quiet. Like Warn it
+// shows server prose with tier names (PublicText).
 func (p *Printer) Info(format string, a ...any) {
 	if p.Quiet {
 		return
 	}
-	ui.Fprintf(p.Err, format+"\n", a...)
+	ui.Fprintf(p.Err, "%s", PublicText(fmt.Sprintf(format+"\n", a...)))
 }
 
-// Warn writes a warning to stderr, even with --quiet.
+// Warn writes a warning to stderr, even with --quiet. Server prose in it is
+// shown with tier names, never engine names (PublicText).
 func (p *Printer) Warn(format string, a ...any) {
-	ui.Fprintf(p.Err, "warning: "+format+"\n", a...)
+	ui.Fprintf(p.Err, "%s", PublicText(fmt.Sprintf("warning: "+format+"\n", a...)))
 }

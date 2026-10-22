@@ -1,6 +1,6 @@
 id:              01J9ZQ4M7R3T8VX2K5N6P0B1CD
 status:          active
-engine:          chromium
+engine:          browser
 exit:            residential (de) pool eu
 sticky key:      login-1
 uses:            7

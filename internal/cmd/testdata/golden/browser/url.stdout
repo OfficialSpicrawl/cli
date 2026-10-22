@@ -1,5 +1,5 @@
 {
   "expires_at": "<TIMESTAMP>",
   "single_use": true,
-  "url": "ws://SERVER/v1/browser?token=wbt_testtoken&engine=chromium&proxy_country=de"
+  "url": "ws://SERVER/v1/browser?token=wbt_testtoken&engine=browser&proxy_country=de"
 }

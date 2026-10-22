@@ -35,9 +35,9 @@ func addScrapeFlags(cmd *cobra.Command) *scrapeFlags {
 	f.StringVar(&s.format, "format", "", "response_format: html|markdown|text|json|pdf")
 	f.StringVar(&s.method, "method", "", "HTTP method sent to the target (default GET)")
 	f.BoolVar(&s.render, "render", false, "render JavaScript in a browser (js_render)")
-	f.BoolVar(&s.stealth, "stealth", false, "hardened browser fingerprint (camoufox; dearest tier)")
+	f.BoolVar(&s.stealth, "stealth", false, "full-browser rendering hardened against bot detection (dearest tier)")
 	f.BoolVar(&s.impersonate, "impersonate", false, "fetch tier: present a real browser TLS/HTTP2 fingerprint (on by default; --impersonate=false turns it off)")
-	f.StringVar(&s.engine, "engine", "", "pin the engine: fetch|obscura|chromium|camoufox")
+	f.StringVar(&s.engine, "engine", "", "ignored: the API chooses the rendering tier")
 	f.StringVar(&s.mode, "mode", "", "auto: escalate through tiers until one succeeds")
 	f.BoolVar(&s.premium, "premium-proxy", false, "residential exits (priced higher; fails rather than falling back)")
 	f.StringVar(&s.country, "country", "", "proxy_country, ISO 3166-1 alpha-2 lowercase (needs --premium-proxy)")
@@ -49,7 +49,7 @@ func addScrapeFlags(cmd *cobra.Command) *scrapeFlags {
 	f.StringVar(&s.waitFor, "wait-for", "", "CSS selector to wait for")
 	f.IntVar(&s.waitForTimeout, "wait-for-timeout", 0, "cap on --wait-for, ms")
 	f.StringSliceVar(&s.block, "block", nil, "block_resources: images,fonts,media,stylesheets,scripts or none")
-	f.BoolVar(&s.headless, "headless", true, "chromium only: --headless=false runs with a real display")
+	f.BoolVar(&s.headless, "headless", true, "ignored: the API chooses how the page is rendered")
 	f.StringArrayVar(&s.headers, "header", nil, "custom header sent to the target, 'Name: value' (repeatable)")
 	f.StringVar(&s.extract, "extract", "", "selector map or JSON Schema, as JSON or @file")
 	f.StringVar(&s.aiPrompt, "ai", "", "ai_extract prompt: describe the data in plain language")
@@ -74,6 +74,10 @@ func addScrapeFlags(cmd *cobra.Command) *scrapeFlags {
 	f.StringSliceVar(&s.allowedStatus, "allowed-status", nil, "extra target statuses to accept, e.g. 403: billed as a success (200/404/410 always are), ends --mode auto escalation, and scrape exits 0 instead of 6 on them")
 	f.BoolVar(&s.originalStatus, "original-status", false, "API answers with the target's status on its HTTP status line (the CLI reads the target status either way)")
 	f.StringVar(&s.body, "body", "", "raw request body as JSON or @file; flags override its fields (nested objects are merged key by key)")
+	// The API ignores both and says so in a warning, so they are kept (scripts
+	// that pass them still work) but not advertised.
+	_ = f.MarkHidden("engine")
+	_ = f.MarkHidden("headless")
 	return s
 }
 

@@ -505,7 +505,11 @@ func (r *scrapeResult) printMeta(p *output.Printer) {
 		}
 		return "-"
 	}
-	fmt.Fprintf(p.Err, "engine: %s\n", get("X-Engine", "engine"))
+	engine := get("X-Engine", "engine")
+	if engine != "-" {
+		engine = output.Tier(engine)
+	}
+	fmt.Fprintf(p.Err, "engine: %s\n", engine)
 	fmt.Fprintf(p.Err, "credits: %s (request cost %s)\n", get("X-Credits-Charged", "credits"), get("X-Request-Cost", "request_cost"))
 	fmt.Fprintf(p.Err, "cache: %s\n", get("Cache-State", "cache_state"))
 	fmt.Fprintf(p.Err, "target status: %s\n", get("X-Target-Status", "status"))
@@ -792,12 +796,13 @@ func scrapeErrorObject(err error) (any, int) {
 
 // scrapeLabel is the spinner text for one scrape: the page, and what the user
 // asked the API to do that makes it slow. Only what the request says is shown,
-// never the tier the API picks, and never an engine name.
+// never the tier the API picks, and never an engine name. A pinned "engine" is
+// not shown: the API ignores it.
 func scrapeLabel(target string, body map[string]any) string {
 	label := "Scraping " + scrapeShortURL(target)
 	var does []string
 	switch {
-	case body["stealth"] == true, scrapeBrowserEngine(body["engine"]), body["actions"] != nil:
+	case body["stealth"] == true, body["actions"] != nil:
 		does = append(does, "using a full browser")
 	case body["js_render"] == true:
 		does = append(does, "rendering JavaScript")
@@ -809,12 +814,6 @@ func scrapeLabel(target string, body map[string]any) string {
 		label += " (" + strings.Join(does, ", ") + ")"
 	}
 	return label
-}
-
-// scrapeBrowserEngine reports whether a pinned engine is a browser.
-func scrapeBrowserEngine(v any) bool {
-	e, _ := v.(string)
-	return e != "" && e != "fetch"
 }
 
 // scrapeShortURL is host and path without the scheme, query or fragment.

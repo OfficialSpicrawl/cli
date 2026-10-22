@@ -6,7 +6,7 @@ description: Fetch, render and extract data from web pages with Spicrawl, throug
 # Spicrawl
 
 Spicrawl turns any URL into clean content or structured data. One request, one URL,
-one response; the platform picks the engine, the proxy exit and the retries.
+one response; the platform picks the rendering path, the proxy exit and the retries.
 
 | | |
 |---|---|
@@ -46,19 +46,26 @@ needs `read`. A missing scope returns `403 ERR::AUTH::INSUFFICIENT_SCOPE`, namin
 ## MCP tools
 
 Connect a client to `https://mcp.spicrawl.com/mcp` with the header
-`Authorization: Bearer $SPICRAWL_API_KEY` (or run `spicrawl mcp install`, below).
+`Authorization: Bearer $SPICRAWL_API_KEY` (or run `spicrawl mcp install`, below). `x-api-key`,
+`api-key` or the raw key as the `Authorization` value are also accepted; a key in the URL is never read.
+`initialize` and `tools/list` work without a key, so a client can list the tools first; every tool
+call needs one (`401` otherwise).
+
+Every tool returns `structuredContent` (a JSON object matching its output schema) as well as the
+text: read its fields directly instead of parsing the text. A string or array payload comes wrapped
+as `{"content": …}`.
 
 | Tool | Use it to |
 |---|---|
-| `spicrawl_scrape` | Fetch one URL. Arguments: `url`, `format` (`markdown` default, `text`, `html`, `json`), `render` (JavaScript), `proxy`, `mode`, `engine`, `wait_for`, `wait`, `main_content_only`, `include_tags`, `exclude_tags`, `links`, `autoparse`, `extract`, `ai_extract` (coming soon), `screenshot`, `actions`, `session_id`, `cache`, `max_cost` and the other `/v1/scrape` fields. Note `render`/`format` instead of the API's `js_render`/`response_format`. |
+| `spicrawl_scrape` | Fetch one URL. Arguments: `url`, `format` (`markdown` default, `text`, `html`, `json`), `render` (JavaScript), `proxy`, `mode`, `wait_for`, `wait`, `main_content_only`, `include_tags`, `exclude_tags`, `links`, `autoparse`, `extract`, `ai_extract` (coming soon), `screenshot`, `actions`, `session_id`, `cache`, `max_cost` and the other `/v1/scrape` fields. Note `render`/`format` instead of the API's `js_render`/`response_format`. `engine` and `headless` are not tool arguments; do not send them. |
 | `spicrawl_batch_submit` | Start an async job over many URLs (`urls` or `items`, plus shared settings such as `render`, `format`, `wait_for`). |
 | `spicrawl_batch_status` / `spicrawl_batch_list` | Poll one job / list jobs. |
 | `spicrawl_batch_results` | Read finished items (paged with `cursor`). |
 | `spicrawl_batch_task_content` | Get one item's full document by `job_id` and `seq`. |
 | `spicrawl_batch_add_items` / `spicrawl_batch_close` | Append to an `open` job / mark it complete. |
 | `spicrawl_batch_retry` / `spicrawl_batch_cancel` | Retry failed items / cancel a job (cannot be undone). |
-| `spicrawl_session_create` / `_list` / `_get` / `_context` / `_release` / `_delete` | Manage sessions (cookies, storage, engine). |
-| `spicrawl_browser_connect_url` | Coming soon: remote browser for Puppeteer/Playwright. Not available during the beta; do not use. |
+| `spicrawl_session_create` / `_list` / `_get` / `_context` / `_release` / `_delete` | Manage sessions (cookies, storage). |
+| `spicrawl_browser_connect_url` | Coming soon: remote browser for a CDP client. Not available during the beta; do not use. |
 | `spicrawl_requests_list` / `spicrawl_request_get` | Request history; look up a failure by request id. |
 | `spicrawl_usage` / `spicrawl_usage_summary` / `spicrawl_usage_reconciliation` | Credits and volume. Need the `read` scope. |
 | `spicrawl_docs_search` | Search Spicrawl's docs (`query`). Search an error code such as `ERR::PROXY::EXHAUSTED` to get its entry. |
@@ -141,9 +148,9 @@ Unknown fields are rejected with `400`: send only the fields below.
 | `url` | string | **Required.** The page to fetch. |
 | `response_format` | string | `markdown` (best for LLMs), `html`, `text`, `json` (envelope with metadata), `pdf`. |
 | `js_render` | bool | The content is built by JavaScript (SPA, empty HTML shell). |
-| `impersonate` | bool | Fetch tier only: present a current Chrome TLS/HTTP2 fingerprint. On by default and free; send `false` only to turn it off. |
-| `mode` | string | `auto` escalates fetch → obscura until one succeeds, billing only that rung. Not with `js_render` or `engine`. |
-| `engine` | string | Pin `fetch` / `obscura` / `chromium`. Not with `mode: auto`; `js_render` cannot pin `fetch`. |
+| `impersonate` | bool | Fetch tier only: present a current browser TLS/HTTP2 fingerprint. On by default and free; send `false` only to turn it off. |
+| `mode` | string | `auto` climbs from a plain fetch to JavaScript rendering, then full-browser rendering, then stealth rendering (coming soon), moving up only when the previous step was met by a challenge or a non-billable status, and bills only the step that served. Not with `js_render` or `stealth`. |
+| `engine` / `headless` | string / bool | **Deprecated, ignored.** Rendering is chosen automatically from `js_render`, `stealth`, `screenshot`, `actions`, `block_resources`, `response_format` and `mode`. Accepted so old clients keep working; they add `X-Warning: ENGINE_IGNORED`. Do not send them. |
 | `wait_for` / `wait_for_timeout` | string / int ms | CSS selector to wait for before capturing, and its cap. |
 | `wait` | int ms | Flat delay after load. |
 | `main_content_only` | bool | Strip nav, footer and aside (default on for markdown). |
@@ -153,7 +160,7 @@ Unknown fields are rejected with `400`: send only the fields below.
 | `extract` | object | Selector map, or a JSON Schema whose properties carry `selector`. |
 | `ai_extract` | object | `{"prompt": …}` **or** `{"schema": …}` (both is a 400). Coming soon: model-driven, +4 credits; refused with 503 `ERR::INTERNAL::UNAVAILABLE` until it launches. |
 | `network_capture` | object | Record the JSON the page itself fetched (XHR/fetch). Needs a render. |
-| `screenshot` | bool | Capture a screenshot (`screenshot_fullpage`, `screenshot_selector`, `screenshot_format`). Screenshots and `pdf` need a browser engine (`chromium`), not `mode: auto`. |
+| `screenshot` | bool | Capture a screenshot (`screenshot_fullpage`, `screenshot_selector`, `screenshot_format`). A screenshot, any `actions`, an explicit `block_resources` or `response_format: pdf` is routed to full-browser rendering for you; JavaScript rendering cannot do them. If the deployment has none: 400 `ERR::REQUEST::CAPABILITY_UNSUPPORTED`, 0 credits. |
 | `actions` | object[] | Browser workflow, at most 50 steps: `click`, `fill`, `wait_for`, `scroll`, `select`, `evaluate`, `screenshot`. |
 | `block_resources` | string[] | `images` `fonts` `media` `stylesheets` `scripts`, or `none`. |
 | `session_id` | string | Reuse a session's cookies and storage (see Sessions). Combine with `js_render` when you also send `actions` or `wait_for`. |
@@ -163,7 +170,7 @@ Unknown fields are rejected with `400`: send only the fields below.
 | `custom_headers` / `method` | object / string | Headers sent to the target (the field is `custom_headers`; `headers` is rejected). Default method `GET`. |
 | `allowed_status_codes` | int[] | Treat these target statuses as billable successes. |
 
-Coming soon, so do not send these yet: `ai_extract`, stealth mode (`stealth`, `engine: "camoufox"`), extraction presets (`extract_preset`), Spicrawl's managed proxy pool (`premium_proxy`, `proxy_country`, `sticky_key`, session `rotate_ip`/`region_pool`) and the remote browser (`/v1/browser`).
+Coming soon, so do not send these yet: `ai_extract`, stealth mode (`stealth`), extraction presets (`extract_preset`), Spicrawl's managed proxy pool (`premium_proxy`, `proxy_country`, `sticky_key`, session `rotate_ip`/`region_pool`) and the remote browser (`/v1/browser`).
 
 ### Structured extraction
 
@@ -192,7 +199,7 @@ in `empty_fields`. Extraction costs no extra credits, except `ai_extract`.
 ~~~json
 {
   "url": "https://example.com/login",
-  "engine": "chromium",
+  "js_render": true,
   "actions": [
     {"fill": {"selector": "#user", "value": "alice"}},
     {"fill": {"selector": "#pass", "value": "…", "secret": true}},
@@ -221,10 +228,10 @@ Every step accepts `label`, `timeout_ms` and `on_error` (`fail` or `skip`). `sec
 | `X-Credits-Charged` | Credits actually billed (`0` on any failure). |
 | `X-Request-Cost` | What it would have cost. |
 | `X-Credits-Remaining` | Monthly allowance left after this call (absent if the org has no limit). |
-| `X-Engine` | Engine that served it. |
+| `X-Engine` | The rendering tier that served it (informational): `fetch` (plain fetch), `js` (JavaScript rendering) or `browser` (full-browser rendering). The envelope's `engine` carries the same value. |
 | `X-Final-Url` | URL after redirects. |
 | `Cache-State` | `hit` (billed like the fetch that stored it), `miss` or `bypass`. |
-| `X-Warning` | Non-fatal decisions (a clamped `cache_ttl`, an ignored flag). |
+| `X-Warning` | Non-fatal decisions (a clamped `cache_ttl`, an ignored flag such as `ENGINE_IGNORED`, `ENGINE_SUBSTITUTED` when the deployment served the request with a different rendering tier than usual, `ESCALATED` naming each abandoned tier, its price and why). |
 | `X-RateLimit-Limit` / `-Remaining` / `-Reset` | Rate limit state. |
 
 ## Many URLs: `POST /v1/batch`
@@ -242,20 +249,24 @@ curl -sS -X POST https://api.spicrawl.com/v1/batch \
 
 Each item is one fetch or render, returned as `html`, `markdown` or `text`. Batch accepts
 the retrieval and cleaning fields (`response_format`, `js_render`, `impersonate`,
-`engine` of `fetch`/`obscura`, `proxy`,
+`proxy`,
 `proxy_verify`, `wait`, `wait_for`, `wait_for_timeout`, `block_resources`,
-`headless`, `custom_headers`, `main_content_only`, `include_tags`, `exclude_tags`, `max_cost`).
-It refuses with `400` (nothing queued, nothing charged): `extract`, `ai_extract`, `autoparse`,
-`actions`, `screenshot`, `network_capture`, `session_id`, `cache`, `links`, `mode: auto`,
-`response_format: pdf`, and `engine: chromium` (use `js_render: true`). Use `/v1/scrape` for those.
+`custom_headers`, `main_content_only`, `include_tags`, `exclude_tags`, `max_cost`).
+Items run as a plain fetch, JavaScript rendering (`js_render`) or stealth rendering (`stealth`, coming soon) only; `engine` is ignored
+and noted in the job's `warnings`. It refuses with `400` (nothing queued, nothing charged):
+`extract`, `ai_extract`, `autoparse`, `actions`, `screenshot` (a batch never uses full-browser rendering),
+`network_capture`, `session_id`, `cache`, `links`, `mode: auto` and `response_format: pdf`.
+Use `/v1/scrape` for those.
 
 1. Poll `GET /v1/batch/{id}` while `status` is `queued`, `running`, `paused` or `cancelling`
    (terminal: `completed`, `failed`, `cancelled`). Back off between polls.
 2. Read `GET /v1/batch/{id}/results?limit=100&cursor=…`. It is **JSONL** (one object per line);
    the next cursor is in the `X-Next-Cursor` header. Each line has `seq`, `url`, `status`,
    `http_status` and, once the item is done, `result` (`content`, `bytes`, `truncated`) or
-   `error` (`code`, `retryable`). `result.content` is the stored value as JSON text: decode it
-   once. For one item's full document, use `GET /v1/batch/{id}/tasks/{seq}/content`.
+   `error` (`code`, `retryable`). `result.content` is the page as plain text in the item's
+   `response_format` (for `json`, the JSON document as a string: parse it once). Do not decode it
+   again. For one item's full document, use `GET /v1/batch/{id}/tasks/{seq}/content`, which
+   returns it as a JSON string literal.
 3. Results expire after **72 hours** (`410 Gone`).
 4. Other routes: `POST /v1/batch/{id}/cancel`, `/retry` (failed items), `/items` (append to an
    `open: true` job), `/close` (finish an open job).
@@ -266,7 +277,7 @@ Keep cookies and storage across requests (log in once, then scrape).
 
 | Route | Purpose |
 |---|---|
-| `POST /v1/sessions` | Create (`engine`, `ttl_seconds`, `session_context`). |
+| `POST /v1/sessions` | Create (`ttl_seconds`, `session_context`). The session stays on the rendering path chosen for it. |
 | `GET /v1/sessions` / `GET /v1/sessions/{id}` | List / fetch. |
 | `GET /v1/sessions/{id}/context` | Captured cookies and storage. |
 | `POST /v1/sessions/{id}/release` | End it: permanently purges its cookies and storage (`409 ERR::SESSION::BUSY` while in use; `?force=true` overrides). |
@@ -277,7 +288,7 @@ a time. A concurrent request gets `ERR::SESSION::BUSY` (retryable).
 
 ## Live browser: `GET /v1/browser` (CDP)
 
-Coming soon: connect Puppeteer or Playwright to a Spicrawl-hosted browser. Not available during the beta.
+Coming soon: connect a CDP client to a Spicrawl-hosted browser. Not available during the beta.
 When it is: 8 credits per started minute, and the session's whole `session_ttl` is held against the
 allowance while it is open (24 credits for the default 3 minutes); unused minutes come back at close.
 
@@ -292,13 +303,20 @@ allowance while it is open (24 credits for the default 3 minutes); unused minute
 
 ## Credits
 
-| Engine | Credits |
-|---|---|
-| `fetch` | 1 |
-| `obscura` | 3 |
-| `chromium` | 8 |
+| Rendering tier | Credits (direct / datacenter / your own `proxy`) | Residential / mobile (managed premium exits, coming soon) |
+|---|---|---|
+| Plain fetch | 1 | 10 |
+| JavaScript rendering (`js_render`) | 3 | 25 |
+| Full-browser rendering (screenshot, PDF, `actions`, `block_resources`, anti-bot escalation) | 8 | 32 |
+| Stealth rendering (coming soon) | 25 | 25 |
 
-You pay for the engine that actually served (`X-Engine`). `ai_extract` adds +4. **Failures cost
+You pay for the tier that actually served (`X-Engine`), and you do not choose it: plain
+requests run as a plain fetch, `js_render` as JavaScript rendering, a screenshot or PDF as
+full-browser rendering. When a page shows a bot challenge (Cloudflare, DataDome, Akamai,
+PerimeterX) on your own `http://` `proxy`, Spicrawl moves to a stronger rendering path on
+the same exit by itself (managed premium exits: coming soon), billed only for the tier that
+returned the page, 0 if every step was challenged. On the default shared pool a challenged page
+returns `ERR::UPSTREAM::CHALLENGE`. `ai_extract` adds +4. **Failures cost
 0.** A cache hit is billed at the same price as the fetch that stored it. The cache saves the
 fetch (latency and load on the target), not credits. A deployment may discount these prices:
 `X-Credits-Charged` and `X-Request-Cost` are authoritative.
@@ -325,11 +343,13 @@ Errors are RFC 7807 JSON (`application/problem+json`):
 - Not retryable: `ERR::REQUEST::*`, `ERR::AUTH::*`, `ERR::SECURITY::*` (private or blocked
   target), and a failing custom `proxy` (`ERR::PROXY::UNREACHABLE`, `ERR::PROXY::AUTH_FAILED`).
 - `ERR::UPSTREAM::CHALLENGE` means an anti-bot page (Cloudflare, DataDome, Akamai…). Retry
-  once, then `js_render: true`, then the user's own `proxy` if they have one.
+  once, then the user's own residential `proxy`: through it Spicrawl moves to a stronger
+  rendering path by itself. Add `js_render: true` if the page also needs JavaScript. Success is
+  not guaranteed; a failure costs 0.
 - `ERR::LIMIT::QUOTA_EXCEEDED` (HTTP 402) means the organization's monthly allowance cannot cover
   this request. Nothing was charged. Waiting does not help until the reset: stop and tell the user,
   including the reset date (in the `detail`, or `allowance.resets_at` in the usage summary). A
-  cheaper request (a lower engine, fewer batch URLs) may still fit.
+  cheaper request (no render, fewer batch URLs) may still fit.
 - `ERR::INTERNAL::UNAVAILABLE` with `retryable: false` means the feature (for example
   `ai_extract`) is not configured on this deployment: don't retry.
 - The API is **not idempotent**: a retried scrape is billed again. Only retry a failure, and
@@ -340,7 +360,7 @@ Errors are RFC 7807 JSON (`application/problem+json`):
 1. Start cheap: `{"url": …, "response_format": "markdown"}` (1 credit).
 2. Check the site's status (`X-Target-Status`), not just the HTTP status.
 3. Empty or skeleton content → `js_render: true` (or `mode: "auto"`).
-4. Blocked or challenged → retry, then the user's own `proxy`; still blocked → stop and report.
+4. Blocked or challenged → retry once, then the user's own residential `proxy`; still blocked → stop and report.
 5. Need fields, not prose → `autoparse: true` first, then an `extract` schema (`ai_extract` is coming soon).
 6. More than about 20 URLs → a batch job (or `spicrawl scrape -` with `--concurrency`), not a loop.
 7. Cap spend with `max_cost`; track it with `X-Credits-Charged`.

@@ -272,10 +272,10 @@ func report(err error) int {
 			p.Out = p.Err
 			_ = p.Value(prob)
 		} else if u := p.UI(); u.On() {
-			u.Fail(prob.Error(), append(problemRows(prob), failRows...)...)
+			u.Fail(output.PublicText(prob.Error()), append(problemRows(prob), failRows...)...)
 		} else {
-			fmt.Fprintf(stderr, "error: %s\n", prob.Error())
-			if h := prob.Hint(); h != "" {
+			fmt.Fprintf(stderr, "error: %s\n", output.PublicText(prob.Error()))
+			if h := output.PublicText(prob.Hint()); h != "" {
 				fmt.Fprintf(stderr, "hint: %s\n", h)
 			}
 			if prob.TargetStatus != nil {
@@ -312,7 +312,7 @@ func failContext(rows ...ui.Row) { failRows = append(failRows, rows...) }
 // problemRows are the facts under an API error's headline on a terminal: the
 // same ones the plain output lists, the ERR:: code stays in the headline.
 func problemRows(prob *api.Problem) []ui.Row {
-	rows := []ui.Row{{Key: "hint", Val: prob.Hint()}}
+	rows := []ui.Row{{Key: "hint", Val: output.PublicText(prob.Hint())}}
 	if prob.TargetStatus != nil {
 		rows = append(rows, ui.Row{Key: "target", Val: fmt.Sprintf("returned %d", *prob.TargetStatus)})
 	}
