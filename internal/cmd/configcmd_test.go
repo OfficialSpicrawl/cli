@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -54,4 +55,42 @@ func TestConfigPath(t *testing.T) {
 	if code != 0 || authDecode(t, out)["path"] != cfg {
 		t.Fatalf("exit %d %s", code, out)
 	}
+}
+
+func TestConfigHumanPlainAndLive(t *testing.T) {
+	cfg := filepath.Join(t.TempDir(), "config.json")
+	out, _, _ := authRunHuman(t, cfg, "", "config", "set", "base_url", "http://localhost:8080/")
+	if want := "Set base_url = http://localhost:8080 in " + cfg + "\n"; out != want {
+		t.Errorf("plain set: %q, want %q", out, want)
+	}
+	plainTable, _, _ := authRunHuman(t, cfg, "", "config", "get")
+	noEscapes(t, "plain table", plainTable)
+	if val, _, _ := authRunHuman(t, cfg, "", "config", "get", "base_url"); val != "http://localhost:8080\n" {
+		t.Errorf("get <key> must stay a bare value, got %q", val)
+	}
+
+	liveUI(t)
+	out, _, _ = authRunHuman(t, cfg, "", "config", "set", "base_url", "http://localhost:9090")
+	if want := "✓ Set base_url = http://localhost:9090 in " + cfg + "\n"; stripANSI(out) != want {
+		t.Errorf("live set: %q, want %q", stripANSI(out), want)
+	}
+	table, _, _ := authRunHuman(t, cfg, "", "config", "get")
+	if !strings.Contains(table, "\x1b[") || !strings.Contains(stripANSI(table), "base_url  http://localhost:9090") {
+		t.Errorf("live table: %q", table)
+	}
+	if val, _, _ := authRunHuman(t, cfg, "", "config", "get", "base_url"); val != "http://localhost:9090\n" {
+		t.Errorf("get <key> must stay a bare value on a terminal too, got %q", val)
+	}
+	if p, _, _ := authRunHuman(t, cfg, "", "config", "path"); p != cfg+"\n" {
+		t.Errorf("path must stay bare, got %q", p)
+	}
+	out, _, _ = authRunHuman(t, cfg, "", "config", "unset", "base_url")
+	if want := "✓ Removed base_url from " + cfg + "\n"; stripANSI(out) != want {
+		t.Errorf("live unset: %q", stripANSI(out))
+	}
+
+	// Machine output is untouched.
+	jout, _, _ := authRun(t, cfg, "", "config", "set", "base_url", "http://localhost:7070")
+	noEscapes(t, "json", jout)
+	authDecode(t, jout)
 }

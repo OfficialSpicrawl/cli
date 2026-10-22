@@ -17,6 +17,7 @@ import (
 	"github.com/OfficialSpicrawl/cli/internal/config"
 	"github.com/OfficialSpicrawl/cli/internal/exitcode"
 	"github.com/OfficialSpicrawl/cli/internal/output"
+	"github.com/OfficialSpicrawl/cli/internal/ui"
 )
 
 type statusWorkers struct {
@@ -67,10 +68,13 @@ fails during the key check. A reachable API that reports not ready still exits 0
 		c := api.New(r.BaseURL, r.APIKey, flagTimeout)
 		rep := statusReport{BaseURL: r.BaseURL, KeySource: r.APIKeySource}
 
+		p := Printer()
+		sp := spin(p, "Checking the API")
+		defer sp.Stop()
 		var readyErr error
 		rep.APIReachable, rep.Ready, rep.Checks, rep.CDP, readyErr = statusReadyz(ctx, c)
-		p := Printer()
 		if !rep.APIReachable {
+			sp.Stop()
 			if err := statusPrint(p, &rep); err != nil {
 				return err
 			}
@@ -83,6 +87,7 @@ fails during the key check. A reachable API that reports not ready still exits 0
 			rep.KeyValid = &f
 			rep.KeyError = "no API key configured"
 		} else {
+			sp.Label("Checking your key")
 			_, err := c.Do(ctx, api.Request{Path: "/v1/requests", Query: url.Values{"limit": {"1"}}})
 			t := true
 			switch prob, isProb := api.AsProblem(err); {
@@ -102,6 +107,7 @@ fails during the key check. A reachable API that reports not ready still exits 0
 			}
 
 			if rep.KeyValid != nil && *rep.KeyValid {
+				sp.Label("Reading worker status")
 				rep.Workers, err = statusFleet(ctx, c)
 				if err != nil {
 					rep.WorkersError = err.Error()
@@ -109,6 +115,7 @@ fails during the key check. A reachable API that reports not ready still exits 0
 			}
 		}
 
+		sp.Stop()
 		if err := statusPrint(p, &rep); err != nil {
 			return err
 		}
@@ -175,65 +182,153 @@ func statusFleet(ctx context.Context, c *api.Client) (map[string]statusWorkers, 
 	return out, nil
 }
 
+func statusYN(b bool) string {
+	if b {
+		return "yes"
+	}
+	return "no"
+}
+
+// statusReadyText is the ready value: yes, or no with the checks that failed.
+func statusReadyText(rep *statusReport) string {
+	ready := statusYN(rep.Ready)
+	if !rep.Ready && len(rep.Checks) > 0 {
+		var bad []string
+		for k, v := range rep.Checks {
+			if v != "ok" {
+				bad = append(bad, k+"="+v)
+			}
+		}
+		sort.Strings(bad)
+		if len(bad) > 0 {
+			ready += " (" + strings.Join(bad, ", ") + ")"
+		}
+	}
+	return ready
+}
+
+func statusCDPText(rep *statusReport) string {
+	cdp := rep.CDP
+	switch cdp {
+	case "":
+		cdp = "unknown (this API does not report it)"
+	case "disabled":
+		cdp = "disabled (cloud browser /v1/browser is not available on this deployment)"
+	case "unknown":
+		cdp = "unknown (the browser worker could not be asked)"
+	}
+	return cdp
+}
+
+func statusKeyText(rep *statusReport) string {
+	key := "unknown"
+	if rep.KeyValid != nil {
+		key = map[bool]string{true: "valid", false: "invalid"}[*rep.KeyValid]
+	}
+	if rep.KeySource != "" {
+		key += " (from " + rep.KeySource + ")"
+	}
+	if rep.KeyError != "" {
+		key += ": " + rep.KeyError
+	}
+	return key
+}
+
+var statusWorkerKinds = []string{"browser", "egress", "extract", "batch"}
+
 func statusPrint(p *output.Printer, rep *statusReport) error {
 	return p.Result(rep, func(w io.Writer) {
-		yn := func(b bool) string {
-			if b {
-				return "yes"
-			}
-			return "no"
+		if u := outUI(p); u.On() {
+			statusPrintLive(w, u, rep)
+			return
 		}
 		fmt.Fprintf(w, "%-12s %s\n", "base url:", rep.BaseURL)
-		fmt.Fprintf(w, "%-12s %s\n", "reachable:", yn(rep.APIReachable))
+		fmt.Fprintf(w, "%-12s %s\n", "reachable:", statusYN(rep.APIReachable))
 		if !rep.APIReachable {
 			return
 		}
-		ready := yn(rep.Ready)
-		if !rep.Ready && len(rep.Checks) > 0 {
-			var bad []string
-			for k, v := range rep.Checks {
-				if v != "ok" {
-					bad = append(bad, k+"="+v)
-				}
-			}
-			sort.Strings(bad)
-			if len(bad) > 0 {
-				ready += " (" + strings.Join(bad, ", ") + ")"
-			}
-		}
-		fmt.Fprintf(w, "%-12s %s\n", "ready:", ready)
-		cdp := rep.CDP
-		switch cdp {
-		case "":
-			cdp = "unknown (this API does not report it)"
-		case "disabled":
-			cdp = "disabled (cloud browser /v1/browser is not available on this deployment)"
-		case "unknown":
-			cdp = "unknown (the browser worker could not be asked)"
-		}
-		fmt.Fprintf(w, "%-12s %s\n", "cdp:", cdp)
-		key := "unknown"
-		if rep.KeyValid != nil {
-			key = map[bool]string{true: "valid", false: "invalid"}[*rep.KeyValid]
-		}
-		if rep.KeySource != "" {
-			key += " (from " + rep.KeySource + ")"
-		}
-		if rep.KeyError != "" {
-			key += ": " + rep.KeyError
-		}
-		fmt.Fprintf(w, "%-12s %s\n", "key:", key)
+		fmt.Fprintf(w, "%-12s %s\n", "ready:", statusReadyText(rep))
+		fmt.Fprintf(w, "%-12s %s\n", "cdp:", statusCDPText(rep))
+		fmt.Fprintf(w, "%-12s %s\n", "key:", statusKeyText(rep))
 		if rep.WorkersError != "" {
 			fmt.Fprintf(w, "%-12s %s\n", "workers:", rep.WorkersError)
 		} else if len(rep.Workers) > 0 {
 			fmt.Fprintln(w, "workers:")
-			for _, k := range []string{"browser", "egress", "extract", "batch"} {
+			for _, k := range statusWorkerKinds {
 				if v, ok := rep.Workers[k]; ok {
 					fmt.Fprintf(w, "  %-10s %d ready of %d\n", k, v.Ready, v.Present)
 				}
 			}
 		}
 	})
+}
+
+// statusPrintLive is the checklist a person sees on a terminal: one mark per
+// check and a closing line that counts the failures.
+func statusPrintLive(w io.Writer, u *ui.UI, rep *statusReport) {
+	failed := 0
+	check := func(m int, label, val string) {
+		if m == markBad {
+			failed++
+		}
+		fmt.Fprintf(w, "  %s %s  %s\n", viewMark(u, m), viewKey(u, 9, label), val)
+	}
+	pick := func(ok bool) int {
+		if ok {
+			return markOK
+		}
+		return markBad
+	}
+
+	fmt.Fprintf(w, "%s  %s\n\n", u.Bold("Spicrawl API"), rep.BaseURL)
+	check(pick(rep.APIReachable), "reachable", statusYN(rep.APIReachable))
+	if !rep.APIReachable {
+		fmt.Fprintf(w, "\n%s %s\n", u.Red("✗"), "the API could not be reached")
+		return
+	}
+	check(pick(rep.Ready), "ready", statusReadyText(rep))
+	cdp := markNeutral
+	if rep.CDP == "enabled" {
+		cdp = markOK
+	}
+	check(cdp, "cdp", statusCDPText(rep))
+	key := markNeutral
+	if rep.KeyValid != nil {
+		key = pick(*rep.KeyValid)
+	}
+	check(key, "key", statusKeyText(rep))
+
+	switch {
+	case rep.WorkersError != "":
+		check(markNeutral, "workers", rep.WorkersError)
+	case len(rep.Workers) > 0:
+		fmt.Fprintf(w, "\n%s\n", u.Bold("workers"))
+		for _, k := range statusWorkerKinds {
+			v, ok := rep.Workers[k]
+			if !ok {
+				continue
+			}
+			m := markWarn
+			switch {
+			case v.Present == 0:
+				m = markNeutral // none of this kind runs here
+			case v.Ready == 0:
+				m = markBad
+			case v.Ready >= v.Present:
+				m = markOK
+			}
+			if m == markBad {
+				failed++
+			}
+			fmt.Fprintf(w, "  %s %s  %d ready of %d\n", viewMark(u, m), viewKey(u, 9, k), v.Ready, v.Present)
+		}
+	}
+
+	if failed == 0 {
+		fmt.Fprintf(w, "\n%s all checks passed\n", u.Green("✓"))
+	} else {
+		fmt.Fprintf(w, "\n%s %d %s failed\n", u.Red("✗"), failed, map[bool]string{true: "check", false: "checks"}[failed == 1])
+	}
 }
 
 func init() {

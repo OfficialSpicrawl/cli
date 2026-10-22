@@ -17,6 +17,7 @@ import (
 	"github.com/OfficialSpicrawl/cli/internal/config"
 	"github.com/OfficialSpicrawl/cli/internal/exitcode"
 	"github.com/OfficialSpicrawl/cli/internal/output"
+	"github.com/OfficialSpicrawl/cli/internal/ui"
 )
 
 // authKeysURL is where a person creates an API key.
@@ -121,7 +122,10 @@ func authRunLogin(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	if err := authCheckKey(rootCmd.Context(), r.BaseURL, key); err != nil {
+	sp := spin(p, "Checking the key with %s", r.BaseURL)
+	err = authCheckKey(rootCmd.Context(), r.BaseURL, key)
+	sp.Stop()
+	if err != nil {
 		return err
 	}
 
@@ -137,10 +141,27 @@ func authRunLogin(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	res := map[string]any{"saved": r.Path, "key": config.MaskKey(key), "base_url": r.BaseURL}
-	return p.Result(res, func(w io.Writer) {
+	err = p.Result(res, func(w io.Writer) {
+		if u := outUI(p); u.On() {
+			fmt.Fprintf(w, "%s Logged in\n", u.Green("✓"))
+			fmt.Fprint(w, viewRows(u, "  ", []ui.Row{
+				{Key: "key", Val: config.MaskKey(key)},
+				{Key: "base url", Val: r.BaseURL},
+				{Key: "saved to", Val: r.Path},
+			}))
+			return
+		}
 		fmt.Fprintf(w, "Logged in. Key %s saved to %s\n", config.MaskKey(key), r.Path)
 		fmt.Fprintf(w, "Base URL: %s\n", r.BaseURL)
 	})
+	if err == nil {
+		viewNext(p,
+			"spicrawl status               check the API, your key and the workers",
+			"spicrawl scrape <url>         fetch a page",
+			"spicrawl init                 set up your AI agent clients",
+		)
+	}
+	return err
 }
 
 // authPromptKey asks for the key on the terminal. Without golang.org/x/term
@@ -150,9 +171,13 @@ func authPromptKey() (string, error) {
 	if w == nil {
 		w = stderr
 	}
-	fmt.Fprintf(w, "Create an API key at %s\n", authKeysURL)
+	var u *ui.UI
+	if authPromptW == nil {
+		u = errUI(Printer())
+	}
+	fmt.Fprintf(w, "Create an API key at %s\n", u.Cyan(authKeysURL))
 	fmt.Fprintln(w, "warning: the key will be visible as you type or paste it")
-	fmt.Fprint(w, "API key: ")
+	fmt.Fprint(w, u.Bold("API key: "))
 	line, err := bufio.NewReader(authStdin).ReadString('\n')
 	if err != nil && !errors.Is(err, io.EOF) {
 		return "", fmt.Errorf("read key: %w", err)
@@ -195,10 +220,11 @@ func authRunLogout(_ *cobra.Command, _ []string) error {
 		p.Warn("%s is still set in the environment and will keep being used", config.EnvAPIKey)
 	}
 	return p.Result(map[string]any{"path": path, "removed": removed}, func(w io.Writer) {
+		u := outUI(p)
 		if removed {
-			fmt.Fprintf(w, "Removed the API key from %s\n", path)
+			fmt.Fprintf(w, "%sRemoved the API key from %s\n", viewLead(u, markOK), path)
 		} else {
-			fmt.Fprintf(w, "No API key saved in %s\n", path)
+			fmt.Fprintf(w, "%sNo API key saved in %s\n", viewLead(u, markNeutral), path)
 		}
 	})
 }
@@ -222,7 +248,9 @@ func authRunStatus(cmd *cobra.Command, _ []string) error {
 	case r.APIKey == "":
 		fail = ErrNoKey
 	case !authStatusOffline:
+		sp := spin(p, "Checking your key with %s", r.BaseURL)
 		err := authCheckKey(rootCmd.Context(), r.BaseURL, r.APIKey)
+		sp.Stop()
 		if prob, ok := api.AsProblem(err); ok && exitcode.ForCode(prob.Code) == exitcode.Auth {
 			res["key_valid"] = false
 			res["check_error"] = prob.Error()
@@ -250,6 +278,10 @@ func authRunStatus(cmd *cobra.Command, _ []string) error {
 		case false:
 			valid = "no"
 		}
+		if u := outUI(p); u.On() {
+			authPrintLive(w, u, r, key, valid)
+			return
+		}
 		p.Table([]string{"FIELD", "VALUE"}, [][]string{
 			{"api key", key},
 			{"base url", r.BaseURL + "  (from " + r.BaseURLSource + ")"},
@@ -261,4 +293,23 @@ func authRunStatus(cmd *cobra.Command, _ []string) error {
 		return perr
 	}
 	return fail
+}
+
+// authPrintLive is the terminal view of "auth status": a verdict line, then
+// the facts the plain table lists.
+func authPrintLive(w io.Writer, u *ui.UI, r config.Resolved, key, valid string) {
+	verdict := map[string]string{
+		"yes":         u.Green("✓") + " " + u.Bold("The API accepts your key"),
+		"no":          u.Red("✗") + " " + u.Bold("The API rejected your key"),
+		"not checked": viewMark(u, markNeutral) + " " + u.Bold("Key not checked"),
+	}[valid]
+	if r.APIKey == "" {
+		verdict = u.Red("✗") + " " + u.Bold("No API key is configured")
+	}
+	fmt.Fprintln(w, verdict)
+	fmt.Fprint(w, viewRows(u, "  ", []ui.Row{
+		{Key: "api key", Val: key},
+		{Key: "base url", Val: r.BaseURL + "  (from " + r.BaseURLSource + ")"},
+		{Key: "config", Val: r.Path},
+	}))
 }

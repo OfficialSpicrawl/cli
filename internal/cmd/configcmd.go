@@ -70,7 +70,7 @@ value (null in JSON).`,
 			}
 			rows = append(rows, []string{k, v})
 		}
-		return p.Result(all, func(io.Writer) { p.Table([]string{"KEY", "VALUE"}, rows) })
+		return p.Result(all, func(io.Writer) { viewTable(p, outUI(p), []string{"KEY", "VALUE"}, rows, nil) })
 	},
 }
 
@@ -182,11 +182,13 @@ func configCmdWrite(key, val string) error {
 	if shown != "" {
 		jv = shown
 	}
-	return Printer().Result(map[string]any{"path": path, "key": key, "value": jv}, func(w io.Writer) {
+	p := Printer()
+	return p.Result(map[string]any{"path": path, "key": key, "value": jv}, func(w io.Writer) {
+		lead := viewLead(outUI(p), markOK)
 		if val == "" {
-			fmt.Fprintf(w, "Removed %s from %s\n", key, path)
+			fmt.Fprintf(w, "%sRemoved %s from %s\n", lead, key, path)
 		} else {
-			fmt.Fprintf(w, "Set %s = %s in %s\n", key, shown, path)
+			fmt.Fprintf(w, "%sSet %s = %s in %s\n", lead, key, shown, path)
 		}
 	})
 }
