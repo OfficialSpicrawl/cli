@@ -1,0 +1,4 @@
+{
+  "error": "--rotate-ip and --sticky-key cannot be combined: one lets the exit change, the other pins it",
+  "exit_code": 2
+}

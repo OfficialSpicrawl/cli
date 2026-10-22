@@ -1,0 +1,8 @@
+[
+  {
+    "client": "claude",
+    "kind": "skill",
+    "file": "<DIR>/.claude/skills/spicrawl/SKILL.md",
+    "action": "created"
+  }
+]

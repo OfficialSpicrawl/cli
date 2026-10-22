@@ -1,0 +1,4 @@
+{
+  "error": "target returned 403 (pass --allowed-status 403 to accept it)",
+  "exit_code": 6
+}

@@ -1,0 +1,14 @@
+{
+  "type": "https://docs.spicrawl.com/errors",
+  "title": "Bad Gateway",
+  "status": 502,
+  "code": "ERR::UPSTREAM::BLOCKED",
+  "detail": "the target served a bot challenge",
+  "retryable": false,
+  "doc_url": "https://docs.spicrawl.com/errors",
+  "request_id": "<REQUEST_ID>",
+  "target_status": null,
+  "diagnostics": {
+    "hint": "check the request and try again"
+  }
+}

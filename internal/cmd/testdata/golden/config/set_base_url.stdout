@@ -1,0 +1,5 @@
+{
+  "key": "base_url",
+  "path": "<CONFIG_DIR>/config.json",
+  "value": "http://localhost:8080"
+}

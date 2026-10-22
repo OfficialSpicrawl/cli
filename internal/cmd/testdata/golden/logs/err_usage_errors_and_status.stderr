@@ -1,0 +1,4 @@
+{
+  "error": "--errors and --status cannot be combined",
+  "exit_code": 2
+}

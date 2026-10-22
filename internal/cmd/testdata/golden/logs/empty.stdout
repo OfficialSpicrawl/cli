@@ -1,0 +1,8 @@
+{
+  "data": [],
+  "page": {
+    "has_more": false,
+    "retained_since": "<TIMESTAMP>",
+    "retention_hours": 24
+  }
+}

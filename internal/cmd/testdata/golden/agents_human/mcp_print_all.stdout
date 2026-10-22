@@ -1,0 +1,50 @@
+# Claude Code: merge into .mcp.json
+{
+  "mcpServers": {
+    "spicrawl": {
+      "type": "http",
+      "url": "http://127.0.0.1:1/mcp",
+      "headers": {
+        "Authorization": "Bearer ${SPICRAWL_API_KEY}"
+      }
+    }
+  }
+}
+
+# Cursor: merge into .cursor/mcp.json
+{
+  "mcpServers": {
+    "spicrawl": {
+      "url": "http://127.0.0.1:1/mcp",
+      "headers": {
+        "Authorization": "Bearer ${env:SPICRAWL_API_KEY}"
+      }
+    }
+  }
+}
+
+# VS Code (Copilot): merge into .vscode/mcp.json
+{
+  "servers": {
+    "spicrawl": {
+      "type": "http",
+      "url": "http://127.0.0.1:1/mcp",
+      "headers": {
+        "Authorization": "Bearer ${input:spicrawl-api-key}"
+      }
+    }
+  },
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "spicrawl-api-key",
+      "description": "Spicrawl API key",
+      "password": true
+    }
+  ]
+}
+
+# Codex: merge into .codex/config.toml
+[mcp_servers.spicrawl]
+url = "http://127.0.0.1:1/mcp"
+bearer_token_env_var = "SPICRAWL_API_KEY"

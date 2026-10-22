@@ -1,0 +1,4 @@
+{
+  "error": "no API key given and stdin is not a terminal: pass --api-key or set SPICRAWL_API_KEY (create a key at https://app.spicrawl.com/dashboard/keys)",
+  "exit_code": 2
+}

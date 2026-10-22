@@ -1,0 +1,4 @@
+{
+  "error": "unknown schema \"nope\" (available: batch, batch-item, scrape, session)",
+  "exit_code": 2
+}

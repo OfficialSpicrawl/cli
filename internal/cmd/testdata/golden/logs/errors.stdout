@@ -1,0 +1,39 @@
+{
+  "data": [
+    {
+      "id": "01M0FK1EP2E7FBMWAR7W10SMXX",
+      "created_at": "<TIMESTAMP>",
+      "project_id": "proj_01J9Z",
+      "status": "blocked",
+      "http_status": 403,
+      "engine": "",
+      "credits_micro": 0,
+      "url": "https://example.com/b?x=1&y=2",
+      "error_code": "ERR::UPSTREAM::BLOCKED",
+      "error_detail": "bot challenge",
+      "spans": {
+        "admission_ms": 1,
+        "dispatch_ms": null,
+        "worker_ms": null,
+        "queue_ms": 0,
+        "engine_ms": null,
+        "upstream_ms": 120,
+        "extract_ms": null,
+        "total_ms": 130
+      },
+      "proxy": {
+        "source": "pool"
+      },
+      "blocked": {
+        "vendor": "cloudflare",
+        "rule": "r-17",
+        "signal": "cf-mitigated"
+      }
+    }
+  ],
+  "page": {
+    "has_more": false,
+    "retained_since": "<TIMESTAMP>",
+    "retention_hours": 24
+  }
+}

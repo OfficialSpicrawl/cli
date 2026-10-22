@@ -1,0 +1,4 @@
+{
+  "error": "refusing to delete session 01J9ZQ4M7R3T8VX2K5N6P0B1CD without confirmation: pass --yes",
+  "exit_code": 2
+}

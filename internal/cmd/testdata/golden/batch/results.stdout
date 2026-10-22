@@ -1,0 +1,3 @@
+{"seq":0,"external_id":"sku-1","url":"https://example.com/a","status":"succeeded","http_status":200,"bytes":2048,"result":{"content":"\"<h1>A</h1>\\n\""}}
+{"seq":1,"external_id":"","url":"https://example.com/b","status":"failed","http_status":null,"bytes":0,"error":{"code":"ERR::UPSTREAM::TIMEOUT","message":"the target did not answer"}}
+{"seq":2,"external_id":"sku-3","url":"https://example.com/c?x=1&y=2","status":"succeeded","http_status":404,"bytes":512,"result":{"content":"\"not found\""}}

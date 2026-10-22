@@ -1,0 +1,8 @@
+{
+  "api_key": "spicrawl_test_0123…ghij",
+  "api_key_source": "env",
+  "base_url": "https://api.spicrawl.com",
+  "base_url_source": "default",
+  "config_path": "<CONFIG_DIR>/config.json",
+  "key_valid": null
+}

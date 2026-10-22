@@ -1,0 +1,4 @@
+{
+  "error": "the API rejected the key: ERR::AUTH::INVALID_KEY: the API key is not valid",
+  "exit_code": 3
+}

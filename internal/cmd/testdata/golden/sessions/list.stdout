@@ -1,0 +1,39 @@
+{
+  "sessions": [
+    {
+      "id": "01J9ZQ4M7R3T8VX2K5N6P0B1CD",
+      "project_id": "proj_01J9Z",
+      "engine": "chromium",
+      "status": "active",
+      "sticky_key": "login-1",
+      "proxy": {
+        "tier": "residential",
+        "country": "de",
+        "region_pool": "eu"
+      },
+      "created_at": "<TIMESTAMP>",
+      "last_used_at": "<TIMESTAMP>",
+      "expires_at": "<TIMESTAMP>",
+      "hard_expires_at": "<TIMESTAMP>",
+      "usage_count": 7,
+      "context": null
+    },
+    {
+      "id": "01J9ZQ4M7R3T8VX2K5N6P0B1CD",
+      "project_id": "proj_01J9Z",
+      "engine": "chromium",
+      "status": "released",
+      "sticky_key": "login-1",
+      "proxy": {
+        "tier": "residential",
+        "country": "de"
+      },
+      "created_at": "<TIMESTAMP>",
+      "last_used_at": "<TIMESTAMP>",
+      "expires_at": "<TIMESTAMP>",
+      "released_at": "<TIMESTAMP>",
+      "retired": "released by the caller",
+      "usage_count": 7
+    }
+  ]
+}

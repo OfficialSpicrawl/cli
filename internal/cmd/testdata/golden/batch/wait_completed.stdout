@@ -1,0 +1,36 @@
+{
+  "id": "01J9Z6V0Q8M4K2T7R3N5B1C9XA",
+  "project_id": "proj_01J9Z",
+  "name": "nightly",
+  "status": "completed",
+  "open": false,
+  "status_url": "/v1/batch/01J9Z6V0Q8M4K2T7R3N5B1C9XA",
+  "results_url": "/v1/batch/01J9Z6V0Q8M4K2T7R3N5B1C9XA/results",
+  "params": {
+    "js_render": true,
+    "response_format": "markdown"
+  },
+  "total_items": 3,
+  "concurrency": 10,
+  "priority": 100,
+  "max_attempts": 3,
+  "estimated_credits": 9,
+  "estimated_credits_micro": 9000000,
+  "progress": {
+    "total": 3,
+    "completed": 3,
+    "succeeded": 2,
+    "failed": 1,
+    "cancelled": 0,
+    "skipped": 0,
+    "remaining": 0,
+    "percent_complete": 100.0,
+    "credits_charged": 9,
+    "credits_charged_micro": 9000000,
+    "bytes": 61440
+  },
+  "submitted_at": "<TIMESTAMP>",
+  "started_at": "<TIMESTAMP>",
+  "finished_at": "<TIMESTAMP>",
+  "results_expire_at": "<TIMESTAMP>"
+}

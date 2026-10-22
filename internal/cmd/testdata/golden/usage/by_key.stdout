@@ -1,0 +1,34 @@
+{
+  "period": {
+    "start": "2026-08-01",
+    "end": "2026-09-01",
+    "days": 31,
+    "bounds": "[start, end)"
+  },
+  "group_by": "key",
+  "keys": [
+    {
+      "key_id": "K1",
+      "name": "ci-key",
+      "prefix": "spicrawl_live_ab12",
+      "project_id": "proj_01J9Z",
+      "revoked": false,
+      "days": [],
+      "totals": {
+        "requests": 7,
+        "client_cli": 3
+      }
+    },
+    {
+      "key_id": "K2",
+      "name": "old",
+      "prefix": "spicrawl_live_cd34",
+      "project_id": "proj_01J9Z",
+      "revoked": true,
+      "days": [],
+      "totals": {
+        "requests": 1
+      }
+    }
+  ]
+}

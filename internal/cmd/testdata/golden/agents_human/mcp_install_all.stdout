@@ -1,0 +1,5 @@
+CLIENT  KIND  ACTION   FILE                NOTE
+claude  mcp   created  .mcp.json           
+cursor  mcp   created  .cursor/mcp.json    
+vscode  mcp   created  .vscode/mcp.json    
+codex   mcp   created  .codex/config.toml  
