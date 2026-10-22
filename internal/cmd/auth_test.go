@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/OfficialSpicrawl/cli/internal/config"
 )
@@ -195,5 +196,134 @@ func TestAuthStatusNoKey(t *testing.T) {
 	m := authDecode(t, out)
 	if code != 3 || m["api_key"] != nil || m["base_url_source"] != "default" {
 		t.Fatalf("exit %d %v", code, m)
+	}
+}
+
+// authRunHuman is authRun in human mode (no --json) with extra global args.
+func authRunHuman(t *testing.T, cfgPath, envKey string, args ...string) (string, string, int) {
+	t.Helper()
+	t.Setenv("SPICRAWL_CONFIG", cfgPath)
+	t.Setenv("SPICRAWL_API_KEY", envKey)
+	t.Setenv("SPICRAWL_BASE_URL", "")
+	var out, errb bytes.Buffer
+	stdout, stderr, humanOutput = &out, &errb, true
+	defer func() {
+		stdout, stderr, humanOutput = os.Stdout, os.Stderr, false
+		resetFlags(rootCmd)
+	}()
+	rootCmd.SetArgs(args)
+	code := Execute()
+	return out.String(), errb.String(), code
+}
+
+func TestAuthLoginHumanPlainIsUnchanged(t *testing.T) {
+	base, _ := authOKServer(t)
+	cfg := filepath.Join(t.TempDir(), "config.json")
+	out, errb, code := authRunHuman(t, cfg, "", "login", "--api-key", authGoodKey, "--base-url", base)
+	if code != 0 {
+		t.Fatalf("exit %d: %s", code, errb)
+	}
+	want := "Logged in. Key " + config.MaskKey(authGoodKey) + " saved to " + cfg + "\nBase URL: " + base + "\n"
+	if out != want || errb != "" {
+		t.Errorf("stdout %q stderr %q, want %q and nothing", out, errb, want)
+	}
+}
+
+func TestAuthLoginLive(t *testing.T) {
+	liveUI(t)
+	base, _ := authOKServer(t)
+	cfg := filepath.Join(t.TempDir(), "config.json")
+	out, errb, code := authRunHuman(t, cfg, "", "login", "--api-key", authGoodKey, "--base-url", base)
+	if code != 0 {
+		t.Fatalf("exit %d: %s", code, errb)
+	}
+	plain := stripANSI(out)
+	for _, want := range []string{"✓ Logged in", config.MaskKey(authGoodKey), cfg, base} {
+		if !strings.Contains(plain, want) {
+			t.Errorf("stdout lacks %q:\n%s", want, plain)
+		}
+	}
+	if e := stripANSI(errb); !strings.Contains(e, "next") || !strings.Contains(e, "spicrawl status") {
+		t.Errorf("no next steps on stderr: %q", e)
+	}
+
+	// --quiet and --json get neither colour nor hints.
+	for _, flag := range []string{"-q", "--json"} {
+		out, errb, _ = authRunHuman(t, cfg, "", flag, "login", "--api-key", authGoodKey, "--base-url", base)
+		noEscapes(t, flag+" stdout", out)
+		if strings.Contains(errb, "next") {
+			t.Errorf("%s printed hints: %q", flag, errb)
+		}
+	}
+}
+
+func TestAuthLoginSpinnerWhileCheckingTheKey(t *testing.T) {
+	spinNow(t)
+	srv, _ := newRecordingServer(t, func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(40 * time.Millisecond)
+		_, _ = w.Write([]byte(`{"data":[],"page":{}}`))
+	})
+	cfg := filepath.Join(t.TempDir(), "config.json")
+	out, errb, code := authRunHuman(t, cfg, "", "login", "--api-key", authGoodKey, "--base-url", srv.URL)
+	if code != 0 {
+		t.Fatalf("exit %d: %s", code, errb)
+	}
+	if !strings.Contains(errb, "Checking the key with "+srv.URL) {
+		t.Errorf("no spinner label: %q", errb)
+	}
+	if strings.Contains(out, "Checking the key") {
+		t.Errorf("spinner on stdout: %q", out)
+	}
+}
+
+func TestAuthStatusLive(t *testing.T) {
+	base, _ := authOKServer(t)
+	cfg := filepath.Join(t.TempDir(), "config.json")
+
+	out, _, code := authRunHuman(t, cfg, authGoodKey, "auth", "status", "--base-url", base)
+	if code != 0 || !strings.Contains(out, "FIELD") || !strings.Contains(out, "key works") {
+		t.Fatalf("plain: exit %d\n%s", code, out)
+	}
+	noEscapes(t, "plain stdout", out)
+
+	liveUI(t)
+	out, _, code = authRunHuman(t, cfg, authGoodKey, "auth", "status", "--base-url", base)
+	plain := stripANSI(out)
+	if code != 0 || !strings.Contains(plain, "✓ The API accepts your key") || !strings.Contains(plain, "api key") || strings.Contains(plain, "FIELD") {
+		t.Errorf("accepted: exit %d\n%s", code, plain)
+	}
+	out, _, code = authRunHuman(t, cfg, "spicrawl_live_wrong_key_1234567", "auth", "status", "--base-url", base)
+	if code != 3 || !strings.Contains(stripANSI(out), "✗ The API rejected your key") {
+		t.Errorf("rejected: exit %d\n%s", code, stripANSI(out))
+	}
+	out, _, code = authRunHuman(t, cfg, "", "auth", "status", "--base-url", base)
+	if code != 3 || !strings.Contains(stripANSI(out), "✗ No API key is configured") {
+		t.Errorf("no key: exit %d\n%s", code, stripANSI(out))
+	}
+	out, _, code = authRunHuman(t, cfg, authGoodKey, "auth", "status", "--offline", "--base-url", base)
+	if code != 0 || !strings.Contains(stripANSI(out), "Key not checked") {
+		t.Errorf("offline: exit %d\n%s", code, stripANSI(out))
+	}
+}
+
+func TestAuthLogoutHuman(t *testing.T) {
+	base, _ := authOKServer(t)
+	cfg := filepath.Join(t.TempDir(), "config.json")
+	authRun(t, cfg, "", "login", "--api-key", authGoodKey, "--base-url", base)
+
+	out, _, _ := authRunHuman(t, cfg, "", "logout")
+	if out != "Removed the API key from "+cfg+"\n" {
+		t.Errorf("plain: %q", out)
+	}
+	out, _, _ = authRunHuman(t, cfg, "", "logout")
+	if out != "No API key saved in "+cfg+"\n" {
+		t.Errorf("plain, nothing to remove: %q", out)
+	}
+
+	liveUI(t)
+	authRun(t, cfg, "", "login", "--api-key", authGoodKey, "--base-url", base)
+	out, _, _ = authRunHuman(t, cfg, "", "logout")
+	if stripANSI(out) != "✓ Removed the API key from "+cfg+"\n" {
+		t.Errorf("live: %q", stripANSI(out))
 	}
 }

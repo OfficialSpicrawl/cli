@@ -36,6 +36,7 @@ import (
 
 	"github.com/OfficialSpicrawl/cli/internal/config"
 	"github.com/OfficialSpicrawl/cli/internal/output"
+	"github.com/OfficialSpicrawl/cli/internal/ui"
 )
 
 const (
@@ -422,11 +423,13 @@ func agentApply(rs []*agentResult) error {
 }
 
 // agentReport prints results (JSON list, or a table) plus secret guidance.
+// On a terminal the table gets marks and colour and a count line under it.
 func agentReport(p *output.Printer, rs []*agentResult, s agentScope) error {
 	if rs == nil {
 		rs = []*agentResult{}
 	}
 	err := p.Result(rs, func(w io.Writer) {
+		u := outUI(p)
 		rows := make([][]string, 0, len(rs))
 		for _, r := range rs {
 			note := r.Reason
@@ -436,12 +439,73 @@ func agentReport(p *output.Printer, rs []*agentResult, s agentScope) error {
 				}
 				note += "backup: " + agentDisplayPath(r.Backup, s)
 			}
-			rows = append(rows, []string{r.Client, r.Kind, r.Action, agentDisplayPath(r.File, s), note})
+			action := r.Action
+			if u.On() {
+				action = agentActionMark[r.Action] + " " + action
+			}
+			rows = append(rows, []string{r.Client, r.Kind, action, agentDisplayPath(r.File, s), note})
 		}
-		p.Table([]string{"CLIENT", "KIND", "ACTION", "FILE", "NOTE"}, rows)
+		viewTable(p, u, []string{"CLIENT", "KIND", "ACTION", "FILE", "NOTE"}, rows, func(col int, cell string) string {
+			switch {
+			case col == 2 && strings.HasPrefix(cell, "✓"):
+				return u.Green(cell)
+			case col == 2 || col == 4:
+				return u.Dim(cell)
+			}
+			return cell
+		})
+		if u.On() {
+			agentSummary(w, u, rs)
+		}
 	})
 	agentSecretGuidance(p, rs, s)
 	return err
+}
+
+// agentActionMark is the mark in front of an action on a terminal.
+var agentActionMark = map[string]string{
+	agentActionCreated:  "✓",
+	agentActionUpdated:  "✓",
+	agentActionUnchange: "=",
+	agentActionSkipped:  "–",
+}
+
+// agentSummary is the line under the table: what was written, kept, skipped.
+func agentSummary(w io.Writer, u *ui.UI, rs []*agentResult) {
+	n := map[string]int{}
+	for _, r := range rs {
+		n[r.Action]++
+	}
+	var parts []string
+	if c := n[agentActionCreated] + n[agentActionUpdated]; c > 0 {
+		parts = append(parts, fmt.Sprintf("%d written", c))
+	}
+	for _, a := range []string{agentActionUnchange, agentActionSkipped} {
+		if n[a] > 0 {
+			parts = append(parts, fmt.Sprintf("%d %s", n[a], a))
+		}
+	}
+	if len(parts) == 0 {
+		return
+	}
+	m := markOK
+	if n[agentActionCreated]+n[agentActionUpdated]+n[agentActionUnchange] == 0 {
+		m = markNeutral
+	}
+	fmt.Fprintf(w, "\n%s %s\n", viewMark(u, m), strings.Join(parts, " · "))
+}
+
+// agentChanged is the names of the clients whose file was just written.
+func agentChanged(rs []*agentResult) []string {
+	var names []string
+	seen := map[string]bool{}
+	for _, r := range rs {
+		if (r.Action == agentActionCreated || r.Action == agentActionUpdated) && !seen[r.Client] {
+			seen[r.Client] = true
+			names = append(names, agentClientByID(r.Client).Name)
+		}
+	}
+	return names
 }
 
 // agentSecretGuidance warns about literal keys, with .gitignore advice for

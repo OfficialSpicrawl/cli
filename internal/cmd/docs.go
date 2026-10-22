@@ -70,11 +70,17 @@ An unknown topic exits 2.`,
 			}
 			u = base + "/" + topic + ".md"
 		}
+		p := Printer()
+		label := "page " + topic
+		if topic == "llms.txt" {
+			label = "index"
+		}
+		sp := spin(p, "Fetching the docs %s", label)
 		md, err := docsFetch(rootCmd.Context(), u)
+		sp.Stop()
 		if err != nil {
 			return err
 		}
-		p := Printer()
 		// Only an explicit --json wraps the page: the Markdown is the data.
 		if flagJSON {
 			return p.Value(map[string]any{"topic": topic, "url": u, "markdown": md})

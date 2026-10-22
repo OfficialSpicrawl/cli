@@ -132,6 +132,9 @@ func runMCPInstall(cmd *cobra.Command, _ []string) error {
 			return ErrNoKey
 		}
 	}
+	if names := agentChanged(rs); len(names) > 0 {
+		viewNext(p, "restart "+strings.Join(names, ", ")+" to load the MCP server")
+	}
 	return nil
 }
 
@@ -1126,7 +1129,8 @@ func mcpPrint(jsonMode bool, clients []*agentClient, s agentScope, opt mcpOption
 			if i > 0 {
 				fmt.Fprintln(w)
 			}
-			fmt.Fprintf(w, "# %s: merge into %s\n%s", agentClientByID(sn.Client).Name, agentDisplayPath(sn.File, s), sn.Snippet)
+			head := fmt.Sprintf("# %s: merge into %s", agentClientByID(sn.Client).Name, agentDisplayPath(sn.File, s))
+			fmt.Fprintf(w, "%s\n%s", outUI(p).Bold(head), sn.Snippet)
 		}
 	})
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/OfficialSpicrawl/cli/internal/api"
+	"github.com/OfficialSpicrawl/cli/internal/ui"
 )
 
 // logsEntry is the subset of RequestLogEntry the human views read. JSON mode
@@ -134,8 +135,11 @@ Status is one of: success, failed, timeout, blocked, rejected, cancelled.
 			return err
 		}
 		p := Printer()
+		sp := spin(p, "Fetching the request log")
+		defer sp.Stop()
 		var all []json.RawMessage
 		var last logsPage
+		read := 0
 		for {
 			resp, err := c.Do(cmd.Context(), api.Request{Path: "/v1/requests", Query: q})
 			if err != nil {
@@ -147,13 +151,17 @@ Status is one of: success, failed, timeout, blocked, rejected, cancelled.
 			}
 			if logsJSONL {
 				for _, r := range page.Data {
-					if err := p.Line(r); err != nil {
-						return err
+					var perr error
+					sp.Around(func() { perr = p.Line(r) }) // stdout shares the terminal with the spinner
+					if perr != nil {
+						return perr
 					}
 				}
 			} else {
 				all = append(all, page.Data...)
 			}
+			read += len(page.Data)
+			sp.Label("Fetching the request log · %d so far", read)
 			last = page
 			if !logsAll || !page.Page.HasMore || page.Page.NextBefore == "" || page.Page.NextBeforeID == "" {
 				break
@@ -161,6 +169,7 @@ Status is one of: success, failed, timeout, blocked, rejected, cancelled.
 			q.Set("before", page.Page.NextBefore)
 			q.Set("before_id", page.Page.NextBeforeID)
 		}
+		sp.Stop()
 		if logsJSONL {
 			return nil
 		}
@@ -190,7 +199,17 @@ Status is one of: success, failed, timeout, blocked, rejected, cancelled.
 			if logsAllProjects {
 				header = append(header, "PROJECT")
 			}
-			p.Table(append(header, "STATUS", "HTTP", "ENGINE", "CREDITS", "TOTAL_MS", "URL"), rows)
+			u := outUI(p)
+			statusCol := len(header) // TIME (and PROJECT) come first
+			viewTable(p, u, append(header, "STATUS", "HTTP", "ENGINE", "CREDITS", "TOTAL_MS", "URL"), rows, func(col int, cell string) string {
+				switch col {
+				case 0:
+					return u.Dim(cell)
+				case statusCol:
+					return logsStatusCell(u, cell)
+				}
+				return cell
+			})
 			if last.Page.HasMore && !logsAll {
 				p.Info("more records exist; pass --all to fetch every page")
 			}
@@ -214,11 +233,13 @@ shown as — was not measured, which is not the same as 0.`,
 		if err != nil {
 			return err
 		}
+		p := Printer()
+		sp := spin(p, "Fetching request %s", args[0])
 		resp, err := c.Do(cmd.Context(), api.Request{Path: "/v1/requests/" + url.PathEscape(args[0])})
+		sp.Stop()
 		if err != nil {
 			return err
 		}
-		p := Printer()
 		if p.JSON {
 			return p.RawJSON(resp.Body)
 		}
@@ -226,15 +247,37 @@ shown as — was not measured, which is not the same as 0.`,
 		if err := resp.Decode(&e); err != nil {
 			return err
 		}
-		logsPrintEntry(p.Out, &e)
+		logsWriteEntry(p.Out, outUI(p), &e)
 		return nil
 	},
 }
 
-func logsPrintEntry(w io.Writer, e *logsEntry) {
+func logsPrintEntry(w io.Writer, e *logsEntry) { logsWriteEntry(w, nil, e) }
+
+// logsStatusCell colours a request status: success green, trouble red.
+func logsStatusCell(u *ui.UI, s string) string {
+	return viewStatus(u, s, []string{"success"}, []string{"failed", "timeout", "blocked", "rejected"})
+}
+
+// logsWriteEntry writes one record as key/value lines. With u on, a verdict
+// line leads, keys are dimmed and the section titles are bold.
+func logsWriteEntry(w io.Writer, u *ui.UI, e *logsEntry) {
+	if u.On() {
+		m := markBad
+		switch e.Status {
+		case "success":
+			m = markOK
+		case "cancelled":
+			m = markNeutral
+		}
+		fmt.Fprintf(w, "%s %s  %s\n\n", viewMark(u, m), u.Bold(logsDash(e.Status)), e.URL)
+	}
 	kv := func(k, v string) {
 		if v != "" {
-			fmt.Fprintf(w, "%-18s %s\n", k+":", v)
+			if k == "status" {
+				v = logsStatusCell(u, v)
+			}
+			fmt.Fprintf(w, "%s %s\n", viewKey(u, 18, k+":"), v)
 		}
 	}
 	kv("id", e.ID)
@@ -254,7 +297,7 @@ func logsPrintEntry(w io.Writer, e *logsEntry) {
 		kv("bytes", fmt.Sprintf("in %d, out %d, via proxy %d", e.BytesIn, e.BytesOut, e.ProxyBytes))
 	}
 
-	fmt.Fprintln(w, "\nspans (ms):")
+	fmt.Fprintln(w, "\n"+u.Bold("spans (ms):"))
 	s := e.Spans
 	for _, sp := range []struct {
 		name string
@@ -263,14 +306,14 @@ func logsPrintEntry(w io.Writer, e *logsEntry) {
 		{"admission", s.Admission}, {"dispatch", s.Dispatch}, {"worker", s.Worker}, {"queue", s.Queue},
 		{"engine", s.Engine}, {"upstream", s.Upstream}, {"extract", s.Extract}, {"total", s.Total},
 	} {
-		fmt.Fprintf(w, "  %-16s %s\n", sp.name, logsSpan(sp.v))
+		fmt.Fprintf(w, "  %s %s\n", viewKey(u, 16, sp.name), logsSpan(sp.v))
 	}
 
 	pr := e.Proxy
-	fmt.Fprintln(w, "\nproxy:")
+	fmt.Fprintln(w, "\n"+u.Bold("proxy:"))
 	pkv := func(k, v string) {
 		if v != "" {
-			fmt.Fprintf(w, "  %-16s %s\n", k+":", v)
+			fmt.Fprintf(w, "  %s %s\n", viewKey(u, 16, k+":"), v)
 		}
 	}
 	pkv("source", logsDash(pr.Source))
@@ -288,7 +331,7 @@ func logsPrintEntry(w io.Writer, e *logsEntry) {
 	}
 
 	if e.Blocked != nil {
-		fmt.Fprintln(w, "\nblocked:")
+		fmt.Fprintln(w, "\n"+u.Bold("blocked:"))
 		pkv("vendor", logsDash(e.Blocked.Vendor))
 		pkv("rule", e.Blocked.Rule)
 		pkv("signal", e.Blocked.Signal)

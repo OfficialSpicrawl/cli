@@ -3,10 +3,12 @@ package cmd
 import (
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 const sessionsTestBody = `{"id":"01J9ZQ4M7R3T8VX2K5N6P0B1CD","project_id":"p","engine":"chromium","status":"active","sticky_key":"s1","proxy":{"tier":"residential","country":"de"},"created_at":"2026-09-22T00:00:00Z","last_used_at":null,"expires_at":"2026-09-22T02:00:00Z","usage_count":0,"context":null}`
@@ -194,4 +196,93 @@ func TestSessionsCreateSessionContextBadFileIsUsageError(t *testing.T) {
 			t.Errorf("%s: stderr %q should name the flag", path, errb)
 		}
 	}
+}
+
+func sessionsServer(t *testing.T, delay time.Duration) *httptest.Server {
+	srv, _ := newRecordingServer(t, func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(delay)
+		switch {
+		case r.URL.Path == "/v1/sessions" && r.Method == http.MethodGet:
+			_, _ = w.Write([]byte(`{"sessions":[` + sessionsTestBody + `]}`))
+		case r.Method == http.MethodDelete:
+			w.WriteHeader(http.StatusNoContent)
+		case r.Method == http.MethodPost && r.URL.Path == "/v1/sessions":
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(sessionsTestBody))
+		default:
+			_, _ = w.Write([]byte(sessionsTestBody))
+		}
+	})
+	return srv
+}
+
+// Each human view is the plain one with colour and, for create, a headline.
+func TestSessionsLiveViews(t *testing.T) {
+	srv := sessionsServer(t, 0)
+	plain := map[string]string{}
+	cmds := map[string][]string{
+		"list":    {"sessions", "list"},
+		"get":     {"sessions", "get", "S1"},
+		"create":  {"sessions", "create"},
+		"release": {"sessions", "release", "S1"},
+		"delete":  {"sessions", "delete", "S1", "--yes"},
+	}
+	for name, args := range cmds {
+		out, errb, code := runCLIHuman(t, srv.URL, args...)
+		if code != 0 {
+			t.Fatalf("%s: exit %d: %s", name, code, errb)
+		}
+		noEscapes(t, name+" plain stdout", out)
+		plain[name] = out
+	}
+	if plain["delete"] != "deleted session S1\n" || !strings.HasPrefix(plain["get"], "id:") {
+		t.Fatalf("plain views changed: %q %q", plain["delete"], plain["get"])
+	}
+
+	liveUI(t)
+	for name, args := range cmds {
+		out, _, _ := runCLIHuman(t, srv.URL, args...)
+		want := plain[name]
+		switch name {
+		case "create":
+			want = "✓ Session created\n\n" + want
+		case "delete":
+			want = "✓ " + want
+		}
+		if stripANSI(out) != want {
+			t.Errorf("%s: live view differs:\n%q\nwant\n%q", name, stripANSI(out), want)
+		}
+		if !strings.Contains(out, "\x1b[") {
+			t.Errorf("%s: no colour: %q", name, out)
+		}
+	}
+	list, _, _ := runCLIHuman(t, srv.URL, "sessions", "list")
+	if !strings.Contains(list, "\x1b[32mactive") {
+		t.Errorf("active is not green: %q", list)
+	}
+}
+
+func TestSessionsSpinnerNamesTheWait(t *testing.T) {
+	spinNow(t)
+	srv := sessionsServer(t, 40*time.Millisecond)
+	for label, args := range map[string][]string{
+		"Creating a session":                 {"sessions", "create"},
+		"Fetching sessions":                  {"sessions", "list"},
+		"Fetching session S1":                {"sessions", "get", "S1"},
+		"Fetching the context of session S1": {"sessions", "context", "S1"},
+		"Ending session S1":                  {"sessions", "release", "S1"},
+		"Deleting session S1":                {"sessions", "delete", "S1", "--yes"},
+	} {
+		out, errb, code := runCLIHuman(t, srv.URL, args...)
+		if code != 0 || !strings.Contains(errb, label) {
+			t.Errorf("%v: exit %d, stderr %q, want %q", args, code, errb, label)
+		}
+		if strings.Contains(out, label) {
+			t.Errorf("%v: spinner on stdout", args)
+		}
+	}
+	// --json: no spinner and the API's body.
+	out, errb, _ := runCLIHuman(t, srv.URL, "--json", "sessions", "get", "S1")
+	noEscapes(t, "json stdout", out)
+	noEscapes(t, "json stderr", errb)
 }
