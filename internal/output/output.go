@@ -15,6 +15,8 @@ import (
 	"text/tabwriter"
 
 	"github.com/mattn/go-isatty"
+
+	"github.com/OfficialSpicrawl/cli/internal/ui"
 )
 
 type Printer struct {
@@ -22,12 +24,33 @@ type Printer struct {
 	Quiet bool
 	Out   io.Writer
 	Err   io.Writer
+	// Plain keeps stderr plain (no spinner, colour or summary lines): --json
+	// and --quiet set it. The live output is also off whenever Err is not a
+	// terminal, or NO_COLOR, TERM=dumb or CI say so (see ui.Live).
+	Plain bool
+	// Term overrides UI(). Tests set it to see the live output.
+	Term *ui.UI
 }
 
 // New picks JSON when forced or when stdout is not a terminal.
 func New(forceJSON, quiet bool) *Printer {
 	tty := isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
-	return &Printer{JSON: forceJSON || !tty, Quiet: quiet, Out: os.Stdout, Err: os.Stderr}
+	return &Printer{JSON: forceJSON || !tty, Quiet: quiet, Out: os.Stdout, Err: os.Stderr, Plain: forceJSON || quiet}
+}
+
+// UI is the live terminal output on stderr: spinner, colour, summary lines.
+// It is off (every method a no-op) unless stderr is a terminal and neither
+// --json, --quiet, NO_COLOR, TERM=dumb nor CI asked for plain output. Note
+// that JSON picked only because stdout is piped does not turn it off: the
+// spinner is stderr's, and a person watching a redirected run wants it.
+func (p *Printer) UI() *ui.UI {
+	switch {
+	case p.Term != nil:
+		return p.Term
+	case p.Plain:
+		return nil
+	}
+	return ui.New(p.Err)
 }
 
 // IsStdinTerminal reports whether stdin is interactive. Commands must never
@@ -89,10 +112,10 @@ func (p *Printer) Info(format string, a ...any) {
 	if p.Quiet {
 		return
 	}
-	fmt.Fprintf(p.Err, format+"\n", a...)
+	ui.Fprintf(p.Err, format+"\n", a...)
 }
 
 // Warn writes a warning to stderr, even with --quiet.
 func (p *Printer) Warn(format string, a ...any) {
-	fmt.Fprintf(p.Err, "warning: "+format+"\n", a...)
+	ui.Fprintf(p.Err, "warning: "+format+"\n", a...)
 }
