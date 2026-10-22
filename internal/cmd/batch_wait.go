@@ -12,6 +12,7 @@ import (
 	"github.com/OfficialSpicrawl/cli/internal/api"
 	"github.com/OfficialSpicrawl/cli/internal/exitcode"
 	"github.com/OfficialSpicrawl/cli/internal/output"
+	"github.com/OfficialSpicrawl/cli/internal/ui"
 )
 
 // batchTerminal are the job statuses at which polling stops.
@@ -109,12 +110,14 @@ func batchWaitJob(ctx context.Context, c *api.Client, p *output.Printer, id stri
 	}
 }
 
-// batchProgress renders the wait progress line on stderr in human mode. On a
-// TTY the line is rewritten in place with \r; otherwise a new line is written
-// only when the counters change, so logs stay readable. JSON mode and --quiet
+// batchProgress renders the wait progress on stderr. On a live terminal (see
+// ui.Live) it is a spinner, "Batch job 3/10 done · 12.1s". Otherwise, in human
+// mode, a TTY line is rewritten in place with \r and a non-TTY gets a new line
+// only when the counters change, so logs stay readable. --json and --quiet
 // print nothing.
 type batchProgress struct {
 	p       *output.Printer
+	spin    *ui.Spinner
 	enabled bool
 	tty     bool
 	last    string
@@ -122,10 +125,28 @@ type batchProgress struct {
 }
 
 func batchNewProgress(p *output.Printer) *batchProgress {
-	return &batchProgress{p: p, enabled: !p.JSON && !p.Quiet, tty: batchIsTerminal(p.Err)}
+	return &batchProgress{p: p, spin: p.UI().Spin("Batch job starting"), enabled: !p.JSON && !p.Quiet, tty: batchIsTerminal(p.Err)}
+}
+
+// batchSpinLabel is "Batch job 3/10 done (1 failed)", or just the status
+// before the job has any items counted.
+func batchSpinLabel(j batchJob) string {
+	pr := j.Progress
+	if pr.Total == 0 {
+		return "Batch job " + j.Status
+	}
+	l := fmt.Sprintf("Batch job %d/%d done", pr.Completed, pr.Total)
+	if pr.Failed > 0 {
+		l += fmt.Sprintf(" (%d failed)", pr.Failed)
+	}
+	return l
 }
 
 func (b *batchProgress) update(j batchJob) {
+	if b.spin != nil {
+		b.spin.Label("%s", batchSpinLabel(j))
+		return
+	}
 	if !b.enabled {
 		return
 	}
@@ -145,6 +166,10 @@ func (b *batchProgress) update(j batchJob) {
 }
 
 func (b *batchProgress) note(format string, a ...any) {
+	if b.spin != nil {
+		ui.Fprintf(b.p.Err, format+"\n", a...) // above the spinner
+		return
+	}
 	if !b.enabled {
 		return
 	}
@@ -153,6 +178,7 @@ func (b *batchProgress) note(format string, a ...any) {
 }
 
 func (b *batchProgress) done() {
+	b.spin.Stop()
 	if b.dirty {
 		fmt.Fprintln(b.p.Err)
 		b.dirty = false

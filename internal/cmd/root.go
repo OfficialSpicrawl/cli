@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -20,6 +21,7 @@ import (
 	"github.com/OfficialSpicrawl/cli/internal/config"
 	"github.com/OfficialSpicrawl/cli/internal/exitcode"
 	"github.com/OfficialSpicrawl/cli/internal/output"
+	"github.com/OfficialSpicrawl/cli/internal/ui"
 )
 
 // Global flags.
@@ -71,6 +73,9 @@ var (
 	stdout      io.Writer = os.Stdout
 	stderr      io.Writer = os.Stderr
 	humanOutput bool
+	// liveTerm, when set by a test, stands in for the stderr terminal: spinner,
+	// colour and summary lines are drawn on it unless --json or --quiet.
+	liveTerm *ui.UI
 )
 
 // Printer returns the output printer for the current invocation.
@@ -80,6 +85,9 @@ func Printer() *output.Printer {
 		p.JSON = false
 	}
 	p.Out, p.Err = stdout, stderr
+	if liveTerm != nil && !p.Plain {
+		p.Term = liveTerm
+	}
 	return p
 }
 
@@ -93,8 +101,40 @@ func Client() (*api.Client, error) {
 		return nil, ErrNoKey
 	}
 	c := api.New(r.BaseURL, r.APIKey, flagTimeout)
-	c.Notify = Printer().Info // retry waits; muted by --quiet
+	p := Printer()
+	c.Notify = p.Info // retry waits; muted by --quiet
+	if u := p.UI(); u.On() {
+		// Every call shows a spinner once it has been outstanding for a moment.
+		// A command that already runs a spinner (scrape, batch wait) keeps its
+		// own label: only one spinner runs at a time.
+		c.Wait = func(method, path string) func() {
+			s := u.Spin("%s", waitLabel(method, path))
+			return func() { s.Stop() }
+		}
+	}
 	return c, nil
+}
+
+// waitLabel says what a bare API call is doing, for its spinner.
+func waitLabel(method, path string) string {
+	switch {
+	case strings.HasPrefix(path, "/v1/requests"):
+		return "Fetching the request log"
+	case strings.HasPrefix(path, "/v1/usage"):
+		return "Fetching usage"
+	case strings.HasPrefix(path, "/v1/sessions"):
+		if method == http.MethodPost {
+			return "Creating a session"
+		}
+		return "Fetching sessions"
+	case strings.HasPrefix(path, "/v1/batch"):
+		return "Contacting the batch API"
+	case strings.HasPrefix(path, "/v1/browser"):
+		return "Requesting a browser URL"
+	case strings.HasPrefix(path, "/v1/workers"):
+		return "Checking the workers"
+	}
+	return "Waiting for the Spicrawl API"
 }
 
 // ErrNoKey is returned when no API key is configured anywhere.
@@ -128,11 +168,16 @@ func Execute() int {
 	rootCmd.InitDefaultCompletionCmd() // cobra adds it lazily; groups are fixed up below
 	requireKnownSubcommand(rootCmd)
 	err := rootCmd.ExecuteContext(ctx)
+	ui.StopAll() // a spinner a command left running (Ctrl-C) must not outlive it
 	if err == nil {
 		return exitcode.OK
 	}
 	if ctx.Err() != nil { // Ctrl-C: whatever error the command made of it, say so briefly
-		Printer().Info("interrupted")
+		if p := Printer(); p.UI().On() {
+			p.UI().Done(false, "interrupted")
+		} else {
+			p.Info("interrupted")
+		}
 		return exitcode.Interrupted
 	}
 	return report(err)
@@ -226,6 +271,8 @@ func report(err error) int {
 		if p.JSON {
 			p.Out = p.Err
 			_ = p.Value(prob)
+		} else if u := p.UI(); u.On() {
+			u.Fail(prob.Error(), append(problemRows(prob), failRows...)...)
 		} else {
 			fmt.Fprintf(stderr, "error: %s\n", prob.Error())
 			if h := prob.Hint(); h != "" {
@@ -248,10 +295,34 @@ func report(err error) int {
 	if p.JSON {
 		p.Out = p.Err
 		_ = p.Value(map[string]any{"error": err.Error(), "exit_code": code})
+	} else if u := p.UI(); u.On() {
+		u.Fail(err.Error(), failRows...)
 	} else {
 		fmt.Fprintf(stderr, "error: %s\n", err)
 	}
 	return code
+}
+
+// failRows are extra facts a command wants under its error block on a
+// terminal (the URL it was on, how long it ran). One command runs per process.
+var failRows []ui.Row
+
+func failContext(rows ...ui.Row) { failRows = append(failRows, rows...) }
+
+// problemRows are the facts under an API error's headline on a terminal: the
+// same ones the plain output lists, the ERR:: code stays in the headline.
+func problemRows(prob *api.Problem) []ui.Row {
+	rows := []ui.Row{{Key: "hint", Val: prob.Hint()}}
+	if prob.TargetStatus != nil {
+		rows = append(rows, ui.Row{Key: "target", Val: fmt.Sprintf("returned %d", *prob.TargetStatus)})
+	}
+	if prob.Retryable {
+		rows = append(rows, ui.Row{Key: "retryable", Val: "yes"})
+	}
+	if prob.RequestID != "" {
+		rows = append(rows, ui.Row{Key: "request", Val: fmt.Sprintf("%s (spicrawl logs get %s)", prob.RequestID, prob.RequestID)})
+	}
+	return rows
 }
 
 // isCobraUsage recognises cobra's own flag/arg errors, which are plain errors.

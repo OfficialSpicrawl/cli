@@ -19,6 +19,7 @@ import (
 	"github.com/OfficialSpicrawl/cli/internal/api"
 	"github.com/OfficialSpicrawl/cli/internal/exitcode"
 	"github.com/OfficialSpicrawl/cli/internal/output"
+	"github.com/OfficialSpicrawl/cli/internal/ui"
 )
 
 // batchSubmitScrapeFlags are the scrape flags "batch submit" registers: only
@@ -210,7 +211,9 @@ func batchRunSubmit(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	spin := p.UI().Spin("Submitting %d items", len(urls)+len(items))
 	resp, err := c.Do(cmd.Context(), api.Request{Method: "POST", Path: "/v1/batch", Body: body})
+	spin.Stop()
 	if err != nil {
 		return err
 	}
@@ -266,6 +269,7 @@ failing that way gives up with that error.`,
 }
 
 func batchWaitAndPrint(cmd *cobra.Command, c *api.Client, p *output.Printer, id string, poll, timeout time.Duration) error {
+	start := time.Now()
 	raw, werr := batchWaitJob(cmd.Context(), c, p, id, poll, timeout)
 	if raw != nil {
 		var job batchJob
@@ -274,6 +278,9 @@ func batchWaitAndPrint(cmd *cobra.Command, c *api.Client, p *output.Printer, id 
 		}
 		if err := batchPrintJob(p, raw, job); err != nil {
 			return err
+		}
+		if werr == nil {
+			batchSummary(p, job, time.Since(start))
 		}
 		if werr == nil && !p.JSON && job.Status != "" {
 			p.Info("\nnext: spicrawl batch results %s --all -o %s.jsonl", job.ID, job.ID)
@@ -287,6 +294,19 @@ func batchWaitAndPrint(cmd *cobra.Command, c *api.Client, p *output.Printer, id 
 		}
 	}
 	return werr
+}
+
+// batchSummary is the ✓/✗ line after a finished wait (terminal only).
+func batchSummary(p *output.Printer, job batchJob, took time.Duration) {
+	pr := job.Progress
+	parts := []string{"batch " + job.ID, job.Status, fmt.Sprintf("%d/%d items", pr.Completed, pr.Total)}
+	if pr.Failed > 0 {
+		parts = append(parts, fmt.Sprintf("%d failed", pr.Failed))
+	}
+	if pr.CreditsCharged > 0 {
+		parts = append(parts, fmt.Sprintf("%d credits", pr.CreditsCharged))
+	}
+	p.UI().Done(job.Status == "completed", append(parts, ui.Elapsed(took))...)
 }
 
 var batchGetCmd = &cobra.Command{

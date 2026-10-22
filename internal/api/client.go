@@ -33,6 +33,10 @@ type Client struct {
 	// Notify, when set, receives progress lines (DoWithRetry waiting between
 	// attempts). The caller decides where they go and whether --quiet mutes them.
 	Notify func(format string, a ...any)
+	// Wait, when set, is called as each round trip starts and the func it
+	// returns as the round trip ends (answer read, or failed). The commands use
+	// it to show a spinner while a call is outstanding.
+	Wait func(method, path string) (done func())
 }
 
 func New(baseURL, apiKey string, timeout time.Duration) *Client {
@@ -187,6 +191,12 @@ func (c *Client) Do(ctx context.Context, req Request) (*Response, error) {
 	}
 	hr.Header.Set("Accept", accept)
 	hr.Header.Set("User-Agent", "spicrawl-cli/"+Version)
+
+	if c.Wait != nil {
+		if done := c.Wait(method, req.Path); done != nil {
+			defer done()
+		}
+	}
 
 	var sent atomic.Bool
 	hr = hr.WithContext(httptrace.WithClientTrace(hr.Context(), &httptrace.ClientTrace{
