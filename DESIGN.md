@@ -10,6 +10,12 @@ never invent a field the API does not accept (the API rejects unknown fields).
 ## Contract agents rely on
 
 1. **stdout is data only.** Progress, warnings and errors go to stderr.
+   Live progress (spinner, colour, the `✓`/`✗` summary line, the error block) is
+   the one thing a person gets that an agent does not, so it is gated hard: only
+   when stderr is a terminal, and never with `--json`, `-q`, `NO_COLOR`,
+   `TERM=dumb` or `CI`. Switched off, the output is the plain text it always was.
+   It never prints an engine or browser name; it says what the request asked for
+   ("rendering JavaScript"), not which tier the API picked.
 2. **JSON when not a terminal.** `--json` forces it. Human mode prints tables
    or the document itself.
 3. **Never prompts without a TTY.** Anything interactive has a flag form.
@@ -85,6 +91,7 @@ internal/api        HTTP client, Problem, DoWithRetry
 internal/config     key/base resolution, config file
 internal/exitcode   exit codes
 internal/output     Printer (JSON/human/JSONL, stderr info)
+internal/ui         stderr spinner, summary line, error block, colour (off unless a terminal)
 internal/cmd        one file per command group; each registers in init()
 ```
 

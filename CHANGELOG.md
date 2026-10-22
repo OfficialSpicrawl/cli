@@ -2,8 +2,9 @@
 
 ## Unreleased
 
-Bug fixes from a review of 0.1.3. No new commands; two behaviour changes are marked.
+Bug fixes from a review of 0.1.3, and live progress on a terminal. No new commands; two behaviour changes are marked.
 
+- **Live progress on a terminal.** A spinner with a label and elapsed time covers every wait over about 300 ms (`scrape`, `scrape -`, `batch submit`/`wait`, and any other API call), and `scrape`, `scrape -` and `batch wait` end with a `✓`/`✗` summary line (page, status, credits, duration) on stderr. API errors keep their `ERR::` code and hint in a short block. Everything is on stderr, only when stderr is a terminal, and off with `--json`, `-q`, `NO_COLOR`, `TERM=dumb` or `CI`: stdout and the plain output are unchanged. New dependency: `golang.org/x/term`, for the terminal width.
 - **Retries are safe.** A connection that drops after the request was sent now exits 12 ("may have run and been billed"), not 10 ("nothing was sent, safe to retry"). A gateway 5xx without an API problem document is retried only for GET/HEAD, and is no longer mistaken for the target's status under `--original-status`. A 301/302/303 on a POST is an error naming the Location instead of a silent GET. `Retry-After` waits are capped at 60 s and announced on stderr.
 - **Ctrl-C exits 130** with "interrupted", including while `scrape -` waits on stdin. A mistyped subcommand (`spicrawl batch wiat`) is a usage error with a suggestion, not help and exit 0.
 - **Keys:** a trailing CR/LF or space on the key (flag, env or file) is trimmed. The config file is written via a private temp file, short keys are fully masked, and commands that get the key and base URL from flags work without `$HOME`.
