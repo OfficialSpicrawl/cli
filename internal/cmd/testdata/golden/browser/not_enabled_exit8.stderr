@@ -1,0 +1,4 @@
+{
+  "error": "cloud browser (CDP) is not enabled on this server; \"spicrawl status\" shows its cdp field",
+  "exit_code": 8
+}

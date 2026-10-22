@@ -1,0 +1,4 @@
+{
+  "error": "--status must be one of success, failed, timeout, blocked, rejected, cancelled, not \"weird\"",
+  "exit_code": 2
+}

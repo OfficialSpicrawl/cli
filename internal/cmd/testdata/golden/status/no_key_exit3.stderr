@@ -1,0 +1,4 @@
+{
+  "error": "no API key: run \"spicrawl login\", set SPICRAWL_API_KEY, or pass --api-key",
+  "exit_code": 3
+}

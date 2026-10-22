@@ -1,0 +1,49 @@
+{
+  "data": [
+    {
+      "id": "01M0FK1EP2E7FBMWAR7W10SMXW",
+      "created_at": "<TIMESTAMP>",
+      "project_id": "proj_01J9Z",
+      "status": "success",
+      "http_status": 200,
+      "engine": "fetch",
+      "credits_micro": 1500000,
+      "url": "https://example.com/a",
+      "attempts": 2,
+      "bytes_in": 2048,
+      "bytes_out": 512,
+      "proxy_bytes": 4096,
+      "spans": {
+        "admission_ms": 1,
+        "dispatch_ms": 2,
+        "worker_ms": 3,
+        "queue_ms": 0,
+        "engine_ms": 80,
+        "upstream_ms": 120,
+        "extract_ms": null,
+        "total_ms": 210
+      },
+      "proxy": {
+        "source": "pool",
+        "reason": "default",
+        "provider": "dc-1",
+        "requested_tier": "datacenter",
+        "requested_country": "de",
+        "country": "de",
+        "endpoint_id": "ep-1",
+        "endpoints": [
+          "ep-1",
+          "ep-2"
+        ],
+        "sticky": true
+      }
+    }
+  ],
+  "page": {
+    "has_more": true,
+    "next_before": "<TIMESTAMP>",
+    "next_before_id": "01M0FK1EP2E7FBMWAR7W10SMXW",
+    "retained_since": "<TIMESTAMP>",
+    "retention_hours": 24
+  }
+}

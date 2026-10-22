@@ -1,0 +1,4 @@
+{
+  "error": "no agent client detected in <DIR> or your home directory; pass --client claude|cursor|vscode|codex or all",
+  "exit_code": 2
+}

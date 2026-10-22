@@ -1,0 +1,4 @@
+{
+  "error": "--wait with --open would never finish: an open job completes only after \"spicrawl batch close\"",
+  "exit_code": 2
+}

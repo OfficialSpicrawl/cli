@@ -121,14 +121,22 @@ func runSkillInstall(cmd *cobra.Command, _ []string) error {
 	if err := agentApply(rs); err != nil {
 		return err
 	}
-	return agentReport(p, rs, s)
+	if err := agentReport(p, rs, s); err != nil {
+		return err
+	}
+	if names := agentChanged(rs); len(names) > 0 {
+		viewNext(p, "start a new session in "+strings.Join(names, ", ")+" to use the skill")
+	}
+	return nil
 }
 
 // skillFetch downloads the skill from ep.Skill, falling back to the embedded
 // copy, and points its URLs at this deployment. The source is the URL, or
 // "embedded".
 func skillFetch(ctx context.Context, p *output.Printer, ep agentEndpoints) ([]byte, string) {
+	sp := spin(p, "Downloading the Spicrawl skill")
 	b, err := skillDownload(ctx, ep.Skill)
+	sp.Stop()
 	if err != nil {
 		p.Warn("could not download the skill from %s (%v); using the copy built into this CLI", ep.Skill, err)
 		return skillRewrite(skillNormalize(skillEmbedded), ep), "embedded"

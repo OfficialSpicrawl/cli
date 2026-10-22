@@ -1,0 +1,5 @@
+base url:    http://SERVER
+reachable:   yes
+ready:       yes
+cdp:         enabled
+key:         invalid: no API key configured

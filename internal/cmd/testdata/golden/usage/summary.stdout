@@ -1,0 +1,37 @@
+{
+  "period": {
+    "start": "2026-09-01",
+    "end": "2026-10-01",
+    "days": 30,
+    "bounds": "[start, end)"
+  },
+  "period_elapsed_days": 22,
+  "plan": {
+    "code": "starter",
+    "name": "Starter",
+    "subscription_status": "active",
+    "period_source": "subscription"
+  },
+  "credits": {
+    "included_micro": 50000000000,
+    "used_micro": 12345670000,
+    "remaining_micro": 37654330000,
+    "overage_micro": 0,
+    "used_basis_points": 2469
+  },
+  "allowance": {
+    "limit_micro": 50000000000,
+    "used_micro": 12400000000,
+    "remaining_micro": 37600000000,
+    "unlimited": false,
+    "resets_at": "<TIMESTAMP>"
+  },
+  "metrics": {
+    "requests": 1234,
+    "credits": 12345670000,
+    "extractions": 55
+  },
+  "warnings": [
+    "allowance counter is 40s behind"
+  ]
+}

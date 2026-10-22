@@ -1,0 +1,5 @@
+FIELD      VALUE
+api key    spicrawl_test_0123…ghij  (from env)
+base url   http://SERVER  (from flag)
+config     <CONFIG_DIR>/config.json
+key works  yes

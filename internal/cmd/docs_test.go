@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/OfficialSpicrawl/cli/internal/config"
 )
@@ -158,5 +159,40 @@ func TestDocsDerived(t *testing.T) {
 	t.Setenv("SPICRAWL_BASE_URL", "")
 	if got, err := docsResolveURL(); err != nil || got != "https://docs.spicrawl.com" {
 		t.Errorf("docsResolveURL() with the default base URL = %q, %v, want https://docs.spicrawl.com", got, err)
+	}
+}
+
+// The Markdown is the data: a terminal sees exactly the bytes a pipe does,
+// and only stderr shows that something is being fetched.
+func TestDocsOutputIdenticalLiveAndSpinnerOnStderr(t *testing.T) {
+	srv, _ := newRecordingServer(t, func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(40 * time.Millisecond)
+		_, _ = w.Write([]byte("# Anti-bot\n"))
+	})
+	t.Setenv(docsEnvURL, srv.URL)
+	t.Setenv(docsEnvHost, "")
+	plain, perr, code := runCLIHuman(t, "http://127.0.0.1:1", "docs", "guides/anti-bot")
+	if code != 0 || plain != "# Anti-bot\n" || perr != "" {
+		t.Fatalf("plain: exit %d stdout %q stderr %q", code, plain, perr)
+	}
+
+	spinNow(t)
+	live, lerr, code := runCLIHuman(t, "http://127.0.0.1:1", "docs", "guides/anti-bot")
+	if code != 0 || live != plain {
+		t.Errorf("stdout changed: exit %d %q", code, live)
+	}
+	if !strings.Contains(lerr, "Fetching the docs page guides/anti-bot") {
+		t.Errorf("no spinner label: %q", lerr)
+	}
+	_, lerr, _ = runCLIHuman(t, "http://127.0.0.1:1", "docs", "--list")
+	if !strings.Contains(lerr, "Fetching the docs index") {
+		t.Errorf("no index label: %q", lerr)
+	}
+
+	// --json wraps the page and stays silent.
+	out, errb, _ := runCLIHuman(t, "http://127.0.0.1:1", "--json", "docs", "guides/anti-bot")
+	noEscapes(t, "json stdout", out)
+	if errb != "" {
+		t.Errorf("--json stderr %q", errb)
 	}
 }

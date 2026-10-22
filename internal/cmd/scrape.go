@@ -9,11 +9,13 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 	"unicode/utf8"
 
 	"github.com/spf13/cobra"
@@ -21,6 +23,7 @@ import (
 	"github.com/OfficialSpicrawl/cli/internal/api"
 	"github.com/OfficialSpicrawl/cli/internal/exitcode"
 	"github.com/OfficialSpicrawl/cli/internal/output"
+	"github.com/OfficialSpicrawl/cli/internal/ui"
 )
 
 var (
@@ -174,8 +177,14 @@ func scrapeRun(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	body["url"] = args[0]
+	term := p.UI()
+	spin := term.Spin("%s", scrapeLabel(args[0], body))
+	defer spin.Stop()
+	start := time.Now()
 	resp, err := scrapeDo(cmd.Context(), client, body)
+	spin.Stop()
 	if err != nil {
+		failContext(ui.Row{Key: "url", Val: args[0]}, ui.Row{Key: "after", Val: ui.Elapsed(time.Since(start))})
 		return err
 	}
 	res, err := scrapeResultOf(args[0], resp)
@@ -183,6 +192,10 @@ func scrapeRun(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	targetErr := res.checkTarget(body)
+	// The last thing on stderr, after the document: ✓/✗ url status credits time.
+	defer func() {
+		term.Done(targetErr == nil, scrapeSummary(args[0], res, body, time.Since(start))...)
+	}()
 	// An error page must not replace a good file from an earlier run: -o (and
 	// the screenshots next to it) is written only for a target that is ok.
 	write := outFile != ""
@@ -648,6 +661,10 @@ func scrapeRunMany(ctx context.Context, p *output.Printer, base map[string]any) 
 	// requests nobody can read are not worth billing.
 	runCtx, stop := context.WithCancel(ctx)
 	defer stop()
+	term := p.UI()
+	spin := term.Spin("Scraping %d URLs", len(urls))
+	defer spin.Stop()
+	start := time.Now()
 	var (
 		mu        sync.Mutex
 		ok        int
@@ -666,8 +683,15 @@ func scrapeRunMany(ctx context.Context, p *output.Printer, base map[string]any) 
 		} else {
 			ok++
 		}
+		if failed > 0 {
+			spin.Label("Scraping %d/%d done (%d failed)", ok+failed, len(urls), failed)
+		} else {
+			spin.Label("Scraping %d/%d done", ok+failed, len(urls))
+		}
 		if writeErr == nil {
-			if writeErr = p.Line(line); writeErr != nil {
+			// The spinner shares the terminal with stdout: step it aside.
+			spin.Around(func() { writeErr = p.Line(line) })
+			if writeErr != nil {
 				stop()
 			}
 		}
@@ -725,8 +749,18 @@ feed:
 	}
 	close(jobs)
 	wg.Wait()
+	spin.Stop()
 
-	if !p.JSON {
+	if term.On() {
+		parts := []string{fmt.Sprintf("%d URLs", len(urls)), fmt.Sprintf("%d ok", ok)}
+		if failed > 0 {
+			parts = append(parts, fmt.Sprintf("%d failed", failed))
+		}
+		if notRun := len(urls) - ok - failed; notRun > 0 {
+			parts = append(parts, fmt.Sprintf("%d not run", notRun))
+		}
+		term.Done(failed == 0 && ok == len(urls), append(parts, ui.Elapsed(time.Since(start)))...)
+	} else if !p.JSON {
 		if notRun := len(urls) - ok - failed; notRun > 0 {
 			p.Info("%d ok, %d failed, %d not run", ok, failed, notRun)
 		} else {
@@ -754,4 +788,62 @@ func scrapeErrorObject(err error) (any, int) {
 		return prob, code
 	}
 	return map[string]any{"detail": err.Error(), "exit_code": code}, code
+}
+
+// scrapeLabel is the spinner text for one scrape: the page, and what the user
+// asked the API to do that makes it slow. Only what the request says is shown,
+// never the tier the API picks, and never an engine name.
+func scrapeLabel(target string, body map[string]any) string {
+	label := "Scraping " + scrapeShortURL(target)
+	var does []string
+	switch {
+	case body["stealth"] == true, scrapeBrowserEngine(body["engine"]), body["actions"] != nil:
+		does = append(does, "using a full browser")
+	case body["js_render"] == true:
+		does = append(does, "rendering JavaScript")
+	}
+	if body["ai_extract"] != nil {
+		does = append(does, "extracting with AI")
+	}
+	if len(does) > 0 {
+		label += " (" + strings.Join(does, ", ") + ")"
+	}
+	return label
+}
+
+// scrapeBrowserEngine reports whether a pinned engine is a browser.
+func scrapeBrowserEngine(v any) bool {
+	e, _ := v.(string)
+	return e != "" && e != "fetch"
+}
+
+// scrapeShortURL is host and path without the scheme, query or fragment.
+func scrapeShortURL(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return raw
+	}
+	return u.Host + strings.TrimRight(u.Path, "/")
+}
+
+// scrapeSummary is the facts of the ✓/✗ line: the page, the target's status,
+// the credits charged and how long the call took.
+func scrapeSummary(target string, r *scrapeResult, body map[string]any, took time.Duration) []string {
+	parts := []string{scrapeShortURL(target)}
+	if st := r.targetStatus(body); st != 0 {
+		parts = append(parts, strconv.Itoa(st))
+	}
+	h := r.resp.Header
+	credits := strings.TrimSpace(h.Get("X-Credits-Charged"))
+	if credits == "" && r.obj["credits"] != nil {
+		credits = fmt.Sprint(r.obj["credits"])
+	}
+	switch credits {
+	case "":
+	case "1":
+		parts = append(parts, "1 credit")
+	default:
+		parts = append(parts, credits+" credits")
+	}
+	return append(parts, ui.Elapsed(took))
 }

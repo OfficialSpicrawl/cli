@@ -1,0 +1,17 @@
+{
+  "id": "01J9ZQ4M7R3T8VX2K5N6P0B1CD",
+  "project_id": "proj_01J9Z",
+  "engine": "obscura",
+  "status": "active",
+  "sticky_key": null,
+  "proxy": {
+    "tier": "datacenter"
+  },
+  "created_at": "<TIMESTAMP>",
+  "last_used_at": null,
+  "expires_at": "<TIMESTAMP>",
+  "usage_count": 0,
+  "warnings": [
+    "engine obscura cannot persist IndexedDB"
+  ]
+}

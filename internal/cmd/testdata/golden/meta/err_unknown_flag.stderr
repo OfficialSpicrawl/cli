@@ -1,0 +1,4 @@
+{
+  "error": "unknown flag: --nope",
+  "exit_code": 2
+}

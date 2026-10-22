@@ -1,0 +1,26 @@
+[
+  {
+    "client": "claude",
+    "file": "<DIR>/.mcp.json",
+    "format": "json",
+    "snippet": "{\n  \"mcpServers\": {\n    \"spicrawl\": {\n      \"type\": \"http\",\n      \"url\": \"http://127.0.0.1:1/mcp\",\n      \"headers\": {\n        \"Authorization\": \"Bearer ${SPICRAWL_API_KEY}\"\n      }\n    }\n  }\n}\n"
+  },
+  {
+    "client": "cursor",
+    "file": "<DIR>/.cursor/mcp.json",
+    "format": "json",
+    "snippet": "{\n  \"mcpServers\": {\n    \"spicrawl\": {\n      \"url\": \"http://127.0.0.1:1/mcp\",\n      \"headers\": {\n        \"Authorization\": \"Bearer ${env:SPICRAWL_API_KEY}\"\n      }\n    }\n  }\n}\n"
+  },
+  {
+    "client": "vscode",
+    "file": "<DIR>/.vscode/mcp.json",
+    "format": "json",
+    "snippet": "{\n  \"servers\": {\n    \"spicrawl\": {\n      \"type\": \"http\",\n      \"url\": \"http://127.0.0.1:1/mcp\",\n      \"headers\": {\n        \"Authorization\": \"Bearer ${input:spicrawl-api-key}\"\n      }\n    }\n  },\n  \"inputs\": [\n    {\n      \"type\": \"promptString\",\n      \"id\": \"spicrawl-api-key\",\n      \"description\": \"Spicrawl API key\",\n      \"password\": true\n    }\n  ]\n}\n"
+  },
+  {
+    "client": "codex",
+    "file": "<DIR>/.codex/config.toml",
+    "format": "toml",
+    "snippet": "[mcp_servers.spicrawl]\nurl = \"http://127.0.0.1:1/mcp\"\nbearer_token_env_var = \"SPICRAWL_API_KEY\"\n"
+  }
+]

@@ -3,8 +3,10 @@ package cmd
 import (
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 const logsTestEntry = `{"id":"R1","created_at":"2026-09-22T10:00:00.5Z","engine":"fetch","status":"blocked","http_status":403,"url":"https://example.com","credits_micro":0,"proxy":{"source":"pool","country":"de"},"spans":{"admission_ms":1,"dispatch_ms":null,"worker_ms":null,"queue_ms":0,"engine_ms":null,"upstream_ms":120,"extract_ms":null,"total_ms":130},"blocked":{"vendor":"cloudflare","rule":"r","signal":"cf-mitigated"}}`
@@ -133,5 +135,93 @@ func TestLogsAllProjectsHumanShowsTheProject(t *testing.T) {
 	out, _, _ = runCLIHuman(t, srv.URL, "logs")
 	if strings.Contains(out, "PROJECT") {
 		t.Errorf("project table has a project column:\n%s", out)
+	}
+}
+
+func logsOneEntryServer(t *testing.T, delay time.Duration) *httptest.Server {
+	srv, _ := newRecordingServer(t, func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(delay)
+		if strings.HasPrefix(r.URL.Path, "/v1/requests/") {
+			_, _ = w.Write([]byte(logsTestEntry))
+			return
+		}
+		_, _ = w.Write([]byte(`{"data":[` + logsTestEntry + `],"page":{"has_more":false,"retention_hours":24,"retained_since":"x"}}`))
+	})
+	return srv
+}
+
+// On a terminal the list is the same table with the status coloured; stripped
+// of colour it is byte for byte the plain one.
+func TestLogsListLiveIsThePlainTableInColour(t *testing.T) {
+	srv := logsOneEntryServer(t, 0)
+	plain, _, code := runCLIHuman(t, srv.URL, "logs")
+	if code != 0 || !strings.Contains(plain, "STATUS") {
+		t.Fatalf("exit %d\n%s", code, plain)
+	}
+	noEscapes(t, "plain", plain)
+
+	liveUI(t)
+	live, _, _ := runCLIHuman(t, srv.URL, "logs")
+	if !strings.Contains(live, "\x1b[31mblocked") {
+		t.Errorf("blocked is not red: %q", live)
+	}
+	if stripANSI(live) != plain {
+		t.Errorf("columns moved:\n%q\n%q", stripANSI(live), plain)
+	}
+}
+
+func TestLogsGetLive(t *testing.T) {
+	srv := logsOneEntryServer(t, 0)
+	plain, _, code := runCLIHuman(t, srv.URL, "logs", "get", "R1")
+	if code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	noEscapes(t, "plain", plain)
+
+	liveUI(t)
+	live, _, _ := runCLIHuman(t, srv.URL, "logs", "get", "R1")
+	want := "✗ blocked  https://example.com\n\n" + plain
+	if stripANSI(live) != want {
+		t.Errorf("live view differs from verdict + plain view:\n%q\n%q", stripANSI(live), want)
+	}
+	if !strings.Contains(live, "\x1b[1mspans (ms):") {
+		t.Errorf("section titles are not bold: %q", live)
+	}
+
+	// JSON keeps the API's record, unstyled.
+	out, errb, _ := runCLI(t, srv.URL, "logs", "get", "R1")
+	noEscapes(t, "json stdout", out)
+	noEscapes(t, "json stderr", errb)
+}
+
+func TestLogsSpinnerAndJSONLStayClean(t *testing.T) {
+	spinNow(t)
+	srv := logsOneEntryServer(t, 40*time.Millisecond)
+
+	_, errb, code := runCLIHuman(t, srv.URL, "logs")
+	if code != 0 || !strings.Contains(errb, "Fetching the request log") {
+		t.Errorf("exit %d, stderr %q", code, errb)
+	}
+	_, errb, _ = runCLIHuman(t, srv.URL, "logs", "get", "R1")
+	if !strings.Contains(errb, "Fetching request R1") {
+		t.Errorf("stderr %q", errb)
+	}
+
+	out, errb, code := runCLIHuman(t, srv.URL, "logs", "--jsonl")
+	if code != 0 {
+		t.Fatalf("exit %d: %s", code, errb)
+	}
+	noEscapes(t, "jsonl stdout", out)
+	if strings.Count(out, "\n") != 1 || json.Unmarshal([]byte(out), new(map[string]any)) != nil {
+		t.Errorf("jsonl stream damaged: %q", out)
+	}
+	if !strings.Contains(errb, "Fetching the request log") {
+		t.Errorf("no spinner on stderr while streaming: %q", errb)
+	}
+
+	// --json and -q never spin.
+	for _, flag := range []string{"--json", "-q"} {
+		_, errb, _ = runCLIHuman(t, srv.URL, flag, "logs")
+		noEscapes(t, flag+" stderr", errb)
 	}
 }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/OfficialSpicrawl/cli/internal/config"
 	"github.com/OfficialSpicrawl/cli/internal/output"
+	"github.com/OfficialSpicrawl/cli/internal/ui"
 )
 
 var initFlags struct {
@@ -89,8 +90,13 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	for i, c := range clients {
 		names[i] = c.Name
 	}
-	p.Info("clients: %s", strings.Join(names, ", "))
-	p.Info("MCP server: %s", ep.MCP)
+	if !viewIntro(p, "Setting up Spicrawl",
+		ui.Row{Key: "clients", Val: strings.Join(names, ", ")},
+		ui.Row{Key: "MCP server", Val: ep.MCP},
+	) {
+		p.Info("clients: %s", strings.Join(names, ", "))
+		p.Info("MCP server: %s", ep.MCP)
+	}
 
 	key, _ := agentAPIKey()
 	opt := mcpOptions{URL: ep.MCP, UseEnv: initFlags.useEnv, Key: key, Force: initFlags.force}
@@ -124,7 +130,7 @@ func runInit(cmd *cobra.Command, _ []string) error {
 		}
 	}
 	if pending > 0 && !initFlags.yes {
-		initPrintPlan(p.Err, rs, s)
+		initPrintPlan(p.Err, errUI(p), rs, s)
 		if !initStdinIsTerminal() {
 			return Usagef("init changes files and stdin is not a terminal: re-run with --yes to apply the plan above")
 		}
@@ -153,11 +159,17 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	if key == "" {
 		p.Warn("no API key is configured: run \"spicrawl login\" or set %s", config.EnvAPIKey)
 	}
+	if names := agentChanged(rs); len(names) > 0 {
+		viewNext(p,
+			"restart "+strings.Join(names, ", ")+" to load the MCP server and the skill",
+			"then ask your agent to scrape a page, or try: spicrawl scrape https://example.com",
+		)
+	}
 	return nil
 }
 
-func initPrintPlan(w io.Writer, rs []*agentResult, s agentScope) {
-	fmt.Fprintln(w, "plan:")
+func initPrintPlan(w io.Writer, u *ui.UI, rs []*agentResult, s agentScope) {
+	fmt.Fprintln(w, u.Bold("plan:"))
 	for _, r := range rs {
 		verb := map[string]string{
 			agentActionCreated:  "create",
@@ -165,9 +177,15 @@ func initPrintPlan(w io.Writer, rs []*agentResult, s agentScope) {
 			agentActionUnchange: "keep  ",
 			agentActionSkipped:  "skip  ",
 		}[r.Action]
+		switch r.Action {
+		case agentActionCreated, agentActionUpdated:
+			verb = u.Green(verb)
+		default:
+			verb = u.Dim(verb)
+		}
 		line := fmt.Sprintf("  %s  %-7s %-6s %s", verb, r.Client, r.Kind, agentDisplayPath(r.File, s))
 		if r.Reason != "" {
-			line += "  (" + r.Reason + ")"
+			line += "  " + u.Dim("("+r.Reason+")")
 		}
 		fmt.Fprintln(w, line)
 	}

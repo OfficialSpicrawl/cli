@@ -1,0 +1,5 @@
+period [2026-08-01, 2026-09-01) (31 days), by key
+
+KEY  NAME    PREFIX              REQUESTS  CLIENT_CLI
+K1   ci-key  spicrawl_live_ab12  7         3
+K2   old     spicrawl_live_cd34  1         0

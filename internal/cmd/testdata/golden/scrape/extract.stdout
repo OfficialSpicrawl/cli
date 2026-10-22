@@ -1,0 +1,18 @@
+{
+  "url": "https://example.com/product/1",
+  "final_url": "https://example.com/product/1",
+  "status": 200,
+  "content": "<h1>Anvil</h1><p class=\"price\">$19.99 & free shipping</p>",
+  "headers": {
+    "content-type": "text/html"
+  },
+  "truncated": false,
+  "credits": 3,
+  "engine": "fetch",
+  "proxy_source": "pool",
+  "warnings": [],
+  "data": {
+    "title": "Anvil",
+    "price": "$19.99 & free shipping"
+  }
+}

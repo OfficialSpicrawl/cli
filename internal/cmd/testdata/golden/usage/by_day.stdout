@@ -1,0 +1,44 @@
+{
+  "period": {
+    "start": "2026-08-01",
+    "end": "2026-08-04",
+    "days": 3,
+    "bounds": "[start, end)"
+  },
+  "group_by": "day",
+  "groups": [
+    {
+      "key": "2026-08-01",
+      "label": "",
+      "metrics": {
+        "requests": 10,
+        "credits": 12500000,
+        "engine_ms": 4200
+      }
+    },
+    {
+      "key": "2026-08-02",
+      "label": "",
+      "metrics": {
+        "requests": 15,
+        "credits": 18500000,
+        "engine_ms": 4800
+      }
+    }
+  ],
+  "totals": {
+    "requests": 25,
+    "credits": 31000000,
+    "engine_ms": 9000
+  },
+  "unattributed": {
+    "requests": 0,
+    "credits": 0,
+    "engine_ms": 0
+  },
+  "usage_as_of": "<TIMESTAMP>",
+  "stale_seconds": 120,
+  "warnings": [
+    "rollup is partial for 2026-08-03"
+  ]
+}

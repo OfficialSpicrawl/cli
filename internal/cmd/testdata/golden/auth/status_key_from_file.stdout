@@ -1,0 +1,8 @@
+{
+  "api_key": "spicrawl_live_0123…mnop",
+  "api_key_source": "file",
+  "base_url": "https://api.spicrawl.com",
+  "base_url_source": "default",
+  "config_path": "<CONFIG_DIR>/config.json",
+  "key_valid": null
+}

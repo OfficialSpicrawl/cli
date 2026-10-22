@@ -1,0 +1,9 @@
+[
+  {
+    "client": "claude",
+    "kind": "mcp",
+    "file": "<DIR>/.mcp.json",
+    "action": "updated",
+    "backup": "<DIR>/.mcp.json.bak"
+  }
+]

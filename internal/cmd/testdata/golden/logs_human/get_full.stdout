@@ -1,0 +1,30 @@
+id:                01M0FK1EP2E7FBMWAR7W10SMXW
+time:              <TIMESTAMP>
+project:           proj_01J9Z
+status:            success
+url:               https://example.com/a
+http status:       200
+engine:            fetch
+credits:           1.5
+attempts:          2
+bytes:             in 2048, out 512, via proxy 4096
+
+spans (ms):
+  admission        1
+  dispatch         2
+  worker           3
+  queue            0
+  engine           80
+  upstream         120
+  extract          —
+  total            210
+
+proxy:
+  source:          pool
+  reason:          default
+  provider:        dc-1
+  requested:       datacenter de
+  served country:  de
+  endpoint:        ep-1
+  endpoints:       ep-1 -> ep-2
+  sticky:          yes

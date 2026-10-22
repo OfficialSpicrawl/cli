@@ -166,6 +166,12 @@ For other clients (Gemini CLI, OpenCode, Factory Droid, Devin and more) use the 
 
 `spicrawl --help` and `spicrawl <command> --help` list every flag. Global flags: `--api-key`, `--base-url`, `--json`, `-q/--quiet` and `--timeout` (default `3m`).
 
+### Progress on a terminal
+
+When stderr is a terminal, a wait longer than about 300 ms shows a spinner with what the CLI is doing and how long it has taken (`⠹ Scraping example.com/pricing (rendering JavaScript) · 4.2s`, `⠸ Batch job 3/10 done · 12.1s`). It is cleared before the result prints, and `scrape`, `scrape -` and `batch wait` end with a `✓` or `✗` line on stderr: page, target status, credits charged, duration. API errors keep their `ERR::` code and hint in a short block.
+
+All of it is on stderr and stdout is byte-for-byte unchanged. It switches itself off, and the CLI prints exactly what it printed before, when stderr is not a terminal (a pipe, a file, an agent or CI log), with `--json` or `-q/--quiet`, with `NO_COLOR` set, with `TERM=dumb`, or when `CI` is set.
+
 ### How to convert a web page to Markdown from the command line
 
 ```sh

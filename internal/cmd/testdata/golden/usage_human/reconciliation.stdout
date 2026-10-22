@@ -1,0 +1,11 @@
+{
+  "day": "2026-09-21",
+  "interpretation": "The request log holds no rows for the day; drift is not evidence of overbilling.",
+  "drift": [
+    {
+      "metric": "requests",
+      "billed": 10,
+      "derived": 0
+    }
+  ]
+}

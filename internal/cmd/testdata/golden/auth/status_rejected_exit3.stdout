@@ -1,0 +1,9 @@
+{
+  "api_key": "spicrawl_test_0123…ghij",
+  "api_key_source": "env",
+  "base_url": "http://SERVER",
+  "base_url_source": "flag",
+  "check_error": "ERR::AUTH::INVALID_KEY: the API key is not valid",
+  "config_path": "<CONFIG_DIR>/config.json",
+  "key_valid": false
+}

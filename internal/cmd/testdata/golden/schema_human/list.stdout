@@ -1,0 +1,5 @@
+NAME        DESCRIBES
+batch       POST /v1/batch and POST /v1/batch/{id}/items body
+batch-item  one element of a batch body's items[] (one line of a JSONL batch file)
+scrape      POST /v1/scrape body (spicrawl scrape --body)
+session     POST /v1/sessions body

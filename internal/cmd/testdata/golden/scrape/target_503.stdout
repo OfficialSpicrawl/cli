@@ -1,0 +1,16 @@
+{
+  "cache_state": "miss",
+  "content": "<h1>Service Unavailable</h1>\n",
+  "content_type": "text/html",
+  "credits": 2,
+  "credits_charged": 2,
+  "engine": "fetch",
+  "final_url": "https://example.com/final",
+  "proxy_source": "pool",
+  "request_cost": 2,
+  "request_id": "<REQUEST_ID>",
+  "status": 503,
+  "target_error": "target returned 503",
+  "url": "https://example.com/product/1",
+  "warnings": []
+}

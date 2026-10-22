@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 const agentTestSkill = "---\nname: spicrawl-web-data-api\ndescription: test skill\n---\n\n# Spicrawl\n"
@@ -878,4 +879,146 @@ func TestMCPInstallNonSecretKeepsMode(t *testing.T) {
 	if fi, _ := os.Stat(path); fi.Mode().Perm() != 0o664 {
 		t.Errorf("mode = %v, want 0664 kept", fi.Mode().Perm())
 	}
+}
+
+// ---- terminal output ----
+
+func TestInitHumanPlainIsUnchanged(t *testing.T) {
+	dir, _ := agentTestEnv(t)
+	agentWrite(t, filepath.Join(dir, "CLAUDE.md"), "x")
+	out, errOut, code := runCLIHuman(t, agentTestBase, "init", "--yes", "--dir", dir)
+	if code != 0 {
+		t.Fatalf("exit %d: %s", code, errOut)
+	}
+	if !strings.HasPrefix(out, "CLIENT  KIND   ACTION   FILE") || strings.Contains(out, "✓") {
+		t.Errorf("table changed:\n%s", out)
+	}
+	if !strings.HasPrefix(errOut, "clients: Claude Code\nMCP server: "+agentTestMCPURL+"\n") {
+		t.Errorf("stderr changed:\n%s", errOut)
+	}
+	if strings.Contains(errOut, "next") {
+		t.Errorf("hints without a terminal:\n%s", errOut)
+	}
+	noEscapes(t, "stdout", out)
+	noEscapes(t, "stderr", errOut)
+}
+
+func TestInitLive(t *testing.T) {
+	liveUI(t)
+	dir, _ := agentTestEnv(t)
+	agentWrite(t, filepath.Join(dir, "CLAUDE.md"), "x")
+	out, errOut, code := runCLIHuman(t, agentTestBase, "init", "--yes", "--dir", dir)
+	if code != 0 {
+		t.Fatalf("exit %d: %s", code, errOut)
+	}
+	plain := stripANSI(out)
+	for _, want := range []string{"CLIENT", "✓ created", ".mcp.json", ".claude/skills/spicrawl/SKILL.md", "✓ 2 written"} {
+		if !strings.Contains(plain, want) {
+			t.Errorf("stdout lacks %q:\n%s", want, plain)
+		}
+	}
+	e := stripANSI(errOut)
+	for _, want := range []string{"Setting up Spicrawl", "clients     Claude Code", "MCP server  " + agentTestMCPURL, "next", "restart Claude Code"} {
+		if !strings.Contains(e, want) {
+			t.Errorf("stderr lacks %q:\n%s", want, e)
+		}
+	}
+	if strings.Contains(e, "clients: ") {
+		t.Errorf("plain intro lines next to the styled one:\n%s", e)
+	}
+
+	// Nothing changed the second time: no "next" list, and the count says so.
+	out, errOut, _ = runCLIHuman(t, agentTestBase, "init", "--yes", "--dir", dir)
+	if !strings.Contains(stripANSI(out), "✓ 2 unchanged") || strings.Contains(stripANSI(errOut), "next") {
+		t.Errorf("second run:\n%s\n%s", stripANSI(out), stripANSI(errOut))
+	}
+
+	// --quiet and --json stay plain.
+	for _, flag := range []string{"-q", "--json"} {
+		out, errOut, _ = runCLIHuman(t, agentTestBase, flag, "init", "--yes", "--dir", dir)
+		noEscapes(t, flag+" stdout", out)
+		noEscapes(t, flag+" stderr", errOut)
+	}
+}
+
+func TestInitLivePlanAndSkillSpinner(t *testing.T) {
+	spinNow(t)
+	dir, _ := agentTestEnv(t)
+	slow, _ := newRecordingServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		time.Sleep(40 * time.Millisecond)
+		_, _ = w.Write([]byte(agentTestSkill))
+	})
+	t.Setenv(agentEnvSkillURL, slow.URL+"/skill.md")
+	orig, origIn := initStdinIsTerminal, initStdin
+	initStdinIsTerminal = func() bool { return true }
+	t.Cleanup(func() { initStdinIsTerminal, initStdin = orig, origIn })
+	initStdin = strings.NewReader("n\n")
+
+	out, errOut, code := runCLIHuman(t, agentTestBase, "init", "--client", "codex", "--dir", dir)
+	if code != 0 {
+		t.Fatalf("exit %d: %s", code, errOut)
+	}
+	if !strings.Contains(errOut, "Downloading the Spicrawl skill") {
+		t.Errorf("no spinner while the skill downloads: %q", errOut)
+	}
+	e := stripANSI(errOut)
+	if !strings.Contains(e, "plan:\n  create  codex   mcp") || !strings.Contains(e, "apply these changes? [y/N]") {
+		t.Errorf("plan:\n%s", e)
+	}
+	if !strings.Contains(stripANSI(out), "– skipped") || !strings.Contains(stripANSI(out), "not confirmed") {
+		t.Errorf("report:\n%s", stripANSI(out))
+	}
+}
+
+func TestMCPAndSkillInstallLive(t *testing.T) {
+	liveUI(t)
+	dir, _ := agentTestEnv(t)
+	out, errOut, code := runCLIHuman(t, agentTestBase, "mcp", "install", "--client", "claude", "--dir", dir)
+	if code != 0 {
+		t.Fatalf("exit %d: %s", code, errOut)
+	}
+	if !strings.Contains(stripANSI(out), "✓ created") || !strings.Contains(stripANSI(errOut), "restart Claude Code to load the MCP server") {
+		t.Errorf("mcp install:\n%s\n%s", stripANSI(out), stripANSI(errOut))
+	}
+	out, errOut, code = runCLIHuman(t, agentTestBase, "skill", "install", "--client", "claude", "--dir", dir)
+	if code != 0 {
+		t.Fatalf("exit %d: %s", code, errOut)
+	}
+	if !strings.Contains(stripANSI(out), "✓ created") || !strings.Contains(stripANSI(errOut), "start a new session in Claude Code to use the skill") {
+		t.Errorf("skill install:\n%s\n%s", stripANSI(out), stripANSI(errOut))
+	}
+	// Idempotent: nothing written, nothing to restart.
+	_, errOut, _ = runCLIHuman(t, agentTestBase, "skill", "install", "--client", "claude", "--dir", dir)
+	if strings.Contains(stripANSI(errOut), "next") {
+		t.Errorf("hint after a no-op:\n%s", errOut)
+	}
+}
+
+func TestMCPInstallPrintHeadingStyleOnlyOnATerminal(t *testing.T) {
+	dir, _ := agentTestEnv(t)
+	plain, _, _ := runCLIHuman(t, agentTestBase, "mcp", "install", "--client", "claude", "--print", "--dir", dir)
+	if !strings.HasPrefix(plain, "# Claude Code: merge into .mcp.json\n{") {
+		t.Fatalf("plain:\n%s", plain)
+	}
+	noEscapes(t, "plain", plain)
+
+	liveUI(t)
+	live, _, _ := runCLIHuman(t, agentTestBase, "mcp", "install", "--client", "claude", "--print", "--dir", dir)
+	if !strings.Contains(live, "\x1b[") || stripANSI(live) != plain {
+		t.Errorf("styled heading must be the only difference:\n%q\n%q", live, plain)
+	}
+}
+
+func TestSkillInstallPrintUnchangedWhenLive(t *testing.T) {
+	dir, _ := agentTestEnv(t)
+	plain, _, code := runCLIHuman(t, agentTestBase, "skill", "install", "--print", "--dir", dir)
+	if code != 0 || !strings.Contains(plain, "# Spicrawl") {
+		t.Fatalf("exit %d %q", code, plain)
+	}
+	spinNow(t)
+	live, _, code := runCLIHuman(t, agentTestBase, "skill", "install", "--print", "--dir", dir)
+	if code != 0 || live != plain {
+		t.Errorf("--print must write the skill and nothing else: exit %d\n%q\n%q", code, live, plain)
+	}
+	noEscapes(t, "stdout", live)
 }

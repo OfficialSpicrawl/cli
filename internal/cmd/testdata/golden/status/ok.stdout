@@ -1,0 +1,26 @@
+{
+  "api_reachable": true,
+  "ready": true,
+  "checks": {
+    "postgres": "ok",
+    "redis": "ok"
+  },
+  "cdp": "enabled",
+  "key_valid": true,
+  "key_source": "env",
+  "base_url": "http://SERVER",
+  "workers": {
+    "batch": {
+      "present": 2,
+      "ready": 0
+    },
+    "browser": {
+      "present": 3,
+      "ready": 2
+    },
+    "egress": {
+      "present": 1,
+      "ready": 1
+    }
+  }
+}

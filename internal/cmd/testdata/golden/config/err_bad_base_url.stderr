@@ -1,0 +1,4 @@
+{
+  "error": "base_url must be an http(s) URL, got \"ftp://x\"",
+  "exit_code": 2
+}

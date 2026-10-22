@@ -1,0 +1,4 @@
+{
+  "error": "--ai and --ai-schema are mutually exclusive: the API takes a prompt or a schema, not both",
+  "exit_code": 2
+}

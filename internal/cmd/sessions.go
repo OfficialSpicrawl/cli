@@ -15,6 +15,7 @@ import (
 
 	"github.com/OfficialSpicrawl/cli/internal/api"
 	"github.com/OfficialSpicrawl/cli/internal/output"
+	"github.com/OfficialSpicrawl/cli/internal/ui"
 )
 
 // sessionsRecord is the subset of the Session schema the human views read.
@@ -148,7 +149,9 @@ whose session_context member is sent.`,
 		if err != nil {
 			return err
 		}
+		sp := spin(Printer(), "Creating a session")
 		resp, err := c.Do(cmd.Context(), api.Request{Method: http.MethodPost, Path: "/v1/sessions", Body: body})
+		sp.Stop()
 		if err != nil {
 			return err
 		}
@@ -189,6 +192,9 @@ until the API says there are no more.`,
 		if err != nil {
 			return err
 		}
+		p := Printer()
+		sp := spin(p, "Fetching sessions")
+		defer sp.Stop()
 		var all []json.RawMessage
 		var next string
 		for {
@@ -204,6 +210,7 @@ until the API says there are no more.`,
 				return err
 			}
 			all = append(all, page.Sessions...)
+			sp.Label("Fetching sessions · %d so far", len(all))
 			next = page.NextCursor
 			if !sessionsListAll || next == "" {
 				break
@@ -217,7 +224,7 @@ until the API says there are no more.`,
 		if next != "" {
 			out["next_cursor"] = next
 		}
-		p := Printer()
+		sp.Stop()
 		return p.Result(out, func(w io.Writer) {
 			if len(all) == 0 {
 				p.Info("no sessions")
@@ -233,7 +240,13 @@ until the API says there are no more.`,
 				}
 				rows = append(rows, []string{s.ID, s.Engine, s.Status, exit, strconv.Itoa(s.UsageCount), s.ExpiresAt})
 			}
-			p.Table([]string{"ID", "ENGINE", "STATUS", "EXIT", "USES", "EXPIRES"}, rows)
+			u := outUI(p)
+			viewTable(p, u, []string{"ID", "ENGINE", "STATUS", "EXIT", "USES", "EXPIRES"}, rows, func(col int, cell string) string {
+				if col == 2 {
+					return sessionsStatusCell(u, cell)
+				}
+				return cell
+			})
 			if next != "" {
 				p.Info("more sessions exist; pass --all to fetch every page")
 			}
@@ -251,7 +264,9 @@ var sessionsGetCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		sp := spin(Printer(), "Fetching session %s", args[0])
 		resp, err := c.Do(cmd.Context(), api.Request{Path: "/v1/sessions/" + url.PathEscape(args[0])})
+		sp.Stop()
 		if err != nil {
 			return err
 		}
@@ -272,11 +287,13 @@ session to carry a login over.`,
 		if err != nil {
 			return err
 		}
+		p := Printer()
+		sp := spin(p, "Fetching the context of session %s", args[0])
 		resp, err := c.Do(cmd.Context(), api.Request{Path: "/v1/sessions/" + url.PathEscape(args[0]) + "/context"})
+		sp.Stop()
 		if err != nil {
 			return err
 		}
-		p := Printer()
 		if !p.JSON {
 			p.Warn("this output contains live cookies; treat it like a password")
 		}
@@ -302,11 +319,13 @@ lease (that render fails).`,
 		if sessionsForce {
 			q = url.Values{"force": {"true"}}
 		}
+		sp := spin(Printer(), "Ending session %s", args[0])
 		resp, err := c.Do(cmd.Context(), api.Request{
 			Method: http.MethodPost,
 			Path:   "/v1/sessions/" + url.PathEscape(args[0]) + "/release",
 			Query:  q,
 		})
+		sp.Stop()
 		if err != nil {
 			return err
 		}
@@ -342,16 +361,19 @@ terminal; without a terminal you must pass --yes.`,
 		if sessionsForce {
 			q = url.Values{"force": {"true"}}
 		}
-		if _, err := c.Do(cmd.Context(), api.Request{
+		p := Printer()
+		sp := spin(p, "Deleting session %s", id)
+		_, err = c.Do(cmd.Context(), api.Request{
 			Method: http.MethodDelete,
 			Path:   "/v1/sessions/" + url.PathEscape(id),
 			Query:  q,
-		}); err != nil {
+		})
+		sp.Stop()
+		if err != nil {
 			return err
 		}
-		p := Printer()
 		return p.Result(map[string]any{"id": id, "deleted": true}, func(w io.Writer) {
-			fmt.Fprintf(w, "deleted session %s\n", id)
+			fmt.Fprintf(w, "%sdeleted session %s\n", viewLead(outUI(p), markOK), id)
 		})
 	},
 }
@@ -403,9 +425,16 @@ func sessionsPrintOne(body []byte, created bool) error {
 		return p.RawJSON(body)
 	}
 	w := p.Out
+	u := outUI(p)
+	if created && u.On() {
+		fmt.Fprintf(w, "%s Session created\n\n", u.Green("✓"))
+	}
 	kv := func(k, v string) {
 		if v != "" {
-			fmt.Fprintf(w, "%-16s %s\n", k+":", v)
+			if k == "status" {
+				v = sessionsStatusCell(u, v)
+			}
+			fmt.Fprintf(w, "%s %s\n", viewKey(u, 16, k+":"), v)
 		}
 	}
 	kv("id", s.ID)
@@ -439,6 +468,11 @@ func sessionsPrintOne(body []byte, created bool) error {
 		p.Info("use it with: spicrawl scrape <url> --session %s", s.ID)
 	}
 	return nil
+}
+
+// sessionsStatusCell colours a session status: active green, the rest dim.
+func sessionsStatusCell(u *ui.UI, s string) string {
+	return viewStatus(u, s, []string{"active"}, nil)
 }
 
 func init() {

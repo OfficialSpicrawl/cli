@@ -1,0 +1,16 @@
+{
+  "content": "<h1>Anvil</h1><p class=\"price\">$19.99 & free shipping</p>",
+  "credits": 3,
+  "data": null,
+  "engine": "fetch",
+  "final_url": "https://example.com/product/1",
+  "headers": {
+    "content-type": "text/html"
+  },
+  "proxy_source": "pool",
+  "status": 200,
+  "target_error": "target returned 403",
+  "truncated": false,
+  "url": "https://example.com/product/1",
+  "warnings": []
+}

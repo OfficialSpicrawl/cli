@@ -1,0 +1,3 @@
+[mcp_servers.spicrawl]
+url = "http://127.0.0.1:1/mcp"
+bearer_token_env_var = "SPICRAWL_API_KEY"

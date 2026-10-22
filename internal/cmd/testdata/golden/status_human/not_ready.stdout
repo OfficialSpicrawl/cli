@@ -1,0 +1,9 @@
+base url:    http://SERVER
+reachable:   yes
+ready:       no (redis=unreachable)
+cdp:         disabled (cloud browser /v1/browser is not available on this deployment)
+key:         valid (from env)
+workers:
+  browser    2 ready of 3
+  egress     1 ready of 1
+  batch      0 ready of 2

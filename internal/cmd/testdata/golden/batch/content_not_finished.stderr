@@ -1,0 +1,14 @@
+{
+  "type": "https://docs.spicrawl.com/errors",
+  "title": "Conflict",
+  "status": 409,
+  "code": "ERR::REQUEST::NOT_READY",
+  "detail": "item 7 has not finished",
+  "retryable": false,
+  "doc_url": "https://docs.spicrawl.com/errors",
+  "request_id": "<REQUEST_ID>",
+  "target_status": null,
+  "diagnostics": {
+    "hint": "check the request and try again"
+  }
+}

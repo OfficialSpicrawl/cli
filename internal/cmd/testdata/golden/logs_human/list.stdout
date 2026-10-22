@@ -1,0 +1,3 @@
+TIME                  STATUS   HTTP  ENGINE  CREDITS  TOTAL_MS  URL
+<TIMESTAMP>  success  200   fetch   1.5      210       https://example.com/a
+<TIMESTAMP>  blocked  403   —       0        130       https://example.com/b?x=1&y=2

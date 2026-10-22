@@ -1,0 +1,15 @@
+{
+  "zeta": 1,
+  "mcpServers": {
+    "other": {
+      "command": "x"
+    },
+    "spicrawl": {
+      "type": "http",
+      "url": "http://127.0.0.1:1/mcp",
+      "headers": {
+        "Authorization": "Bearer ${SPICRAWL_API_KEY}"
+      }
+    }
+  }
+}

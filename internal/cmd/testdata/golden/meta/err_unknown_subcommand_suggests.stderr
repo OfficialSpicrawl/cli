@@ -1,0 +1,4 @@
+{
+  "error": "unknown command \"lst\" for \"spicrawl batch\"; did you mean get or list?",
+  "exit_code": 2
+}

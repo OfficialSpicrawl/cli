@@ -1,0 +1,4 @@
+{
+  "error": "no docs page at http://SERVER/missing.md (see spicrawl docs --list)",
+  "exit_code": 2
+}

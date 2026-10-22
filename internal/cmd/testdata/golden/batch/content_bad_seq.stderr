@@ -1,0 +1,4 @@
+{
+  "error": "seq \"x\": want the item's 0-based position (\"seq\" on a result line)",
+  "exit_code": 2
+}
