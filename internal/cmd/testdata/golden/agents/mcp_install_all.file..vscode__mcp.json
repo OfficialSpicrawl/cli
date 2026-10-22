@@ -1,0 +1,19 @@
+{
+  "servers": {
+    "spicrawl": {
+      "type": "http",
+      "url": "http://127.0.0.1:1/mcp",
+      "headers": {
+        "Authorization": "Bearer ${input:spicrawl-api-key}"
+      }
+    }
+  },
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "spicrawl-api-key",
+      "description": "Spicrawl API key",
+      "password": true
+    }
+  ]
+}

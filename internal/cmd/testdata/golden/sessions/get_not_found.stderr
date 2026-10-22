@@ -1,0 +1,14 @@
+{
+  "type": "https://docs.spicrawl.com/errors",
+  "title": "Not Found",
+  "status": 404,
+  "code": "ERR::SESSION::NOT_FOUND",
+  "detail": "no such session",
+  "retryable": false,
+  "doc_url": "https://docs.spicrawl.com/errors",
+  "request_id": "<REQUEST_ID>",
+  "target_status": null,
+  "diagnostics": {
+    "hint": "check the request and try again"
+  }
+}

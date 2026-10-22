@@ -1,0 +1,14 @@
+[
+  {
+    "client": "codex",
+    "kind": "skill",
+    "file": "<DIR>/.agents/skills/spicrawl/SKILL.md",
+    "action": "created"
+  },
+  {
+    "client": "codex",
+    "kind": "agents_md",
+    "file": "<DIR>/AGENTS.md",
+    "action": "created"
+  }
+]

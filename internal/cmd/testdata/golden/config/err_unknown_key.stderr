@@ -1,0 +1,4 @@
+{
+  "error": "unknown config key \"nope\" (keys: api_key, base_url)",
+  "exit_code": 2
+}

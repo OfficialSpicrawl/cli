@@ -1,0 +1,9 @@
+plan:        Starter (active)
+period:      [2026-09-01, 2026-10-01), day 22 of 30 (subscription)
+credits:     12345.67 of 50000 used (24.7%), 37654.33 remaining
+allowance:   12400 of 50000 used (incl. credits held for in-flight work), 37600 remaining, resets <TIMESTAMP>
+
+METRIC       VALUE
+requests     1234
+credits      12345.67
+extractions  55

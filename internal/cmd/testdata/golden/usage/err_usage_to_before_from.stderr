@@ -1,0 +1,4 @@
+{
+  "error": "--to is exclusive and must be after --from",
+  "exit_code": 2
+}

@@ -1,0 +1,10 @@
+reset 2 failed items (1 dispatched now, the rest by the recovery sweep)
+
+id           01J9Z6V0Q8M4K2T7R3N5B1C9XA
+name         nightly
+status       running
+progress     1/2 (50.0%)  succeeded 1  failed 0  cancelled 0  skipped 0
+run          concurrency 10  priority 100  max attempts 3
+credits      3 charged, 6 reserved
+submitted    <TIMESTAMP>
+started      <TIMESTAMP>

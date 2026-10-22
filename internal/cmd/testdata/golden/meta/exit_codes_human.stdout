@@ -1,0 +1,18 @@
+Exit codes (stable; scripts and agents may branch on them):
+
+  0   ok        success
+  1   internal  CLI bug, or a transient ERR::INTERNAL::* (retryable)
+  2   usage     bad flags or arguments, or an unreadable/malformed config file; nothing was sent
+  3   auth      ERR::AUTH::*, or no API key configured
+  4   request   ERR::REQUEST::*, ERR::SECURITY::*, ERR::EXTRACT::INVALID_RULES: fix the request
+  5   limit     ERR::LIMIT::*: rate, concurrency, quota or max_cost
+  6   upstream  ERR::UPSTREAM::*: the target site failed or served a bot challenge
+  7   proxy     ERR::PROXY::*
+  8   engine    ERR::ENGINE::*, ERR::EXTRACT::FAILED, or ERR::INTERNAL::UNAVAILABLE with retryable=false: capability not available on this deployment
+  9   session   ERR::SESSION::*
+  10  network   the Spicrawl API could not be reached (DNS, refused, TLS); nothing was sent
+  11  pending   a --wait gave up before the job finished
+  12  timeout   timed out waiting for the API, or the connection dropped after the request was sent; the request may have run and been billed: check `spicrawl logs` before retrying
+  130 interrupted stopped with Ctrl-C
+
+In JSON mode a failed command writes the API's problem document to stderr.

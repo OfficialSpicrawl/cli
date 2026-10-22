@@ -1,0 +1,5 @@
+warning: not writing <DIR>/page.html: the target failed (--allowed-status accepts it)
+{
+  "error": "target returned 503 (pass --allowed-status 503 to accept it)",
+  "exit_code": 6
+}

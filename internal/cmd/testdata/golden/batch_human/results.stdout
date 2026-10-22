@@ -1,0 +1,4 @@
+SEQ  STATUS                         HTTP  URL                                    BYTES
+0    succeeded                      200   https://example.com/a [sku-1]          2048
+1    failed ERR::UPSTREAM::TIMEOUT  -     https://example.com/b                  0
+2    succeeded                      404   https://example.com/c?x=1&y=2 [sku-3]  512

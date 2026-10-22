@@ -1,0 +1,4 @@
+<h1>Anvil</h1><p class="price">$19.99 & free shipping</p>
+--- network (2) ---
+200 xhr application/json https://example.com/api/price
+- image - https://example.com/x.png

@@ -1,0 +1,4 @@
+{
+  "error": "invalid docs topic \"../etc/passwd\": use a page path like guides/anti-bot (see spicrawl docs --list)",
+  "exit_code": 2
+}

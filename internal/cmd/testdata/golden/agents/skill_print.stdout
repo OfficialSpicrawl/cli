@@ -1,0 +1,4 @@
+{
+  "content": "---\nname: spicrawl\ndescription: golden test skill\n---\n\n# Spicrawl\n\nUse http://127.0.0.1:1 for scraping.\n",
+  "source": "http://SERVER/skill.md"
+}

@@ -1,0 +1,6 @@
+{
+  "arch": "<GOARCH>",
+  "go": "<GOVERSION>",
+  "os": "<GOOS>",
+  "version": "<VERSION>"
+}

@@ -1,0 +1,30 @@
+{
+  "content": "<h1>Anvil</h1><p class=\"price\">$19.99 & free shipping</p>",
+  "credits": 3,
+  "engine": "fetch",
+  "final_url": "https://example.com/product/1",
+  "headers": {
+    "content-type": "text/html"
+  },
+  "proxy_source": "pool",
+  "screenshots": [
+    {
+      "file": "<DIR>/shots/page.png",
+      "format": "png",
+      "height": 720,
+      "label": "page",
+      "width": 1280
+    },
+    {
+      "file": "<DIR>/shots/page-2.png",
+      "format": "png",
+      "height": 720,
+      "label": "page",
+      "width": 1280
+    }
+  ],
+  "status": 200,
+  "truncated": false,
+  "url": "https://example.com/product/1",
+  "warnings": []
+}

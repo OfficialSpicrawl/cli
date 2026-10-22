@@ -1,0 +1,14 @@
+{
+  "api_reachable": true,
+  "ready": true,
+  "checks": {
+    "postgres": "ok",
+    "redis": "ok"
+  },
+  "cdp": "enabled",
+  "key_valid": false,
+  "key_error": "no API key configured",
+  "key_source": "",
+  "base_url": "http://SERVER",
+  "workers": null
+}

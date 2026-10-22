@@ -1,0 +1,14 @@
+{
+  "api_reachable": true,
+  "ready": true,
+  "checks": {
+    "postgres": "ok",
+    "redis": "ok"
+  },
+  "cdp": "enabled",
+  "key_valid": true,
+  "key_source": "env",
+  "base_url": "http://SERVER",
+  "workers": null,
+  "workers_error": "ERR::INTERNAL::UNAVAILABLE: fleet registry is down"
+}

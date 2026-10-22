@@ -1,0 +1,16 @@
+{
+  "session_id": "01J9ZQ4M7R3T8VX2K5N6P0B1CD",
+  "session_context": {
+    "cookies": [
+      {
+        "name": "sid",
+        "value": "abc123",
+        "domain": "example.com",
+        "path": "/"
+      }
+    ],
+    "local_storage": {
+      "theme": "dark"
+    }
+  }
+}

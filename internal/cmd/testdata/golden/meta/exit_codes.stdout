@@ -1,0 +1,72 @@
+[
+  {
+    "code": 0,
+    "name": "ok",
+    "meaning": "success"
+  },
+  {
+    "code": 1,
+    "name": "internal",
+    "meaning": "CLI bug, or a transient ERR::INTERNAL::* (retryable)"
+  },
+  {
+    "code": 2,
+    "name": "usage",
+    "meaning": "bad flags or arguments, or an unreadable/malformed config file; nothing was sent"
+  },
+  {
+    "code": 3,
+    "name": "auth",
+    "meaning": "ERR::AUTH::*, or no API key configured"
+  },
+  {
+    "code": 4,
+    "name": "request",
+    "meaning": "ERR::REQUEST::*, ERR::SECURITY::*, ERR::EXTRACT::INVALID_RULES: fix the request"
+  },
+  {
+    "code": 5,
+    "name": "limit",
+    "meaning": "ERR::LIMIT::*: rate, concurrency, quota or max_cost"
+  },
+  {
+    "code": 6,
+    "name": "upstream",
+    "meaning": "ERR::UPSTREAM::*: the target site failed or served a bot challenge"
+  },
+  {
+    "code": 7,
+    "name": "proxy",
+    "meaning": "ERR::PROXY::*"
+  },
+  {
+    "code": 8,
+    "name": "engine",
+    "meaning": "ERR::ENGINE::*, ERR::EXTRACT::FAILED, or ERR::INTERNAL::UNAVAILABLE with retryable=false: capability not available on this deployment"
+  },
+  {
+    "code": 9,
+    "name": "session",
+    "meaning": "ERR::SESSION::*"
+  },
+  {
+    "code": 10,
+    "name": "network",
+    "meaning": "the Spicrawl API could not be reached (DNS, refused, TLS); nothing was sent"
+  },
+  {
+    "code": 11,
+    "name": "pending",
+    "meaning": "a --wait gave up before the job finished"
+  },
+  {
+    "code": 12,
+    "name": "timeout",
+    "meaning": "timed out waiting for the API, or the connection dropped after the request was sent; the request may have run and been billed: check `spicrawl logs` before retrying"
+  },
+  {
+    "code": 130,
+    "name": "interrupted",
+    "meaning": "stopped with Ctrl-C"
+  }
+]

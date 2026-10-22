@@ -1,0 +1,4 @@
+{
+  "error": "--ttl must be between 60 and 900 seconds",
+  "exit_code": 2
+}

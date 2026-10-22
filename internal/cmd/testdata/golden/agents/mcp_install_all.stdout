@@ -1,0 +1,26 @@
+[
+  {
+    "client": "claude",
+    "kind": "mcp",
+    "file": "<DIR>/.mcp.json",
+    "action": "created"
+  },
+  {
+    "client": "cursor",
+    "kind": "mcp",
+    "file": "<DIR>/.cursor/mcp.json",
+    "action": "created"
+  },
+  {
+    "client": "vscode",
+    "kind": "mcp",
+    "file": "<DIR>/.vscode/mcp.json",
+    "action": "created"
+  },
+  {
+    "client": "codex",
+    "kind": "mcp",
+    "file": "<DIR>/.codex/config.toml",
+    "action": "created"
+  }
+]

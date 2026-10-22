@@ -1,0 +1,10 @@
+id           01J9Z6V0Q8M4K2T7R3N5B1C9XA
+name         nightly
+status       completed
+progress     3/3 (100.0%)  succeeded 2  failed 1  cancelled 0  skipped 0
+run          concurrency 10  priority 100  max attempts 3
+credits      9 charged, 9 reserved
+submitted    <TIMESTAMP>
+started      <TIMESTAMP>
+finished     <TIMESTAMP>
+results      readable until <TIMESTAMP>

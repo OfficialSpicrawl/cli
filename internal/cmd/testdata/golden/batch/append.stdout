@@ -1,0 +1,38 @@
+{
+  "job": {
+    "id": "01J9Z6V0Q8M4K2T7R3N5B1C9XA",
+    "project_id": "proj_01J9Z",
+    "name": "nightly",
+    "status": "running",
+    "open": false,
+    "status_url": "/v1/batch/01J9Z6V0Q8M4K2T7R3N5B1C9XA",
+    "results_url": "/v1/batch/01J9Z6V0Q8M4K2T7R3N5B1C9XA/results",
+    "params": {
+      "js_render": true,
+      "response_format": "markdown"
+    },
+    "total_items": 2,
+    "concurrency": 10,
+    "priority": 100,
+    "max_attempts": 3,
+    "estimated_credits": 6,
+    "estimated_credits_micro": 6000000,
+    "progress": {
+      "total": 2,
+      "completed": 1,
+      "succeeded": 1,
+      "failed": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "remaining": 1,
+      "percent_complete": 50.0,
+      "credits_charged": 3,
+      "credits_charged_micro": 3000000,
+      "bytes": 20480
+    },
+    "submitted_at": "<TIMESTAMP>",
+    "started_at": "<TIMESTAMP>"
+  },
+  "items_added": 2,
+  "items_dispatched": 1
+}

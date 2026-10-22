@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "spicrawl": {
+      "url": "http://127.0.0.1:1/mcp",
+      "headers": {
+        "Authorization": "Bearer ${env:SPICRAWL_API_KEY}"
+      }
+    }
+  }
+}
