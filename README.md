@@ -65,10 +65,10 @@ npx @spicrawl/cli --help       # or run it without installing
 
 `@spicrawl/cli` is one package that carries all 6 prebuilt binaries and a small Node.js launcher (Node 16 or later) that runs the one for your machine with the same arguments, stdio and exit code. No postinstall script, nothing downloaded at install time.
 
-### Install script from GitHub (Linux, macOS)
+### Install script (Linux, macOS)
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/OfficialSpicrawl/cli/main/install.sh | sh
+curl -fsSL https://spicrawl.com/install.sh | sh
 ```
 
 It downloads the archive for your OS and CPU from the latest GitHub release, checks its SHA-256 against `checksums.txt`, and installs `spicrawl` into `~/.local/bin` (`SPICRAWL_INSTALL_DIR` changes it; `SPICRAWL_VERSION=v0.1.3` or `0.1.3` pins a release). It never prompts and never uses `sudo`.
@@ -92,7 +92,7 @@ A binary built this way reports its version as `dev`.
 
 ### Not available yet
 
-`curl -fsSL https://spicrawl.com/install.sh | sh` and Homebrew are planned but not live. Use one of the channels above.
+A Homebrew tap is planned but not live. Use one of the channels above.
 
 ### Check the install
 

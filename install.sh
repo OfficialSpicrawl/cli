@@ -2,7 +2,7 @@
 #
 # Install the Spicrawl CLI (the spicrawl command).
 #
-#   curl -fsSL https://raw.githubusercontent.com/OfficialSpicrawl/cli/main/install.sh | sh
+#   curl -fsSL https://spicrawl.com/install.sh | sh
 #
 # Environment:
 #   SPICRAWL_INSTALL_DIR   where to put the binary (default: ~/.local/bin)
