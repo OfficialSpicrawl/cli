@@ -115,7 +115,9 @@ Needs a key with the read scope.`,
 		for _, g := range b.Groups {
 			key := g.Key
 			if g.Label != "" {
-				key = g.Label
+				key = output.PublicText(g.Label)
+			} else if b.GroupBy == "engine" {
+				key = output.Tier(g.Key) // the API groups by tier; a name from before tiers is mapped
 			}
 			rows = append(rows, append([]string{key}, usageCells(cols, g.Metrics)...))
 		}

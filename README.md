@@ -45,7 +45,7 @@ The result is one JSON object with the page under `content`:
 `spicrawl` is a single native binary that calls the [Spicrawl](https://spicrawl.com) web scraping API:
 
 - **Five output formats.** `--format` takes `html` (the API default), `markdown`, `text`, `json` or `pdf`; Markdown keeps only the main content unless you pass `--no-main-content`.
-- **JavaScript rendering.** `--render` runs the page in a browser, `--wait-for` waits for a CSS selector, and `--engine` pins `fetch`, `obscura` or `chromium` (`camoufox` is coming soon).
+- **JavaScript rendering.** `--render` runs the page's JavaScript and `--wait-for` waits for a CSS selector. The API picks the rendering tier (`fetch`, `js` or `browser`) from what the request needs; there is no engine to choose.
 - **Batch jobs of up to 10,000 URLs.** `spicrawl batch submit` sends up to 10,000 URLs and 1 MiB per request as one server-side job, runs up to 50 items at once (server default 10) and tries each item up to 10 times (default 3).
 - **Parallel scrapes from stdin.** `spicrawl scrape -` reads one URL per line and runs 4 requests at once by default (`--concurrency`), with every scrape flag available.
 - **Structured data without a model.** `--extract` (CSS selectors), `--autoparse` (JSON-LD, OpenGraph) and `--links`.
@@ -146,8 +146,8 @@ For other clients (Gemini CLI, OpenCode, Factory Droid, Devin and more) use the 
 |---|---|
 | `spicrawl scrape <url\|->` | Fetch one page, or many from stdin, as Markdown, HTML, text, JSON, PDF or extracted data |
 | `spicrawl batch` | Run up to 10,000 URLs as one server-side job: `submit`, `wait`, `get`, `list`, `results`, `content`, `retry`, `cancel`, `append`, `close` |
-| `spicrawl sessions` | Keep one engine and cookie jar across scrapes: `create`, `list`, `get`, `context`, `release`, `delete` |
-| `spicrawl browser` | Cloud browser over the Chrome DevTools Protocol (`browser url`). Coming soon |
+| `spicrawl sessions` | Keep one rendering tier and cookie jar across scrapes: `create`, `list`, `get`, `context`, `release`, `delete` |
+| `spicrawl browser` | Cloud browser over a DevTools Protocol (CDP) WebSocket (`browser url`). Coming soon |
 | `spicrawl init` | Set up AI agent clients: MCP server config and the agent skill |
 | `spicrawl mcp` | `mcp install`: add the hosted MCP server to a client's config |
 | `spicrawl skill` | `skill install`: write the agent skill (`SKILL.md`) where each client looks for it |
@@ -215,11 +215,11 @@ AI extraction with a plain-language prompt or a JSON Schema (`--ai`, `--ai-schem
 
 ### How to take a screenshot or save a page as PDF
 
-Screenshots and PDF output need the Chromium engine:
+Screenshots and PDF output are rendered in a full browser, which the API picks for you:
 
 ```sh
-spicrawl scrape https://example.com --engine chromium --screenshot --screenshot-full-page -o home.html
-spicrawl scrape https://example.com/report --engine chromium --format pdf -o report.pdf
+spicrawl scrape https://example.com --screenshot --screenshot-full-page -o home.html
+spicrawl scrape https://example.com/report --format pdf -o report.pdf
 ```
 
 Screenshots are saved next to the `-o` file as `<name>.<label>.<format>`, or into `--screenshot-dir`; `--screenshot-selector` and `--screenshot-format png|jpeg|webp` narrow them. PDF is never written to a terminal: pass `-o FILE`, or `--json` to get it base64-encoded.
@@ -239,10 +239,10 @@ Each batch item is one fetch or render, returned as `html` (the default), `markd
 
 ### How to keep cookies and logins across scrapes
 
-A session keeps one engine and one cookie jar across many scrapes, so a login or a cart survives between requests:
+A session keeps one rendering tier and one cookie jar across many scrapes, so a login or a cart survives between requests:
 
 ```sh
-SID=$(spicrawl sessions create --engine chromium --ttl 7200 --json | jq -r .id)
+SID=$(spicrawl sessions create --engine browser --ttl 7200 --json | jq -r .id)
 spicrawl scrape https://example.com/account --session "$SID" --format markdown
 spicrawl sessions release "$SID"
 ```
@@ -340,11 +340,11 @@ Up to 10,000 URLs, and 1 MiB of request body, per `spicrawl batch submit`. A job
 
 ### Does it render JavaScript?
 
-Yes: add `--render` to run the page in a browser, and `--wait-for '<css selector>'` to wait for the content. `--engine chromium` pins real Chromium, which screenshots and PDF need.
+Yes: add `--render` to run the page in a browser, and `--wait-for '<css selector>'` to wait for the content. Screenshots and PDF are rendered in a full browser automatically; you do not pick one.
 
 ### Is Spicrawl free?
 
-Spicrawl is priced in credits: each successful request draws on your organization's monthly credit allowance. The [credits page](https://docs.spicrawl.com/credits) lists 1 credit for a plain fetch, 3 with `--render` and 8 with `--engine chromium`; failed requests cost 0, and a cache hit is billed at the price of the fetch that stored it. `spicrawl usage summary` shows the current period against your allowance.
+Spicrawl is priced in credits: each successful request draws on your organization's monthly credit allowance. The [credits page](https://docs.spicrawl.com/credits) lists 1 credit for a plain fetch, 3 with `--render` and 8 for a screenshot or PDF (full-browser rendering); failed requests cost 0, and a cache hit is billed at the price of the fetch that stored it. `spicrawl usage summary` shows the current period against your allowance.
 
 ### Does it work with Claude Code, Cursor, Codex and VS Code?
 

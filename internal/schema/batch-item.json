@@ -6,7 +6,7 @@
   "allOf": [
     {
       "type": "object",
-      "description": "The /v1/scrape request object as accepted by batch, minus `url`. Field names, types and validation are exactly\nScrapeRequest's (enforced by a parity test); each property below references it. Every item is merged as\njob-level value, overridden by the item's value (an explicit `false` on an item wins), with the project's\ndashboard defaults underneath both. Validation happens for every item at submission.\n\nWhat the batch worker executes: each item is one fetch or one render, and the document is returned as\n`response_format` (`html` by default, `json`, `markdown` or `text`). A field is either honoured on a batch item\nor refused at submission, never accepted and skipped. Refused with 400 INVALID_PARAMETER, naming every offending\nfield, with nothing queued or charged: `actions`, `screenshot` and its options, `network_capture`, `extract`,\n`extract_preset`, `ai_extract`, `autoparse`, `links`, `session_id`, `cache`/`cache_ttl`, `original_status`,\n`allowed_status_codes`, `parse_pdf=true`, `mode=auto`, `response_format=pdf`, and a non-GET `method` with\n`js_render` or `stealth`. A value that asks for nothing (`screenshot: false`, an empty list) is accepted. A\nrefusal caused by a project default says so in `detail`. Use /v1/scrape for those fields.\n\nA batch item is priced when it is accepted, so a bot challenge never climbs it to camoufox or retries it on a\ndifferent exit the way it can a /v1/scrape request with `premium_proxy` or `proxy`.\n",
+      "description": "The /v1/scrape request object as accepted by batch, minus `url`. Field names, types and validation are exactly\nScrapeRequest's (enforced by a parity test); each property below references it. Every item is merged as\njob-level value, overridden by the item's value (an explicit `false` on an item wins), with the project's\ndashboard defaults underneath both. Validation happens for every item at submission.\n\nWhat the batch worker executes: each item is one fetch or one render, and the document is returned as\n`response_format` (`html` by default, `json`, `markdown` or `text`). A field is either honoured on a batch item\nor refused at submission, never accepted and skipped. Refused with 400 INVALID_PARAMETER, naming every offending\nfield, with nothing queued or charged: `actions`, `screenshot` and its options, `network_capture`, `extract`,\n`extract_preset`, `ai_extract`, `autoparse`, `links`, `session_id`, `cache`/`cache_ttl`, `original_status`,\n`allowed_status_codes`, `parse_pdf=true`, `mode=auto`, `response_format=pdf`, and a non-GET `method` with\n`js_render` or `stealth`. A value that asks for nothing (`screenshot: false`, an empty list) is accepted. A\nrefusal caused by a project default says so in `detail`. Use /v1/scrape for those fields.\n\nA batch item is priced when it is accepted, so a bot challenge never escalates it to stronger rendering or retries it on a\ndifferent exit the way it can a /v1/scrape request with your own `proxy`.\n",
       "properties": {
         "method": {
           "type": "string",
@@ -25,12 +25,12 @@
         "js_render": {
           "type": "boolean",
           "default": false,
-          "description": "Render the page with the obscura browser engine. Honoured by the batch worker. Default false (or the project default)."
+          "description": "Run the page's JavaScript before capture. Honoured by the batch worker. Default false (or the project default)."
         },
         "stealth": {
           "type": "boolean",
           "default": false,
-          "description": "Coming soon. Render with the camoufox anti-detection engine; takes precedence over `js_render`. Honoured by the batch worker. Default false (or the project default)."
+          "description": "Coming soon. Render with full-browser rendering hardened against bot detection; takes precedence over `js_render`. Honoured by the batch worker. Default false (or the project default)."
         },
         "impersonate": {
           "type": "boolean",
@@ -42,17 +42,12 @@
           "enum": [
             "auto"
           ],
-          "description": "`auto` is refused on batch with 400 INVALID_PARAMETER, also when it comes from the project defaults; the batch worker does not escalate. It runs the engine that `engine`, `js_render` or `stealth` selects."
+          "description": "`auto` is refused on batch with 400 INVALID_PARAMETER, also when it comes from the project defaults; the batch worker does not escalate. It runs the rendering that `js_render` or `stealth` selects."
         },
         "engine": {
           "type": "string",
-          "enum": [
-            "fetch",
-            "obscura",
-            "camoufox",
-            "chromium"
-          ],
-          "description": "Engine `camoufox` is coming soon.\nEngine pin. On batch only `fetch`, `obscura`, `camoufox` are allowed; `chromium` is rejected with 400\nINVALID_PARAMETER (use /v1/scrape for chromium). Also 400 INCOMPATIBLE_FLAGS for: `mode=auto` plus any pin;\n`stealth=true` with a pin other than camoufox; `js_render=true` with `fetch`; `screenshot=true` with `fetch`\nor `obscura`. A pin the plan does not include is 403 (plans whose entitlements cannot be read allow only\nfetch and obscura). To be sure the worker renders, set `js_render` (obscura) or `stealth` (camoufox) rather\nthan relying on the pin alone.\n"
+          "deprecated": true,
+          "description": "Deprecated and ignored; rendering is chosen automatically. The job's `warnings` report the ignored field."
         },
         "premium_proxy": {
           "type": "boolean",
@@ -542,7 +537,7 @@
               {
                 "type": "object",
                 "title": "screenshot",
-                "description": "Capture a screenshot mid-workflow (needs camoufox or chromium); returned under `screenshots` with this step's label.",
+                "description": "Capture a screenshot mid-workflow (needs full-browser rendering); returned under `screenshots` with this step's label.",
                 "required": [
                   "screenshot"
                 ],
@@ -649,11 +644,12 @@
               "other"
             ]
           },
-          "description": "Resource classes to block while rendering. Honoured on rendered items only; unset blocks images and fonts, `none` blocks nothing, a list replaces the default. Falls back to the project default when unset."
+          "description": "Resource classes to block while rendering. Honoured on rendered items only; unset blocks nothing on full-browser rendering, `none` blocks nothing, a list blocks the classes named. Falls back to the project default when unset."
         },
         "headless": {
           "type": "boolean",
-          "description": "Honoured on rendered items (the project default for headless is NOT merged on batch)."
+          "deprecated": true,
+          "description": "Deprecated and ignored. The browser mode is chosen automatically."
         },
         "screenshot": {
           "type": "boolean",

@@ -60,6 +60,17 @@ never invent a field the API does not accept (the API rejects unknown fields).
    the key) once on stdout; its connection hints on stderr use
    `$SPICRAWL_BROWSER_URL` and are suppressed by `-q`. A `ws://` URL warns on
    stderr, always, that the key travels unencrypted.
+10. **Engine routing is internal.** A customer sees three rendering tiers,
+    `fetch`, `js` and `browser`, and never an engine or browser name. The API
+    already reports tiers. `sessions create` and `browser url` take a tier with
+    `--engine`; the engine names older CLIs took (which the API still honours)
+    are sent as typed, with a deprecation notice on stderr that does not repeat
+    them. `scrape` and `batch submit` keep `--engine` and the display flag next
+    to it hidden: the API ignores both and says so (`ENGINE_IGNORED`). In human output any
+    engine name the API sends is shown as its tier (`output.Tier`,
+    `output.PublicText`). JSON and `--jsonl` are the API's data and stay exactly
+    as sent. `internal/cmd/engine_names_test.go` locks the help, the human
+    output and the embedded skill and specs.
 
 ## Configuration
 
@@ -111,11 +122,11 @@ spicrawl scrape <url|-> [flags]                   POST /v1/scrape
   --format html|markdown|text|json|pdf          response_format
   --render                                      js_render
   --stealth  --impersonate
-  --engine fetch|obscura|chromium|camoufox  --mode auto
+  --mode auto
   --premium-proxy  --country CC  --proxy URL  --proxy-verify  --sticky-key K
   --session ID
   --wait MS  --wait-for SEL  --wait-for-timeout MS
-  --block images,fonts,...  --headless=false
+  --block images,fonts,...
   --header 'Name: value' (repeatable)            custom_headers
   --extract JSON|@file  --ai PROMPT  --ai-schema JSON|@file  --autoparse  --links
   --main-content/--no-main-content  --include SEL  --exclude SEL  --no-parse-pdf
@@ -141,10 +152,10 @@ spicrawl batch cancel <id> [--yes]                           --yes required with
 spicrawl batch retry|close <id>
 spicrawl batch append <id> <file|->
 
-spicrawl sessions create [--engine E] [--ttl S] [--country CC] [--rotate-ip] [--sticky-key K]
+spicrawl sessions create [--engine fetch|js|browser] [--ttl S] [--country CC] [--rotate-ip] [--sticky-key K]
 spicrawl sessions list | get <id> | context <id> | release <id> | delete <id> [--yes]
 
-spicrawl browser url [--engine chromium|obscura] [--country CC] [--ttl S] [--headless=false]
+spicrawl browser url [--engine browser|js] [--country CC] [--ttl S]
                                                 prints the wss:// CDP URL once (stdout)
 
 spicrawl logs [--errors] [--status S] [--limit N] [--all] [--all-projects]

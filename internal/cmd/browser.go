@@ -26,17 +26,16 @@ var (
 
 var browserCmd = &cobra.Command{
 	Use:   "browser",
-	Short: "Cloud browsers over the Chrome DevTools Protocol",
-	Example: `  spicrawl browser url --engine chromium --country de
-  puppeteer_ws=$(spicrawl browser url --json | jq -r .url)`,
+	Short: "Cloud browsers over a DevTools Protocol (CDP) WebSocket",
+	Example: `  spicrawl browser url --engine browser --country de
+  cdp_ws=$(spicrawl browser url --json | jq -r .url)`,
 }
 
 var browserURLCmd = &cobra.Command{
 	Use:   "url",
 	Short: "Mint a single-use wss:// CDP URL for a cloud browser (no API key in it)",
-	Long: `Mint a connect URL for GET /v1/browser. Connect Puppeteer, Playwright or
-any CDP client to it; the browser starts when the socket opens and is billed
-from then.
+	Long: `Mint a connect URL for GET /v1/browser. Connect any CDP client to it; the
+browser starts when the socket opens and is billed from then.
 
 The command calls POST /v1/browser/token with your API key in the
 Authorization header and prints a URL that carries a short-lived token
@@ -51,8 +50,8 @@ Unlike sessions, the exit rotates unless you pass --sticky-key.
 a server without a cloud browser it exits 8 ("cloud browser (CDP) is not enabled
 on this server").`,
 	Example: `  spicrawl browser url
-  spicrawl browser url --engine obscura --region eu --ttl 600
-  spicrawl browser url --country us --headless=false --sticky-key crawl-1
+  spicrawl browser url --engine js --region eu --ttl 600
+  spicrawl browser url --country us --sticky-key crawl-1
   export SPICRAWL_BROWSER_URL="$(spicrawl browser url -q)"   # -q: the bare URL, even when piped
   WS=$(spicrawl browser url --json | jq -r .url)`,
 	Args: cobra.NoArgs,
@@ -61,8 +60,14 @@ on this server").`,
 		body := map[string]any{}
 		engine := strings.ToLower(browserEngine)
 		if f.Changed("engine") {
-			if engine != "chromium" && engine != "obscura" {
-				return Usagef("--engine must be chromium or obscura (fetch and camoufox do not speak CDP)")
+			switch {
+			case engine == "browser" || engine == "js":
+			case engine == "chromium" || engine == "obscura":
+				// Names from before tiers: the API still honours them, so they
+				// are sent as typed. The notice does not repeat the name.
+				Printer().Warn("--engine: this value is deprecated; use browser or js")
+			default:
+				return Usagef("--engine must be browser or js (fetch runs no browser, so it cannot speak CDP)")
 			}
 			body["engine"] = engine
 		}
@@ -85,8 +90,8 @@ on this server").`,
 			body["session_ttl"] = browserTTL
 		}
 		if f.Changed("headless") {
-			if !browserHeadless && engine == "obscura" {
-				return Usagef("--headless=false is not available with --engine obscura")
+			if !browserHeadless && (engine == "js" || engine == "obscura") {
+				return Usagef("--headless=false is not available with --engine js")
 			}
 			body["headless"] = browserHeadless
 		}
@@ -153,8 +158,7 @@ on this server").`,
 // browserHints shows how to connect. The URL is single-use, so mint it right
 // before connecting.
 const browserHints = `export SPICRAWL_BROWSER_URL="$(spicrawl browser url -q)"
-Puppeteer:  const browser = await puppeteer.connect({ browserWSEndpoint: process.env.SPICRAWL_BROWSER_URL });
-Playwright: const browser = await chromium.connectOverCDP(process.env.SPICRAWL_BROWSER_URL);`
+Connect your CDP client to $SPICRAWL_BROWSER_URL (a wss:// WebSocket endpoint).`
 
 // browserWSURL joins the API base URL and the token path the API returned,
 // switching the scheme to ws/wss. The base URL is used rather than the API's
@@ -197,12 +201,14 @@ func browserStickyKeyOK(k string) bool {
 
 func init() {
 	f := browserURLCmd.Flags()
-	f.StringVar(&browserEngine, "engine", "chromium", "browser: chromium|obscura")
+	f.StringVar(&browserEngine, "engine", "browser", "rendering tier of the browser: browser|js")
 	f.StringVar(&browserCountry, "country", "", "exit country, ISO 3166-1 alpha-2 (proxy_country)")
 	f.StringVar(&browserRegion, "region", "", "broad exit region such as eu (proxy_region)")
 	f.IntVar(&browserTTL, "ttl", 180, "hard session lifetime in seconds, 60-900 (session_ttl)")
-	f.BoolVar(&browserHeadless, "headless", true, "--headless=false attaches a display (chromium only)")
+	f.BoolVar(&browserHeadless, "headless", true, "attach a display to the browser (not with --engine js)")
 	f.StringVar(&browserStickyKey, "sticky-key", "", "pin the exit for the session (default: rotates)")
+
+	_ = f.MarkHidden("headless") // wire name of a display option; not advertised
 
 	browserCmd.AddCommand(browserURLCmd)
 	rootCmd.AddCommand(browserCmd)

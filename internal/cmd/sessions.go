@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -62,9 +63,9 @@ var (
 var sessionsCmd = &cobra.Command{
 	Use:   "sessions",
 	Short: "Persisted browser sessions (cookies and storage reused across scrapes)",
-	Long: `Sessions keep one engine, one exit and one cookie jar across many scrapes.
+	Long: `Sessions keep one rendering tier, one exit and one cookie jar across many scrapes.
 Pass a session's id to "spicrawl scrape --session ID".`,
-	Example: `  spicrawl sessions create --engine chromium --ttl 7200 --country de
+	Example: `  spicrawl sessions create --engine browser --ttl 7200 --country de
   spicrawl sessions list --status active
   spicrawl sessions release 01J9ZQ4M7R3T8VX2K5N6P0B1CD`,
 }
@@ -73,8 +74,8 @@ var sessionsCreateCmd = &cobra.Command{
 	Use:   "create",
 	Short: "Create a session (POST /v1/sessions)",
 	Long: `Create a session. Only flags you set are sent; the API applies its defaults
-(engine: first of obscura, chromium available; ttl 1800 s; exit pinned to the
-session id).
+(tier: chosen for you unless --engine names one; ttl 1800 s; exit pinned to
+the session id).
 
 --country needs the residential tier, so it implies --premium-proxy.
 --rotate-ip keeps the cookie jar but lets the exit IP change; it cannot be
@@ -84,15 +85,15 @@ context object {"cookies": [...], "local_storage": {...}, "session_storage":
 {...}, "indexed_db": {...}}, or the output of "spicrawl sessions context --json",
 whose session_context member is sent.`,
 	Example: `  # Pinned residential exit in Germany for two hours
-  spicrawl sessions create --engine chromium --ttl 7200 --country de
+  spicrawl sessions create --engine browser --ttl 7200 --country de
 
   # A crawl that keeps cookies but rotates IPs
-  spicrawl sessions create --engine obscura --rotate-ip
+  spicrawl sessions create --engine js --rotate-ip
 
   # Import a saved login (cookies, local/session storage). Takes either a bare
   # context object or what "spicrawl sessions context ID --json" printed.
   spicrawl sessions context 01J9ZQ4M7R3T8VX2K5N6P0B1CD --json > login.json
-  spicrawl sessions create --engine chromium --session-context login.json
+  spicrawl sessions create --engine browser --session-context login.json
 
   # Capture the id for later scrapes
   SID=$(spicrawl sessions create --json | jq -r .id)`,
@@ -105,10 +106,14 @@ whose session_context member is sent.`,
 		body := map[string]any{}
 		if f.Changed("engine") {
 			e := strings.ToLower(sessionsEngine)
-			switch e {
-			case "fetch", "obscura", "chromium", "camoufox":
+			switch {
+			case slices.Contains([]string{"fetch", "js", "browser"}, e):
+			case slices.Contains([]string{"obscura", "chromium", "camoufox"}, e):
+				// Names from before tiers: the API still honours them, so they
+				// are sent as typed. The notice does not repeat the name.
+				Printer().Warn("--engine: this value is deprecated; use fetch, js or browser")
 			default:
-				return Usagef("--engine must be fetch, obscura, chromium or camoufox, not %q", sessionsEngine)
+				return Usagef("--engine must be fetch, js or browser, not %q", sessionsEngine)
 			}
 			body["engine"] = e
 		}
@@ -166,7 +171,7 @@ var sessionsListCmd = &cobra.Command{
 page can be short or empty and still have more behind it; --all keeps paging
 until the API says there are no more.`,
 	Example: `  spicrawl sessions list
-  spicrawl sessions list --status active --engine chromium --all
+  spicrawl sessions list --status active --engine browser --all
   spicrawl sessions list --json | jq -r '.sessions[].id'`,
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, _ []string) error {
@@ -238,7 +243,7 @@ until the API says there are no more.`,
 				if s.Proxy.Country != "" {
 					exit += "/" + s.Proxy.Country
 				}
-				rows = append(rows, []string{s.ID, s.Engine, s.Status, exit, strconv.Itoa(s.UsageCount), s.ExpiresAt})
+				rows = append(rows, []string{s.ID, output.Tier(s.Engine), s.Status, exit, strconv.Itoa(s.UsageCount), s.ExpiresAt})
 			}
 			u := outUI(p)
 			viewTable(p, u, []string{"ID", "ENGINE", "STATUS", "EXIT", "USES", "EXPIRES"}, rows, func(col int, cell string) string {
@@ -439,7 +444,7 @@ func sessionsPrintOne(body []byte, created bool) error {
 	}
 	kv("id", s.ID)
 	kv("status", s.Status)
-	kv("engine", s.Engine)
+	kv("engine", output.Tier(s.Engine))
 	exit := s.Proxy.Tier
 	if s.Proxy.Country != "" {
 		exit += " (" + s.Proxy.Country + ")"
@@ -477,7 +482,7 @@ func sessionsStatusCell(u *ui.UI, s string) string {
 
 func init() {
 	cf := sessionsCreateCmd.Flags()
-	cf.StringVar(&sessionsEngine, "engine", "", "engine to pin: fetch|obscura|chromium|camoufox")
+	cf.StringVar(&sessionsEngine, "engine", "", "rendering tier to bind the session to: fetch|js|browser")
 	cf.IntVar(&sessionsTTL, "ttl", 0, "sliding lifetime in seconds (ttl_seconds, min 30, default 1800)")
 	cf.StringVar(&sessionsCountry, "country", "", "exit country, ISO 3166-1 alpha-2 (implies --premium-proxy)")
 	cf.BoolVar(&sessionsPremium, "premium-proxy", false, "residential exits instead of datacenter")
@@ -488,7 +493,7 @@ func init() {
 
 	lf := sessionsListCmd.Flags()
 	lf.IntVar(&sessionsListLimit, "limit", 50, "page size, 1-200")
-	lf.StringVar(&sessionsListEngine, "engine", "", "only sessions pinned to this engine")
+	lf.StringVar(&sessionsListEngine, "engine", "", "only sessions bound to this tier: fetch|js|browser")
 	lf.StringVar(&sessionsListStatus, "status", "", "only active|released|expired sessions")
 	lf.BoolVar(&sessionsListAll, "all", false, "follow next_cursor until every page is read")
 

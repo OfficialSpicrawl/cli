@@ -72,7 +72,7 @@ const (
 		`"usage_as_of":"2026-09-22T06:00:00Z","stale_seconds":120,"warnings":["rollup is partial for 2026-08-03"]}`
 
 	gUsageEngine = `{"period":{"start":"2026-08-01","end":"2026-09-01","days":31,"bounds":"[start, end)"},"group_by":"engine","groups":[` +
-		`{"key":"fetch","label":"Fetch","metrics":{"requests":40,"credits":40000000}},{"key":"chromium","label":"","metrics":{"requests":5,"credits":25000000}}],` +
+		`{"key":"fetch","label":"Fetch","metrics":{"requests":40,"credits":40000000}},{"key":"browser","label":"Browser rendering","metrics":{"requests":5,"credits":25000000}}],` +
 		`"totals":{"requests":47,"credits":66000000},"unattributed":{"requests":2,"credits":1000000},"usage_as_of":null,"stale_seconds":7200}`
 
 	gUsageKey = `{"period":{"start":"2026-08-01","end":"2026-09-01","days":31,"bounds":"[start, end)"},"group_by":"key","keys":[` +
@@ -166,7 +166,7 @@ func init() {
 }
 
 func gBrowser(status int) func() http.HandlerFunc {
-	h := gJSON(200, `{"path":"/v1/browser?token=wbt_testtoken&engine=chromium&proxy_country=de","expires_at":"2026-09-22T06:01:00Z"}`)
+	h := gJSON(200, `{"path":"/v1/browser?token=wbt_testtoken&engine=browser&proxy_country=de","expires_at":"2026-09-22T06:01:00Z"}`)
 	if status == 501 {
 		h = gProblem(501, "ERR::ENGINE::UNAVAILABLE", "cloud browser is not enabled")
 	}

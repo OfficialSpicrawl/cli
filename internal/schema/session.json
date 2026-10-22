@@ -12,14 +12,13 @@
           "type": "string",
           "enum": [
             "fetch",
-            "obscura",
-            "chromium",
-            "camoufox"
+            "js",
+            "browser"
           ],
-          "description": "Engine a session is pinned to for its whole life. Scrapes on the session run on this engine; `fingerprint` is only valid with `camoufox`."
+          "description": "The rendering tier a session is bound to for its lifetime (`fetch` is HTTP only, `js` is JavaScript rendering, `browser` is full-browser rendering). Chosen automatically when the session is created unless the create names one."
         }
       ],
-      "description": "Engine `camoufox` is coming soon. Engine to pin. Case-insensitive. Omitted means the first of `obscura`, `chromium` that this deployment runs, else `fetch`. Choose explicitly if you need a browser-only feature such as localStorage."
+      "description": "Optional. The rendering tier to bind the session to (`fetch`, `js` or `browser`); omit it and one is chosen for you. A tier the deployment does not offer is 503 `ERR::ENGINE::UNAVAILABLE`."
     },
     "ttl_seconds": {
       "type": "integer",
@@ -59,7 +58,7 @@
         "object",
         "null"
       ],
-      "description": "Camoufox fingerprint pin, stored verbatim. A non-empty object with any engine other than `camoufox` is refused with 400. `null` and `{}` count as absent."
+      "description": "Browser fingerprint pin, stored verbatim. Advanced option; a non-empty object is refused with 400 where the session's rendering cannot apply it. `null` and `{}` count as absent."
     },
     "domain_scores": {
       "type": "object",

@@ -14,6 +14,7 @@ Bug fixes from a review of 0.1.3, and live progress on a terminal. No new comman
 - **usage summary** shows the enforced monthly allowance. **status** fails when the key check cannot reach the API.
 - **mcp install / init** back up the client config to `.bak`, write through symlinks, refuse to replace a customised `spicrawl` entry without `--force`, and accept VS Code JSONC/BOM `mcp.json`.
 - **Docs:** the embedded skill, `openapi.yaml` and schemas are synced with the API (cache hits are billed, `impersonate` defaults to true, batch honours `--format`).
+- **No engine or browser names.** Customers see three rendering tiers, `fetch`, `js` and `browser`, never an engine. `sessions create --engine` and `browser url --engine` take a tier; the old engine names still work (sent as typed) with a deprecation notice on stderr that does not repeat them. On `scrape` and `batch submit`, `--engine` and the display flag next to it, which the API already ignores, are hidden from `--help` but still accepted. Human output (tables, `--meta`, warnings, errors, `logs get`) shows a tier for any engine name the API sends; `--json` and `--jsonl` stay exactly as the API sent them. The help, `openapi.yaml`, the schemas, the embedded skill and the README use tier names.
 - **install.sh** accepts `SPICRAWL_VERSION=0.1.3` as well as `v0.1.3` and explains a failed download. The npm launcher forwards Ctrl-C to the binary.
 
 ## 0.1.3 — 2026-10-05

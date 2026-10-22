@@ -156,7 +156,7 @@ func TestScrapeEnvelopePassthrough(t *testing.T) {
 
 func TestScrapeOutputFileAndScreenshots(t *testing.T) {
 	png := []byte("\x89PNG fake")
-	env := map[string]any{"url": "https://example.com", "content": "# Page", "status": 200, "engine": "chromium",
+	env := map[string]any{"url": "https://example.com", "content": "# Page", "status": 200, "engine": "browser",
 		"screenshots": []any{map[string]any{"label": "final", "encoding": "base64", "format": "png",
 			"data": base64.StdEncoding.EncodeToString(png), "size_bytes": len(png)}}}
 	srv, _ := newRecordingServer(t, func(w http.ResponseWriter, _ *http.Request) {

@@ -45,7 +45,7 @@ var batchSubmitScrapeFlags = map[string]string{
 	"render":           "",
 	"stealth":          "",
 	"impersonate":      "",
-	"engine":           "pin the engine: fetch|obscura|camoufox (chromium is refused on batch)",
+	"engine":           "",
 	"premium-proxy":    "",
 	"country":          "",
 	"proxy":            "",
@@ -54,7 +54,7 @@ var batchSubmitScrapeFlags = map[string]string{
 	"wait-for":         "CSS selector to wait for (needs --render or --stealth)",
 	"wait-for-timeout": "",
 	"block":            "",
-	"headless":         "rendered items: --headless=false runs with a real display",
+	"headless":         "",
 	"header":           "",
 	"main-content":     "",
 	"no-main-content":  "",
@@ -287,7 +287,7 @@ func batchWaitAndPrint(cmd *cobra.Command, c *api.Client, p *output.Printer, id 
 		}
 		if werr == nil && (job.Status == "failed" || job.Status == "cancelled") {
 			msg := fmt.Sprintf("batch %s %s (%d of %d items finished)", id, job.Status, job.Progress.Completed, job.Progress.Total)
-			if e := strings.TrimSpace(job.ErrorCode + " " + job.ErrorMessage); e != "" {
+			if e := strings.TrimSpace(job.ErrorCode + " " + output.PublicText(job.ErrorMessage)); e != "" {
 				msg += ": " + e
 			}
 			return &ExitError{Code: exitcode.Request, Err: errors.New(msg)}
@@ -582,7 +582,7 @@ func batchHumanJob(w io.Writer, j batchJob) {
 	kv("finished", j.FinishedAt)
 	kv("results", batchIf(j.ResultsExpireAt != "", "readable until "+j.ResultsExpireAt))
 	if j.ErrorCode != "" || j.ErrorMessage != "" {
-		kv("error", strings.TrimSpace(j.ErrorCode+" "+j.ErrorMessage))
+		kv("error", output.PublicText(strings.TrimSpace(j.ErrorCode+" "+j.ErrorMessage)))
 	}
 }
 

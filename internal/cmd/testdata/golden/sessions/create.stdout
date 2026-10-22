@@ -1,7 +1,7 @@
 {
   "id": "01J9ZQ4M7R3T8VX2K5N6P0B1CD",
   "project_id": "proj_01J9Z",
-  "engine": "obscura",
+  "engine": "js",
   "status": "active",
   "sticky_key": null,
   "proxy": {
@@ -12,6 +12,6 @@
   "expires_at": "<TIMESTAMP>",
   "usage_count": 0,
   "warnings": [
-    "engine obscura cannot persist IndexedDB"
+    "ttl_seconds was reduced to this organization's maximum"
   ]
 }

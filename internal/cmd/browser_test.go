@@ -62,14 +62,14 @@ func (f *fakeTokenAPI) server(t *testing.T) *httptest.Server {
 func TestBrowserURLMintsATokenAndNeverPrintsTheKey(t *testing.T) {
 	api := &fakeTokenAPI{}
 	srv := api.server(t)
-	out, errb, code := runCLI(t, srv.URL, "browser", "url", "--engine", "obscura", "--region", "EU", "--ttl", "600", "--sticky-key", "crawl-1")
+	out, errb, code := runCLI(t, srv.URL, "browser", "url", "--engine", "js", "--region", "EU", "--ttl", "600", "--sticky-key", "crawl-1")
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, errb)
 	}
 	if api.auth != "Bearer spicrawl_test_key" {
 		t.Errorf("Authorization = %q, want the key in the header", api.auth)
 	}
-	want := map[string]any{"engine": "obscura", "proxy_region": "eu", "session_ttl": float64(600), "sticky_key": "crawl-1"}
+	want := map[string]any{"engine": "js", "proxy_region": "eu", "session_ttl": float64(600), "sticky_key": "crawl-1"}
 	for k, v := range want {
 		if api.body[k] != v {
 			t.Errorf("body %s = %v, want %v", k, api.body[k], v)
@@ -102,6 +102,25 @@ func TestBrowserURLMintsATokenAndNeverPrintsTheKey(t *testing.T) {
 	}
 }
 
+// Engine names from before tiers still work: they reach the API as typed, with
+// a notice on stderr that does not repeat them.
+func TestBrowserURLLegacyEngineNamesStillWork(t *testing.T) {
+	for _, legacy := range []string{"chromium", "obscura"} {
+		api := &fakeTokenAPI{}
+		srv := api.server(t)
+		_, errb, code := runCLI(t, srv.URL, "browser", "url", "--engine", legacy)
+		if code != 0 {
+			t.Fatalf("%s: exit %d: %s", legacy, code, errb)
+		}
+		if api.body["engine"] != legacy {
+			t.Errorf("%s: sent engine %v", legacy, api.body["engine"])
+		}
+		if !strings.Contains(errb, "warning: --engine: this value is deprecated; use browser or js") || strings.Contains(errb, legacy) {
+			t.Errorf("%s: stderr %q", legacy, errb)
+		}
+	}
+}
+
 func TestBrowserWSURLSchemes(t *testing.T) {
 	for base, want := range map[string]string{
 		"https://api.example.test/": "wss://api.example.test/v1/browser?token=wbt_x",
@@ -123,8 +142,10 @@ func TestBrowserURLUsageErrors(t *testing.T) {
 	srv := api.server(t)
 	for _, args := range [][]string{
 		{"--country", "de", "--region", "eu"},
+		{"--engine", "fetch"},
 		{"--engine", "camoufox"},
 		{"--ttl", "30"},
+		{"--engine", "js", "--headless=false"},
 		{"--engine", "obscura", "--headless=false"},
 		{"--sticky-key", "bad_key"},
 	} {
@@ -151,7 +172,7 @@ func TestBrowserURLHumanHintsAndWSWarning(t *testing.T) {
 	if !strings.Contains(errb, "unencrypted") || !strings.Contains(errb, "works once") {
 		t.Errorf("stderr %q", errb)
 	}
-	if !strings.Contains(errb, "connectOverCDP(process.env.SPICRAWL_BROWSER_URL)") {
+	if !strings.Contains(errb, "Connect your CDP client to $SPICRAWL_BROWSER_URL") {
 		t.Errorf("hints missing: %s", errb)
 	}
 
@@ -159,7 +180,7 @@ func TestBrowserURLHumanHintsAndWSWarning(t *testing.T) {
 	if code != 0 || strings.Count(out, "\n") != 1 {
 		t.Errorf("quiet: exit %d stdout %q", code, out)
 	}
-	if strings.Contains(errb, "connectOverCDP") {
+	if strings.Contains(errb, "CDP client") {
 		t.Errorf("quiet printed hints: %s", errb)
 	}
 }
