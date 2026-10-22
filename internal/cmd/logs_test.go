@@ -199,7 +199,7 @@ func TestLogsSpinnerAndJSONLStayClean(t *testing.T) {
 	srv := logsOneEntryServer(t, 40*time.Millisecond)
 
 	_, errb, code := runCLIHuman(t, srv.URL, "logs")
-	if code != 0 || !strings.Contains(errb, "Fetching requests") {
+	if code != 0 || !strings.Contains(errb, "Fetching the request log") {
 		t.Errorf("exit %d, stderr %q", code, errb)
 	}
 	_, errb, _ = runCLIHuman(t, srv.URL, "logs", "get", "R1")
@@ -215,7 +215,7 @@ func TestLogsSpinnerAndJSONLStayClean(t *testing.T) {
 	if strings.Count(out, "\n") != 1 || json.Unmarshal([]byte(out), new(map[string]any)) != nil {
 		t.Errorf("jsonl stream damaged: %q", out)
 	}
-	if !strings.Contains(errb, "Fetching requests") {
+	if !strings.Contains(errb, "Fetching the request log") {
 		t.Errorf("no spinner on stderr while streaming: %q", errb)
 	}
 

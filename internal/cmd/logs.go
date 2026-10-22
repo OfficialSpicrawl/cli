@@ -135,7 +135,7 @@ Status is one of: success, failed, timeout, blocked, rejected, cancelled.
 			return err
 		}
 		p := Printer()
-		sp := spin(p, "Fetching requests")
+		sp := spin(p, "Fetching the request log")
 		defer sp.Stop()
 		var all []json.RawMessage
 		var last logsPage
@@ -161,7 +161,7 @@ Status is one of: success, failed, timeout, blocked, rejected, cancelled.
 				all = append(all, page.Data...)
 			}
 			read += len(page.Data)
-			sp.Label("Fetching requests · %d so far", read)
+			sp.Label("Fetching the request log · %d so far", read)
 			last = page
 			if !logsAll || !page.Page.HasMore || page.Page.NextBefore == "" || page.Page.NextBeforeID == "" {
 				break
