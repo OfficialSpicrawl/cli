@@ -1,0 +1,15 @@
+base url:    http://SERVER
+reachable:   yes
+ready:       yes
+cdp:         enabled
+key:         valid (from file)
+mcp:         has a different key than the one in use: Claude Code
+workers:
+  browser    3 ready of 3
+  egress     1 ready of 1
+  batch      2 ready of 2
+repairs:
+  - check: mcp
+    command: spicrawl init --client claude --yes
+    unattended_safe: true
+    why: The MCP config for Claude Code holds a different key than the one in use, so the MCP server may reject it; this rewrites the entry with the key saved in the CLI config (the old file is kept as .bak)

@@ -9,7 +9,8 @@
   "mcp": {
     "detected": [],
     "connected": [],
-    "needs_env": []
+    "needs_env": [],
+    "stale": []
   },
   "repairs": [
     {

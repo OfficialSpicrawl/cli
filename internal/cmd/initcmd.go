@@ -139,12 +139,17 @@ func runInit(cmd *cobra.Command, _ []string) error {
 		}
 		keyLine += ")"
 	}
+	var saveKey func() error // set when --api-key is to be saved once the changes are applied
+	saveNote := ""           // the same, for the plan
 	if keySource == "flag" {
-		// Check it and save it before writing any client file: a bad key must not leave a half-done setup.
-		r, err := authSaveKey(p, key)
+		// Check it now, so a rejected key stops the run before anything is planned
+		// or written; it is saved only after the plan was confirmed and applied.
+		r, err := authCheck(p, key)
 		if err != nil {
 			return err
 		}
+		saveKey = func() error { return authStore(key) }
+		saveNote = config.MaskKey(key) + " to " + r.Path
 		keyLine = config.MaskKey(key) + " (checked, saved to " + r.Path
 		if embed {
 			keyLine += "; written into the client configs"
@@ -190,7 +195,7 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	if pending > 0 && !initFlags.yes {
 		// JSON mode keeps stderr for the problem document, unless a person is about to be asked.
 		if !p.JSON || initStdinIsTerminal() {
-			initPrintPlan(p.Err, errUI(p), rs, s)
+			initPrintPlan(p.Err, errUI(p), rs, s, saveNote)
 		}
 		if !initStdinIsTerminal() {
 			if p.JSON {
@@ -215,6 +220,11 @@ func runInit(cmd *cobra.Command, _ []string) error {
 
 	if err := agentApply(rs); err != nil {
 		return err
+	}
+	if saveKey != nil {
+		if err := saveKey(); err != nil {
+			return err
+		}
 	}
 	if err := agentReport(p, rs, s); err != nil {
 		return err
@@ -304,13 +314,15 @@ func initPlanGitignore(s agentScope, rs []*agentResult) (*agentResult, error) {
 		if r.Kind != "mcp" || !r.Secret || r.Action == agentActionSkipped {
 			continue
 		}
-		rel, err := filepath.Rel(s.Dir, r.File)
-		if err != nil || strings.HasPrefix(rel, "..") {
+		rel := agentProjectRel(s, r.File)
+		if rel == "" {
 			continue
 		}
-		rel = filepath.ToSlash(rel)
-		if !gitignoreHas(old, rel) && !slices.Contains(add, rel) {
-			add = append(add, rel)
+		// The .bak copy of a config that held a key holds it too.
+		for _, name := range []string{rel, rel + ".bak"} {
+			if !gitignoreHas(old, name) && !slices.Contains(add, name) {
+				add = append(add, name)
+			}
 		}
 	}
 	if len(add) == 0 {
@@ -336,7 +348,7 @@ func gitignoreHas(content []byte, rel string) bool {
 	return false
 }
 
-func initPrintPlan(w io.Writer, u *ui.UI, rs []*agentResult, s agentScope) {
+func initPrintPlan(w io.Writer, u *ui.UI, rs []*agentResult, s agentScope, saveNote string) {
 	fmt.Fprintln(w, u.Bold("plan:"))
 	for _, r := range rs {
 		verb := map[string]string{
@@ -356,6 +368,9 @@ func initPrintPlan(w io.Writer, u *ui.UI, rs []*agentResult, s agentScope) {
 			line += "  " + u.Dim("("+r.Reason+")")
 		}
 		fmt.Fprintln(w, line)
+	}
+	if saveNote != "" {
+		fmt.Fprintf(w, "  %s  %-7s %-6s %s\n", u.Green("save  "), "", "key", saveNote)
 	}
 }
 

@@ -24,15 +24,18 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/OfficialSpicrawl/cli/internal/config"
 	"github.com/OfficialSpicrawl/cli/internal/output"
@@ -521,12 +524,47 @@ func agentSecretGuidance(p *output.Printer, rs []*agentResult, s agentScope) {
 		} else {
 			p.Warn("%s now contains your API key in plain text; its permissions are 0600 (owner only)", r.File)
 		}
-		if rel, err := filepath.Rel(s.Dir, r.File); err == nil && !strings.HasPrefix(rel, "..") {
-			if ignored, _ := os.ReadFile(filepath.Join(s.Dir, ".gitignore")); !gitignoreHas(ignored, filepath.ToSlash(rel)) {
-				p.Warn("keep it out of version control: echo %s >> .gitignore", filepath.ToSlash(rel))
+		// A project file also leaves a .bak that can hold the previous key.
+		names := []string{agentProjectRel(s, r.File)}
+		if r.Backup != "" {
+			names = append(names, agentProjectRel(s, r.Backup))
+		}
+		ignored, _ := os.ReadFile(filepath.Join(s.Dir, ".gitignore"))
+		for _, rel := range names {
+			if rel == "" {
+				continue
+			}
+			if !gitignoreHas(ignored, rel) {
+				p.Warn("keep it out of version control: echo %s >> .gitignore", rel)
+			}
+			if gitTracked(s.Dir, rel) {
+				p.Warn("%s is tracked by git, so the key in it will be committed: run git rm --cached %s, and treat the key as exposed if it was ever committed", rel, rel)
 			}
 		}
 	}
+}
+
+// agentProjectRel is file relative to the project directory, slash-separated,
+// or "" when it is outside it (a user-level file).
+func agentProjectRel(s agentScope, file string) string {
+	rel, err := filepath.Rel(s.Dir, file)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return ""
+	}
+	return filepath.ToSlash(rel)
+}
+
+// gitTracked reports whether git tracks rel in dir. It asks git when git is
+// installed and dir is a repository, and says no otherwise: a best-effort
+// warning, not a dependency.
+func gitTracked(dir, rel string) bool {
+	git, err := exec.LookPath("git")
+	if err != nil {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return exec.CommandContext(ctx, git, "-C", dir, "ls-files", "--error-unmatch", "--", rel).Run() == nil
 }
 
 func agentDisplayPath(p string, s agentScope) string {

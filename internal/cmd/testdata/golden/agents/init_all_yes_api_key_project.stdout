@@ -33,6 +33,6 @@
     "kind": "gitignore",
     "file": "<DIR>/.gitignore",
     "action": "updated",
-    "reason": "keeps .mcp.json, .cursor/mcp.json (holds the API key) out of git"
+    "reason": "keeps .mcp.json, .mcp.json.bak, .cursor/mcp.json, .cursor/mcp.json.bak (holds the API key) out of git"
   }
 ]

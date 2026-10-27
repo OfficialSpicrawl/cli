@@ -54,8 +54,11 @@ type statusMCP struct {
 	// NeedsEnv has a server whose key is $SPICRAWL_API_KEY, which is not set
 	// here: the client cannot authenticate.
 	NeedsEnv []string `json:"needs_env"`
+	// Stale has a server with a key written into it that is not the key in use
+	// (compared by fingerprint; neither is ever printed).
+	Stale []string `json:"stale"`
 
-	needsEnvAt map[string]string // client id -> where that entry is: "user" or "project"
+	entryAt map[string]string // client id -> where its NeedsEnv / Stale entry is: "user" or "project"
 }
 
 // statusRepair is a command that fixes a failed check. UnattendedSafe says an
@@ -83,7 +86,7 @@ It also looks for agent clients in this directory and your home directory
 configured and able to authenticate; with no client found that check is skipped.
 A project-level entry shadows a user-level one, and an entry whose key is
 $SPICRAWL_API_KEY ("needs_env" in --json) does not count while that variable
-is unset here.
+is unset here, nor does one that holds another key than the one in use ("stale").
 
 For every failed check it prints a repair command, marked unattended_safe
 true (an agent may run it) or false (the user must act, for example supply an
@@ -107,7 +110,7 @@ worker kind has none ready, no MCP server configured for a client) exits 1; read
 		}
 		ctx := cmd.Context()
 		c := api.New(r.BaseURL, r.APIKey, flagTimeout)
-		rep := statusReport{BaseURL: r.BaseURL, KeySource: r.APIKeySource, MCP: statusMCPCheck(), Repairs: []statusRepair{}}
+		rep := statusReport{BaseURL: r.BaseURL, KeySource: r.APIKeySource, MCP: statusMCPCheck(r.APIKey), Repairs: []statusRepair{}}
 
 		p := Printer()
 		sp := spin(p, "Checking the API")
@@ -300,8 +303,8 @@ func cliInvocation() string {
 // server that can authenticate. A project entry shadows the user-level one of
 // the same name. An entry that takes the key from $SPICRAWL_API_KEY works only
 // while that is set, which is taken from this process's environment.
-func statusMCPCheck() statusMCP {
-	m := statusMCP{Detected: []string{}, Connected: []string{}, NeedsEnv: []string{}, needsEnvAt: map[string]string{}}
+func statusMCPCheck(key string) statusMCP {
+	m := statusMCP{Detected: []string{}, Connected: []string{}, NeedsEnv: []string{}, Stale: []string{}, entryAt: map[string]string{}}
 	s, err := agentResolveScope("", false)
 	if err != nil {
 		return m
@@ -320,7 +323,10 @@ func statusMCPCheck() statusMCP {
 		case !ok:
 		case mcpEntryNeedsEnv(entry) && !envSet:
 			m.NeedsEnv = append(m.NeedsEnv, c.ID)
-			m.needsEnvAt[c.ID] = where
+			m.entryAt[c.ID] = where
+		case mcpEntryStale(entry, key):
+			m.Stale = append(m.Stale, c.ID)
+			m.entryAt[c.ID] = where
 		default:
 			m.Connected = append(m.Connected, c.ID)
 		}
@@ -332,7 +338,7 @@ func statusMCPCheck() statusMCP {
 func (m statusMCP) missing() []string {
 	var out []string
 	for _, id := range m.Detected {
-		if !slices.Contains(m.Connected, id) && !slices.Contains(m.NeedsEnv, id) {
+		if !slices.Contains(m.Connected, id) && !slices.Contains(m.NeedsEnv, id) && !slices.Contains(m.Stale, id) {
 			out = append(out, id)
 		}
 	}
@@ -360,6 +366,9 @@ func statusMCPText(m statusMCP) string {
 	var parts []string
 	if len(m.NeedsEnv) > 0 {
 		parts = append(parts, "needs $"+config.EnvAPIKey+", which is not set here: "+strings.Join(clientNames(m.NeedsEnv), ", "))
+	}
+	if len(m.Stale) > 0 {
+		parts = append(parts, "has a different key than the one in use: "+strings.Join(clientNames(m.Stale), ", "))
 	}
 	if miss := m.missing(); len(miss) > 0 {
 		parts = append(parts, "not configured: "+strings.Join(clientNames(miss), ", "))
@@ -422,32 +431,42 @@ func statusRepairs(rep *statusReport) []statusRepair {
 		add("mcp", cli+" init --all --yes", true,
 			"no Spicrawl MCP server is configured for "+strings.Join(clientNames(missing), ", ")+"; this writes the MCP entry and the skill for every client found here")
 	}
-	// An entry that reads $SPICRAWL_API_KEY, unset here, is rewritten with the
-	// key saved in the CLI config (init embeds it); without a saved key the
-	// user has to supply one.
+	// An entry that cannot authenticate (it reads $SPICRAWL_API_KEY, unset here,
+	// or holds another key than the one in use) is rewritten by init, which
+	// replaces a stale token without --force. With a key saved in the CLI config
+	// init embeds that; otherwise the user has to supply one. Entries are
+	// rewritten where they are: a project entry shadows a user-level one.
 	saved := rep.KeySource == "file"
-	for _, where := range []string{"user", "project"} {
-		var ids []string
-		for _, id := range rep.MCP.NeedsEnv {
-			if rep.MCP.needsEnvAt[id] == where {
-				ids = append(ids, id)
+	for _, state := range []struct {
+		ids []string
+		why string
+	}{
+		{rep.MCP.NeedsEnv, " reads the key from $" + config.EnvAPIKey + ", which is not set here, so the MCP server cannot authenticate; "},
+		{rep.MCP.Stale, " holds a different key than the one in use, so the MCP server may reject it; "},
+	} {
+		for _, where := range []string{"user", "project"} {
+			var ids []string
+			for _, id := range state.ids {
+				if rep.MCP.entryAt[id] == where {
+					ids = append(ids, id)
+				}
 			}
+			if len(ids) == 0 {
+				continue
+			}
+			command := cli + " init --client " + strings.Join(ids, ",") + " --yes"
+			if where == "project" {
+				command += " --global=false"
+			}
+			why := "The MCP config for " + strings.Join(clientNames(ids), ", ") + state.why
+			if saved {
+				why += "this rewrites the entry with the key saved in the CLI config (the old file is kept as .bak)"
+			} else {
+				command += " --api-key <YOUR_API_KEY>"
+				why += "this checks your key, saves it and writes it into the entry (the old file is kept as .bak)"
+			}
+			add("mcp", command, saved, why)
 		}
-		if len(ids) == 0 {
-			continue
-		}
-		command := cli + " init --client " + strings.Join(ids, ",") + " --yes --force"
-		if where == "project" {
-			command += " --global=false"
-		}
-		why := strings.Join(clientNames(ids), ", ") + " read the key from $" + config.EnvAPIKey + ", which is not set here, so the MCP server cannot authenticate; "
-		if saved {
-			why += "this rewrites the entry with the key saved in the CLI config (the old file is kept as .bak)"
-		} else {
-			command += " --api-key <YOUR_API_KEY>"
-			why += "this checks your key, saves it and writes it into the entry (the old file is kept as .bak)"
-		}
-		add("mcp", command, saved, why)
 	}
 	return out
 }
