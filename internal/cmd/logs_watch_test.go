@@ -39,7 +39,7 @@ func logsScripted(t *testing.T, bodies ...string) (string, func() []recordedRequ
 		i := min(int(n.Add(1))-1, len(bodies)-1)
 		_, _ = w.Write([]byte(bodies[i]))
 	})
-	return srv.URL, func() []recordedRequest { return *reqs }
+	return srv.URL, func() []recordedRequest { return recordedSoFar(reqs) }
 }
 
 var (
@@ -319,7 +319,7 @@ func logsTUIServer(t *testing.T) (string, func() []recordedRequest) {
 		}
 		_, _ = w.Write([]byte(logsList(false, e)))
 	})
-	return srv.URL, func() []recordedRequest { return *reqs }
+	return srv.URL, func() []recordedRequest { return recordedSoFar(reqs) }
 }
 
 func TestLogsWatchFullScreenQuitsOnQ(t *testing.T) {

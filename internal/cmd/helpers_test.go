@@ -91,18 +91,28 @@ type recordedRequest struct {
 	Body   []byte
 }
 
+// recordedMu orders the servers' appends against recordedSoFar. A reader that
+// runs while a cancelled request is still inside its handler (a stopped watch)
+// has no other happens-before edge to that append.
+var recordedMu sync.Mutex
+
+// recordedSoFar is *reqs for a reader that may overlap a handler still running.
+// Appends only write past len, so the elements of the returned slice are stable.
+func recordedSoFar(reqs *[]recordedRequest) []recordedRequest {
+	recordedMu.Lock()
+	defer recordedMu.Unlock()
+	return *reqs
+}
+
 func newRecordingServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, *[]recordedRequest) {
 	t.Helper()
-	var (
-		reqs []recordedRequest
-		mu   sync.Mutex
-	)
+	var reqs []recordedRequest
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var b bytes.Buffer
 		_, _ = b.ReadFrom(r.Body)
-		mu.Lock()
+		recordedMu.Lock()
 		reqs = append(reqs, recordedRequest{r.Method, r.URL.Path, r.URL.RawQuery, r.Header.Clone(), b.Bytes()})
-		mu.Unlock()
+		recordedMu.Unlock()
 		r.Body = http.NoBody
 		handler(w, r)
 	}))
