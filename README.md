@@ -97,7 +97,7 @@ A Homebrew tap is planned but not live. Use one of the channels above.
 ### Check the install
 
 ```sh
-spicrawl version   # spicrawl 0.1.4 (go1.27.1, linux/amd64)
+spicrawl version   # spicrawl 0.1.5 (go1.27.1, linux/amd64)
 ```
 
 `spicrawl version --json` prints the same as `{version, go, os, arch}`. If the npm launcher says there is no prebuilt binary, your OS or CPU is not one of the 6 targets: use `go install`, or point `SPICRAWL_BINARY` at a binary you already have.
