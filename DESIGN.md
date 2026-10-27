@@ -170,6 +170,7 @@ spicrawl batch get <id>
 spicrawl batch results <id> [--status S] [--all] [-o FILE]   JSONL
 spicrawl batch content <id> <seq> [-o FILE]                   one item's document
 spicrawl batch wait <id> [--max-wait 30m]                     exit 11 when it gives up, 4 if failed/cancelled
+spicrawl batch watch <id> [--poll 2s] [--max-wait 30m]        live dashboard on a TTY; else exactly `batch wait`
 spicrawl batch cancel <id> [--yes]                           --yes required without a TTY
 spicrawl batch retry|close <id>
 spicrawl batch append <id> <file|->
@@ -182,6 +183,8 @@ spicrawl browser url [--engine browser|js] [--country CC] [--ttl S]
 
 spicrawl logs [--errors] [--status S] [--limit N] [--all] [--all-projects]
                                                 GET /v1/requests (--all-projects: all_projects=true, read scope)
+spicrawl logs --watch [--poll 2s] [--errors] [--status S] [--limit N] [--all-projects]
+                                                live view: full-screen on a TTY, else plain lines (JSONL with --json)
 spicrawl logs get <request-id>
 spicrawl usage [--from D] [--to D] [--group-by day]           GET /v1/usage
 spicrawl usage summary | reconciliation

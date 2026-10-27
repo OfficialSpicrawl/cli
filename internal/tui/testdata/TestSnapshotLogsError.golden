@@ -1,0 +1,24 @@
+ spicrawl logs                                                        ! offline 
+ status: all  tier: all  errors: off  search: -
+  TIME     STATUS    HTTP TIER        MS URL                                    
+> 10:00:09 success    200 fetch      120 https://a.example/09                   
+  10:00:08 failed     200 js         120 https://b.example/08                   
+  10:00:07 blocked    200 browser    120 https://c.example/07                   
+  10:00:06 success    200 js         120 https://d.example/06                   
+  10:00:05 failed     200 fetch      120 https://e.example/05                   
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ ! 503 ERR::INTERNAL::UNAVAILABLE · retrying in 1s                              
+ ↑↓ move  ⏎ detail  / search  s status  t tier  e errors  c clear  q quit       
