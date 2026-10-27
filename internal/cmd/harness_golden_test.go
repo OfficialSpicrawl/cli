@@ -60,6 +60,10 @@ func goldenWantUpdate() bool { return *goldenUpdate || os.Getenv("GOLDEN_UPDATE"
 // goldenKey is the fake API key every case runs with (unless noKey).
 const goldenKey = "spicrawl_test_0123456789abcdefghij"
 
+// goldenFlagKey is the key cases pass with --api-key. No output may carry
+// either key.
+const goldenFlagKey = "spicrawl_live_GOLDENFLAG0123456789xyz"
+
 // goldenCase is one invocation of the CLI.
 type goldenCase struct {
 	name  string   // "group/case": the golden file stem; unique
@@ -76,7 +80,7 @@ type goldenCase struct {
 
 	stderr bool     // golden stderr too: it is machine-readable in this case
 	digest bool     // golden a sha256 of stdout instead of the bytes (big outputs)
-	files  []string // paths under {dir} the command writes; their bytes are golden too
+	files  []string // paths under {dir} (or ~/ for $HOME) the command writes; their bytes are golden too
 }
 
 // goldenEnv is the sandbox of one run.
@@ -136,6 +140,11 @@ func goldenRun(t *testing.T, c goldenCase, update bool, variantEnv map[string]st
 		if strings.Contains(s, "\x1b") {
 			t.Errorf("%s has an ANSI escape on a non-terminal: %q", name, s)
 		}
+		for _, k := range []string{goldenKey, goldenFlagKey} {
+			if strings.Contains(s, k) {
+				t.Errorf("%s contains the API key: %q", name, s)
+			}
+		}
 	}
 	if strings.Contains(r.stderr, "\r") {
 		t.Errorf("stderr has a carriage return (an in-place spinner or progress line) on a non-terminal: %q", r.stderr)
@@ -156,7 +165,11 @@ func goldenRun(t *testing.T, c goldenCase, update bool, variantEnv map[string]st
 		goldenCompare(t, update, c.name, ".stderr", []byte(norm(r.stderr)))
 	}
 	for _, rel := range c.files {
-		b, err := os.ReadFile(filepath.Join(e.Dir, rel))
+		path := filepath.Join(e.Dir, rel)
+		if h, ok := strings.CutPrefix(rel, "~/"); ok { // under $HOME
+			path = filepath.Join(e.Home, h)
+		}
+		b, err := os.ReadFile(path)
 		if err != nil {
 			t.Errorf("expected the command to write %s: %v", rel, err)
 			continue

@@ -23,6 +23,11 @@ never invent a field the API does not accept (the API rejects unknown fields).
    `warnings` field is still in the JSON on stdout. A command that must tell an
    agent something puts it in its JSON result, not on stderr.
    `internal/cmd/json_stderr_test.go` runs every golden case against this.
+   An empty result is not data either: in human mode an empty list
+   (`sessions list`, `logs`, `batch list`, `batch results`) prints nothing on
+   stdout and its one-line message ("no sessions") on stderr, so
+   `spicrawl sessions list | wc -l` is 0 and `-q` silences the message. JSON
+   mode prints the empty collection on stdout.
 2. **JSON when not a terminal.** `--json` forces it. Human mode prints tables
    or the document itself.
 3. **Never prompts without a TTY.** Anything interactive has a flag form.
@@ -172,10 +177,14 @@ spicrawl logs [--errors] [--status S] [--limit N] [--all] [--all-projects]
 spicrawl logs get <request-id>
 spicrawl usage [--from D] [--to D] [--group-by day]           GET /v1/usage
 spicrawl usage summary | reconciliation
-spicrawl status                                    /readyz + workers + key check
+spicrawl status                                    /readyz + workers + key check + MCP config that can authenticate; "repairs" for each failed check, exit 1 on any
+                                                other failed check
 
-spicrawl init [--client claude|cursor|codex|vscode|all] [--yes]
-                                                detect agent tooling, write MCP config + skill
+spicrawl init [--client claude|cursor|codex|vscode|all | --all] [--yes] [--api-key K]
+                                                detect agent tooling, write MCP config + skill;
+                                                --api-key is checked and saved like login, never printed, and written
+                                                into the user-level client configs (--use-env=true / --global=false change that);
+                                                a key already saved in the config file is written the same way
 spicrawl mcp install [--client ...] [--print]      add the hosted MCP server to a client config
 spicrawl skill install [--client ...] [--print]    write the Spicrawl agent skill (SKILL.md)
 spicrawl docs [topic] [--list]                     print raw Markdown (from docs.spicrawl.com); JSON only with --json

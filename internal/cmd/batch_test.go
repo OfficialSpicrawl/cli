@@ -17,15 +17,15 @@ import (
 // and cobra only hands a fresh one to commands whose ctx is nil.
 func batchRunCLI(t *testing.T, baseURL string, args ...string) (string, string, int) {
 	t.Helper()
-	var clear func(c *cobra.Command)
-	clear = func(c *cobra.Command) {
-		c.SetContext(nil) //nolint:staticcheck // nil lets cobra propagate the new root context
-		for _, sub := range c.Commands() {
-			clear(sub)
-		}
-	}
-	clear(rootCmd)
+	clearContexts(rootCmd)
 	return runCLI(t, baseURL, args...)
+}
+
+func clearContexts(c *cobra.Command) {
+	c.SetContext(nil) //nolint:staticcheck // nil lets cobra propagate the new root context
+	for _, sub := range c.Commands() {
+		clearContexts(sub)
+	}
 }
 
 func batchWriteFile(t *testing.T, name, content string) string {

@@ -1,2 +1,7 @@
 base url:    http://127.0.0.1:1
 reachable:   no
+repairs:
+  - check: reachable
+    command: curl -sS -m 10 http://127.0.0.1:1/readyz
+    unattended_safe: true
+    why: http://127.0.0.1:1 did not answer: check the network, any proxy and the base URL (--base-url, $SPICRAWL_BASE_URL)

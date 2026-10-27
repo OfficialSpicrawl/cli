@@ -1,0 +1,9 @@
+clients: Claude Code, Cursor
+MCP server: http://SERVER/mcp
+note: Claude Code, Cursor read the key from $SPICRAWL_API_KEY; export it in the shell or profile that starts the client
+connected: Claude Code, Cursor
+skipped: VS Code (Copilot) (not detected), Codex (not detected)
+api key: spicrawl_live_GOLD…9xyz (checked, saved to <CONFIG_DIR>/config.json)
+next: export SPICRAWL_API_KEY=<YOUR_API_KEY> in the shell or profile that starts Claude Code, Cursor: their MCP config reads the key from it
+next: restart Claude Code, Cursor to load the MCP server and the skill
+next: run spicrawl status, then ask your agent to scrape a page (or try: spicrawl scrape https://example.com)

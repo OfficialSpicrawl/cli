@@ -153,7 +153,7 @@ func init() {
 				gJSON(200, `{"batches":[`+open.JSON()+`]}`)(w, r)
 			}})},
 		goldenCase{name: "batch_human/list", human: true, args: []string{"batch", "list"}, server: list(two)},
-		goldenCase{name: "batch_human/list_empty", human: true, args: []string{"batch", "list"}, server: list(`{"batches":[]}`)},
+		goldenCase{name: "batch_human/list_empty", human: true, stderr: true, args: []string{"batch", "list"}, server: list(`{"batches":[]}`)},
 		goldenCase{name: "batch_human/list_next_cursor", human: true, args: []string{"batch", "list"}, server: list(`{"batches":[` + completed.JSON() + `],"next_cursor":"1790000000000000000.ABC"}`)},
 
 		// results and content
@@ -166,7 +166,7 @@ func init() {
 		goldenCase{name: "batch/results_expired", args: []string{"batch", "results", gBatchID}, stderr: true,
 			server: goldenServe(map[string]http.HandlerFunc{"GET /v1/batch/{id}/results": gProblem(410, "ERR::REQUEST::BEYOND_RETENTION", "results expired")})},
 		goldenCase{name: "batch_human/results", human: true, args: []string{"batch", "results", gBatchID}, server: results("")},
-		goldenCase{name: "batch_human/results_empty", human: true, args: []string{"batch", "results", gBatchID},
+		goldenCase{name: "batch_human/results_empty", human: true, stderr: true, args: []string{"batch", "results", gBatchID},
 			server: goldenServe(map[string]http.HandlerFunc{"GET /v1/batch/{id}/results": func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(200) }})},
 		goldenCase{name: "batch/content", args: []string{"batch", "content", gBatchID, "0"},
 			server: goldenServe(map[string]http.HandlerFunc{"GET /v1/batch/{id}/tasks/{seq}/content": gJSON(200, `"<h1>A</h1>\n"`)})},

@@ -1,0 +1,16 @@
+clients: Claude Code, Cursor
+MCP server: http://SERVER/mcp
+{
+  "type": "https://docs.spicrawl.com/errors",
+  "title": "Unauthorized",
+  "status": 401,
+  "code": "ERR::AUTH::INVALID_KEY",
+  "detail": "the API key is not valid",
+  "retryable": false,
+  "doc_url": "https://docs.spicrawl.com/errors",
+  "request_id": "<REQUEST_ID>",
+  "target_status": null,
+  "diagnostics": {
+    "hint": "check the request and try again"
+  }
+}

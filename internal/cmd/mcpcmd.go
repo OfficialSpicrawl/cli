@@ -138,6 +138,69 @@ func runMCPInstall(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
+// mcpExistingEntry returns the text of the "spicrawl" server in the MCP config at path
+// and whether there is one. A file that is missing or cannot be parsed has none.
+func mcpExistingEntry(c *agentClient, path string) (string, bool) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return "", false
+	}
+	if c.MCPFormat == agentCodexTOML {
+		lines := strings.Split(strings.ReplaceAll(string(b), "\r\n", "\n"), "\n")
+		stmts, err := tomlScan(lines)
+		if err != nil {
+			return "", false
+		}
+		table, inline, err := mcpTOMLLocate(stmts)
+		switch {
+		case err != nil || table < 0 && inline < 0:
+			return "", false
+		case inline >= 0:
+			return strings.Join(lines[stmts[inline].start:stmts[inline].end+1], "\n"), true
+		}
+		end := len(lines) // the table runs to the next header
+		for _, st := range stmts[table+1:] {
+			if st.header {
+				end = st.start
+				break
+			}
+		}
+		return strings.Join(lines[stmts[table].start:end], "\n"), true
+	}
+	root, _, err := mcpParseConfig(b)
+	if err != nil {
+		return "", false
+	}
+	key := "mcpServers"
+	if c.MCPFormat == agentVSCodeJSON {
+		key = "servers"
+	}
+	raw, ok := root.get(key)
+	if !ok {
+		return "", false
+	}
+	servers, err := agentParseObject(raw)
+	if err != nil {
+		return "", false
+	}
+	entry, ok := servers.get(agentServerName)
+	return string(entry), ok
+}
+
+// mcpConfigured reports whether the MCP config at path has a "spicrawl" server.
+func mcpConfigured(c *agentClient, path string) bool {
+	_, ok := mcpExistingEntry(c, path)
+	return ok
+}
+
+// mcpEnvRefRE matches an entry that takes the key from $SPICRAWL_API_KEY:
+// ${SPICRAWL_API_KEY} (Claude Code), ${env:SPICRAWL_API_KEY} (Cursor) or
+// bearer_token_env_var (Codex). A ${VAR:-default} form has a fallback and does not match.
+var mcpEnvRefRE = regexp.MustCompile(`\$\{(?:env:)?` + config.EnvAPIKey + `\}|bearer_token_env_var\s*=\s*["']` + config.EnvAPIKey + `["']`)
+
+// mcpEntryNeedsEnv reports whether an entry's key comes from the environment.
+func mcpEntryNeedsEnv(entry string) bool { return mcpEnvRefRE.MatchString(entry) }
+
 const mcpNoKeyReason = "this config must embed the API key and none is configured"
 
 // mcpServerEntry keeps the conventional key order (type, url, headers).
@@ -1135,11 +1198,12 @@ func mcpPrint(jsonMode bool, clients []*agentClient, s agentScope, opt mcpOption
 	})
 }
 
-// mcpEnvHint reminds the user that env-based configs need SPICRAWL_API_KEY
-// exported where the client starts.
-func mcpEnvHint(p interface{ Info(string, ...any) }, rs []*agentResult) {
+// mcpEnvClients names the clients just configured to read the key from
+// $SPICRAWL_API_KEY while it is not exported here: they cannot authenticate
+// until it is set where they start.
+func mcpEnvClients(rs []*agentResult) []string {
 	if os.Getenv(config.EnvAPIKey) != "" {
-		return
+		return nil
 	}
 	var names []string
 	for _, r := range rs {
@@ -1150,7 +1214,13 @@ func mcpEnvHint(p interface{ Info(string, ...any) }, rs []*agentResult) {
 			names = append(names, agentClientByID(r.Client).Name)
 		}
 	}
-	if len(names) > 0 {
+	return names
+}
+
+// mcpEnvHint reminds the user that env-based configs need SPICRAWL_API_KEY
+// exported where the client starts.
+func mcpEnvHint(p interface{ Info(string, ...any) }, rs []*agentResult) {
+	if names := mcpEnvClients(rs); len(names) > 0 {
 		p.Info("note: %s read the key from $%s; export it in the shell or profile that starts the client", strings.Join(names, ", "), config.EnvAPIKey)
 	}
 }

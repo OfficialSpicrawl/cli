@@ -265,18 +265,22 @@ func ExitCode(err error) int {
 }
 
 // report prints err to stderr in the active format and returns its exit code.
+// The configured API key is masked in everything it prints, so no error path
+// (an API problem, a config diff, a transport error) can echo it.
 func report(err error) int {
 	p := Printer()
+	key, _ := agentAPIKey()
+	scrub := func(s string) string { return scrubKey(s, key) }
 	if prob, ok := api.AsProblem(err); ok {
 		if p.JSON {
-			p.Out = p.Err
+			p.Out = scrubWriter{p.Err, key}
 			_ = p.Value(prob)
 		} else if u := p.UI(); u.On() {
-			u.Fail(output.PublicText(prob.Error()), append(problemRows(prob), failRows...)...)
+			u.Fail(scrub(output.PublicText(prob.Error())), append(problemRows(prob), failRows...)...)
 		} else {
-			fmt.Fprintf(stderr, "error: %s\n", output.PublicText(prob.Error()))
+			fmt.Fprintf(stderr, "error: %s\n", scrub(output.PublicText(prob.Error())))
 			if h := output.PublicText(prob.Hint()); h != "" {
-				fmt.Fprintf(stderr, "hint: %s\n", h)
+				fmt.Fprintf(stderr, "hint: %s\n", scrub(h))
 			}
 			if prob.TargetStatus != nil {
 				fmt.Fprintf(stderr, "target status: %d\n", *prob.TargetStatus)
@@ -293,14 +297,36 @@ func report(err error) int {
 
 	code := ExitCode(err)
 	if p.JSON {
-		p.Out = p.Err
+		p.Out = scrubWriter{p.Err, key}
 		_ = p.Value(map[string]any{"error": err.Error(), "exit_code": code})
 	} else if u := p.UI(); u.On() {
-		u.Fail(err.Error(), failRows...)
+		u.Fail(scrub(err.Error()), failRows...)
 	} else {
-		fmt.Fprintf(stderr, "error: %s\n", err)
+		fmt.Fprintf(stderr, "error: %s\n", scrub(err.Error()))
 	}
 	return code
+}
+
+// scrubKey masks every occurrence of key in s. A key shorter than 8 characters
+// is not scrubbed: it would match ordinary words.
+func scrubKey(s, key string) string {
+	if len(key) < 8 {
+		return s
+	}
+	return strings.ReplaceAll(s, key, config.MaskKey(key))
+}
+
+// scrubWriter masks key in what it writes.
+type scrubWriter struct {
+	w   io.Writer
+	key string
+}
+
+func (s scrubWriter) Write(b []byte) (int, error) {
+	if _, err := io.WriteString(s.w, scrubKey(string(b), s.key)); err != nil {
+		return 0, err
+	}
+	return len(b), nil
 }
 
 // failRows are extra facts a command wants under its error block on a

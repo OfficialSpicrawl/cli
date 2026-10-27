@@ -1,0 +1,4 @@
+{
+  "error": "--all and --client are mutually exclusive: --all connects every detected client",
+  "exit_code": 2
+}

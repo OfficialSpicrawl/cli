@@ -138,7 +138,7 @@ func batchRunResults(cmd *cobra.Command, args []string) error {
 
 	if !raw {
 		if len(rows) == 0 {
-			fmt.Fprintln(p.Out, "no finished items yet")
+			p.Info("no finished items yet") // not data: stderr, so stdout stays empty
 		} else {
 			p.Table([]string{"SEQ", "STATUS", "HTTP", "URL", "BYTES"}, rows)
 		}

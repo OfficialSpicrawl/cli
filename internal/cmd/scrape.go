@@ -456,7 +456,7 @@ func (r *scrapeResult) document(body map[string]any) ([]byte, string) {
 		return r.resp.Body, "content_base64"
 	}
 	if scrapeWantsData(body) {
-		if data, ok := r.obj["data"]; ok && data != nil {
+		if data := r.orderedData(); data != nil {
 			var buf bytes.Buffer
 			enc := json.NewEncoder(&buf)
 			enc.SetEscapeHTML(false) // a human reads <, > and & as they are
@@ -468,6 +468,25 @@ func (r *scrapeResult) document(body map[string]any) ([]byte, string) {
 	}
 	s, _ := r.obj["content"].(string)
 	return []byte(s), "content"
+}
+
+// orderedData is the envelope's "data" with its object members in the order
+// the API sent them. r.obj is a map, which would print them sorted. nil when
+// there is no data (absent or null).
+func (r *scrapeResult) orderedData() any {
+	var env struct {
+		Data json.RawMessage `json:"data"`
+	}
+	if json.Unmarshal(r.resp.Body, &env) != nil || len(env.Data) == 0 {
+		return nil
+	}
+	dec := json.NewDecoder(bytes.NewReader(env.Data))
+	dec.UseNumber()
+	v, err := decodeOrdered(dec)
+	if err != nil {
+		return nil
+	}
+	return v
 }
 
 func scrapeWantsData(body map[string]any) bool {
