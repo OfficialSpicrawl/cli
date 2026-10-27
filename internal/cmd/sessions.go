@@ -215,7 +215,7 @@ until the API says there are no more.`,
 				return err
 			}
 			all = append(all, page.Sessions...)
-			sp.Label("Fetching sessions · %d so far", len(all))
+			sp.Label("Fetching sessions %s %d so far", errUI(p).Glyphs().Dot, len(all))
 			next = page.NextCursor
 			if !sessionsListAll || next == "" {
 				break
@@ -432,7 +432,7 @@ func sessionsPrintOne(body []byte, created bool) error {
 	w := p.Out
 	u := outUI(p)
 	if created && u.On() {
-		fmt.Fprintf(w, "%s Session created\n\n", u.Green("✓"))
+		fmt.Fprintf(w, "%s Session created\n\n", viewMark(u, markOK))
 	}
 	kv := func(k, v string) {
 		if v != "" {

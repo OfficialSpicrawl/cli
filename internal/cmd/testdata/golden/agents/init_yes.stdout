@@ -23,5 +23,27 @@
     "file": "<DIR>/.claude/skills/spicrawl/SKILL.md",
     "action": "skipped",
     "reason": "already reads this skill"
+  },
+  {
+    "kind": "report",
+    "connected": [
+      "claude",
+      "cursor"
+    ],
+    "skipped": [
+      {
+        "client": "vscode",
+        "reason": "not selected"
+      },
+      {
+        "client": "codex",
+        "reason": "not selected"
+      }
+    ],
+    "api_key": "spicrawl_test_0123…ghij",
+    "next": [
+      "restart Claude Code, Cursor to load the MCP server and the skill",
+      "run spicrawl status, then ask your agent to scrape a page (or try: spicrawl scrape https://example.com)"
+    ]
   }
 ]

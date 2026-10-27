@@ -65,6 +65,10 @@ func agentRunBase(t *testing.T, base string, args ...string) ([]agentResult, str
 		if err := json.Unmarshal([]byte(out), &rs); err != nil {
 			t.Fatalf("stdout is not a result list: %v\n%s", err, out)
 		}
+		// init ends the list with its summary (see TestInitAllYesAPIKey); the callers count results.
+		if n := len(rs); n > 0 && rs[n-1].Kind == "report" {
+			rs = rs[:n-1]
+		}
 	}
 	return rs, errOut, code
 }

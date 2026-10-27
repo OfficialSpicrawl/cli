@@ -376,6 +376,8 @@ func TestOnePromptDocs(t *testing.T) {
 	prompt := readme[i : i+strings.Index(readme[i:], "\n")]
 	for _, want := range []string{
 		"npx -y @spicrawl/cli@latest init --all --yes --api-key <YOUR_API_KEY>",
+		`ends with an element whose "kind" is "report"`,
+		`each step in "next"`,
 		"npx -y @spicrawl/cli@latest status --json",
 		"run npx -y @spicrawl/cli@latest scrape https://news.ycombinator.com and tell me today's top story",
 		"Never repeat my API key back to me.",

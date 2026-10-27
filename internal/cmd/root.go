@@ -336,7 +336,8 @@ var failRows []ui.Row
 func failContext(rows ...ui.Row) { failRows = append(failRows, rows...) }
 
 // problemRows are the facts under an API error's headline on a terminal: the
-// same ones the plain output lists, the ERR:: code stays in the headline.
+// ones the plain output lists (the request id once, as the command that finds
+// it) and the docs link; the ERR:: code stays in the headline.
 func problemRows(prob *api.Problem) []ui.Row {
 	rows := []ui.Row{{Key: "hint", Val: output.PublicText(prob.Hint())}}
 	if prob.TargetStatus != nil {
@@ -346,7 +347,10 @@ func problemRows(prob *api.Problem) []ui.Row {
 		rows = append(rows, ui.Row{Key: "retryable", Val: "yes"})
 	}
 	if prob.RequestID != "" {
-		rows = append(rows, ui.Row{Key: "request", Val: fmt.Sprintf("%s (spicrawl logs get %s)", prob.RequestID, prob.RequestID)})
+		rows = append(rows, ui.Row{Key: "request", Val: "spicrawl logs get " + prob.RequestID})
+	}
+	if prob.DocURL != "" {
+		rows = append(rows, ui.Row{Key: "docs", Val: prob.DocURL})
 	}
 	return rows
 }

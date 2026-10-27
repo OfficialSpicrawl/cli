@@ -427,11 +427,21 @@ func agentApply(rs []*agentResult) error {
 
 // agentReport prints results (JSON list, or a table) plus secret guidance.
 // On a terminal the table gets marks and colour and a count line under it.
-func agentReport(p *output.Printer, rs []*agentResult, s agentScope) error {
+func agentReport(p *output.Printer, rs []*agentResult, s agentScope, tail ...any) error {
 	if rs == nil {
 		rs = []*agentResult{}
 	}
-	err := p.Result(rs, func(w io.Writer) {
+	// In JSON mode, tail goes after the results in the same array; the
+	// results themselves are untouched, so consumers that filter by kind work.
+	var v any = rs
+	if len(tail) > 0 {
+		all := make([]any, 0, len(rs)+len(tail))
+		for _, r := range rs {
+			all = append(all, r)
+		}
+		v = append(all, tail...)
+	}
+	err := p.Result(v, func(w io.Writer) {
 		u := outUI(p)
 		rows := make([][]string, 0, len(rs))
 		for _, r := range rs {
@@ -444,13 +454,13 @@ func agentReport(p *output.Printer, rs []*agentResult, s agentScope) error {
 			}
 			action := r.Action
 			if u.On() {
-				action = agentActionMark[r.Action] + " " + action
+				action = agentMark(u, r.Action) + " " + action
 			}
 			rows = append(rows, []string{r.Client, r.Kind, action, agentDisplayPath(r.File, s), note})
 		}
 		viewTable(p, u, []string{"CLIENT", "KIND", "ACTION", "FILE", "NOTE"}, rows, func(col int, cell string) string {
 			switch {
-			case col == 2 && strings.HasPrefix(cell, "✓"):
+			case col == 2 && strings.HasPrefix(cell, u.Glyphs().OK):
 				return u.Green(cell)
 			case col == 2 || col == 4:
 				return u.Dim(cell)
@@ -465,12 +475,16 @@ func agentReport(p *output.Printer, rs []*agentResult, s agentScope) error {
 	return err
 }
 
-// agentActionMark is the mark in front of an action on a terminal.
-var agentActionMark = map[string]string{
-	agentActionCreated:  "✓",
-	agentActionUpdated:  "✓",
-	agentActionUnchange: "=",
-	agentActionSkipped:  "–",
+// agentMark is the mark in front of an action on a terminal, in u's glyphs.
+func agentMark(u *ui.UI, action string) string {
+	g := u.Glyphs()
+	switch action {
+	case agentActionCreated, agentActionUpdated:
+		return g.OK
+	case agentActionUnchange:
+		return "="
+	}
+	return g.Neutral
 }
 
 // agentSummary is the line under the table: what was written, kept, skipped.
@@ -495,7 +509,7 @@ func agentSummary(w io.Writer, u *ui.UI, rs []*agentResult) {
 	if n[agentActionCreated]+n[agentActionUpdated]+n[agentActionUnchange] == 0 {
 		m = markNeutral
 	}
-	fmt.Fprintf(w, "\n%s %s\n", viewMark(u, m), strings.Join(parts, " · "))
+	fmt.Fprintf(w, "\n%s %s\n", viewMark(u, m), strings.Join(parts, " "+u.Glyphs().Dot+" "))
 }
 
 // agentChanged is the names of the clients whose file was just written.

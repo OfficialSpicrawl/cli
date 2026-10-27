@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -85,6 +86,25 @@ func TestInitAllYesAPIKey(t *testing.T) {
 	if len(got) != 2 || got["claude"] != agentActionCreated || got["cursor"] != agentActionCreated {
 		t.Errorf("mcp results %v", got)
 	}
+	// The list ends with the summary a person gets on stderr, for an agent that
+	// reads only stdout; no other element is a report, and the key is masked.
+	var raw []json.RawMessage
+	_ = json.Unmarshal([]byte(out), &raw)
+	var rep initReport
+	if len(raw) == 0 || json.Unmarshal(raw[len(raw)-1], &rep) != nil || rep.Kind != "report" {
+		t.Fatalf("the last element is not the report:\n%s", out)
+	}
+	for _, r := range rs[:len(rs)-1] {
+		if r.Kind == "report" {
+			t.Errorf("report in the middle of the list: %+v", r)
+		}
+	}
+	if !slices.Equal(rep.Connected, []string{"claude", "cursor"}) ||
+		!slices.Equal(rep.Skipped, []initSkipped{{"vscode", "not detected"}, {"codex", "not detected"}}) ||
+		rep.APIKey != config.MaskKey(onboardKey) ||
+		!slices.Contains(rep.Next, "restart Claude Code, Cursor to load the MCP server and the skill") {
+		t.Errorf("report: %+v", rep)
+	}
 	// A key given with --api-key goes into the user-level configs as is, and
 	// nothing is written to the project.
 	for _, f := range []string{".claude.json", ".cursor/mcp.json"} {
@@ -112,7 +132,7 @@ func TestInitAllYesAPIKey(t *testing.T) {
 	if savedKey(t) != onboardKey {
 		t.Errorf("key not saved to the config file")
 	}
-	// JSON mode: stderr is empty, whatever happened (DESIGN.md); the report is for a person.
+	// JSON mode: stderr is empty, whatever happened (DESIGN.md); the report is the last element of stdout.
 	if errb != "" {
 		t.Errorf("JSON mode wrote to stderr:\n%s", errb)
 	}
@@ -210,6 +230,10 @@ func TestInitAPIKeyProjectFilesAreGitignored(t *testing.T) {
 	}
 	var rs []agentResult
 	_ = json.Unmarshal([]byte(out), &rs)
+	if n := len(rs); n < 2 || rs[n-1].Kind != "report" {
+		t.Fatalf("the list does not end with the report: %+v", rs)
+	}
+	rs = rs[:len(rs)-1]
 	if last := rs[len(rs)-1]; last.Kind != "gitignore" || last.Action != agentActionUpdated || last.Client != "" {
 		t.Errorf("last result %+v", last)
 	}

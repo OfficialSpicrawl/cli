@@ -490,7 +490,7 @@ func statusPrintRepairs(w io.Writer, u *ui.UI, rs []statusRepair) {
 		fmt.Fprintf(w, "\n%s\n", u.Bold("repairs"))
 		for _, r := range rs {
 			fmt.Fprintf(w, "  %s %s  %s\n", viewMark(u, markBad), viewKey(u, 9, r.Check), u.Cyan(r.Command))
-			fmt.Fprintf(w, "    %s\n", u.Dim(fmt.Sprintf("unattended_safe: %t · %s", r.UnattendedSafe, r.Why)))
+			fmt.Fprintf(w, "    %s\n", u.Dim(fmt.Sprintf("unattended_safe: %t %s %s", r.UnattendedSafe, u.Glyphs().Dot, r.Why)))
 		}
 		return
 	}
@@ -552,7 +552,7 @@ func statusPrintLive(w io.Writer, u *ui.UI, rep *statusReport) {
 	fmt.Fprintf(w, "%s  %s\n\n", u.Bold("Spicrawl API"), rep.BaseURL)
 	check(pick(rep.APIReachable), "reachable", statusYN(rep.APIReachable))
 	if !rep.APIReachable {
-		fmt.Fprintf(w, "\n%s %s\n", u.Red("✗"), "the API could not be reached")
+		fmt.Fprintf(w, "\n%s %s\n", viewMark(u, markBad), "the API could not be reached")
 		statusPrintRepairs(w, u, rep.Repairs)
 		return
 	}
@@ -602,9 +602,9 @@ func statusPrintLive(w io.Writer, u *ui.UI, rep *statusReport) {
 	}
 
 	if failed == 0 {
-		fmt.Fprintf(w, "\n%s all checks passed\n", u.Green("✓"))
+		fmt.Fprintf(w, "\n%s all checks passed\n", viewMark(u, markOK))
 	} else {
-		fmt.Fprintf(w, "\n%s %d %s failed\n", u.Red("✗"), failed, map[bool]string{true: "check", false: "checks"}[failed == 1])
+		fmt.Fprintf(w, "\n%s %d %s failed\n", viewMark(u, markBad), failed, map[bool]string{true: "check", false: "checks"}[failed == 1])
 	}
 	statusPrintRepairs(w, u, rep.Repairs)
 }

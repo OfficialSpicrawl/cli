@@ -51,7 +51,7 @@ func batchWaitJob(ctx context.Context, c *api.Client, p *output.Printer, id stri
 	if timeout > 0 {
 		deadline = time.Now().Add(timeout)
 	}
-	prog := batchNewProgress(p)
+	prog := batchNewProgress(p, id)
 	defer prog.done()
 
 	var last []byte
@@ -111,10 +111,11 @@ func batchWaitJob(ctx context.Context, c *api.Client, p *output.Printer, id stri
 }
 
 // batchProgress renders the wait progress on stderr. On a live terminal (see
-// ui.Live) it is a spinner, "Batch job 3/10 done · 12.1s". Otherwise, in human
-// mode, a TTY line is rewritten in place with \r and a non-TTY gets a new line
-// only when the counters change, so logs stay readable. --json and --quiet
-// print nothing.
+// ui.Live) it is a spinner labelled with the job id and a bar with the count,
+// the elapsed time and an ETA (ui.Spinner.Progress). Otherwise, in human mode,
+// a TTY line is rewritten in place with \r and a non-TTY gets a new line only
+// when the counters change, so logs stay readable. --json and --quiet print
+// nothing.
 type batchProgress struct {
 	p       *output.Printer
 	spin    *ui.Spinner
@@ -124,27 +125,13 @@ type batchProgress struct {
 	dirty   bool
 }
 
-func batchNewProgress(p *output.Printer) *batchProgress {
-	return &batchProgress{p: p, spin: p.UI().Spin("Batch job starting"), enabled: !p.JSON && !p.Quiet, tty: batchIsTerminal(p.Err)}
-}
-
-// batchSpinLabel is "Batch job 3/10 done (1 failed)", or just the status
-// before the job has any items counted.
-func batchSpinLabel(j batchJob) string {
-	pr := j.Progress
-	if pr.Total == 0 {
-		return "Batch job " + j.Status
-	}
-	l := fmt.Sprintf("Batch job %d/%d done", pr.Completed, pr.Total)
-	if pr.Failed > 0 {
-		l += fmt.Sprintf(" (%d failed)", pr.Failed)
-	}
-	return l
+func batchNewProgress(p *output.Printer, id string) *batchProgress {
+	return &batchProgress{p: p, spin: p.UI().Spin("%s", id), enabled: !p.JSON && !p.Quiet, tty: batchIsTerminal(p.Err)}
 }
 
 func (b *batchProgress) update(j batchJob) {
 	if b.spin != nil {
-		b.spin.Label("%s", batchSpinLabel(j))
+		b.spin.Progress(int(j.Progress.Completed), int(j.Progress.Total))
 		return
 	}
 	if !b.enabled {

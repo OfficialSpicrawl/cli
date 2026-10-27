@@ -21,7 +21,9 @@ never invent a field the API does not accept (the API rejects unknown fields).
    bytes", "more results: --cursor", deprecation notices) write nothing there,
    so `cmd --json 2>err.json; jq . err.json` always parses. The API's
    `warnings` field is still in the JSON on stdout. A command that must tell an
-   agent something puts it in its JSON result, not on stderr.
+   agent something puts it in its JSON result, not on stderr: `init` ends its
+   result array with a `{"kind": "report", connected, skipped, api_key (masked),
+   next}` element, the summary a person reads on stderr.
    `internal/cmd/json_stderr_test.go` runs every golden case against this.
    An empty result is not data either: in human mode an empty list
    (`sessions list`, `logs`, `batch list`, `batch results`) prints nothing on
@@ -195,7 +197,8 @@ spicrawl init [--client claude|cursor|codex|vscode|all | --all] [--yes] [--api-k
                                                 detect agent tooling, write MCP config + skill;
                                                 --api-key is checked and saved like login, never printed, and written
                                                 into the user-level client configs (--use-env=true / --global=false change that);
-                                                a key already saved in the config file is written the same way
+                                                a key already saved in the config file is written the same way;
+                                                JSON: the result array ends with a {"kind":"report"} summary (connected, skipped, api_key, next)
 spicrawl mcp install [--client ...] [--print]      add the hosted MCP server to a client config
 spicrawl skill install [--client ...] [--print]    write the Spicrawl agent skill (SKILL.md)
 spicrawl docs [topic] [--list]                     print raw Markdown (from docs.spicrawl.com); JSON only with --json
