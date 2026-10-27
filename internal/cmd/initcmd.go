@@ -71,7 +71,9 @@ way, without a new check. The key is never printed, only masked
 A key that is only in $SPICRAWL_API_KEY is used as before (referenced by the
 client configs) and is neither checked nor saved here. A short report follows on stderr: connected and
 skipped clients, the key, and the next step. The results stay on stdout, as
-JSON when it is not a terminal.`,
+JSON when it is not a terminal; there stderr stays empty and the same report is
+the last element of the array: {"kind":"report","connected":[...],
+"skipped":[{"client","reason"}],"api_key":"<masked>","next":[...]}.`,
 	Example: `  spicrawl init
   spicrawl init --client claude,cursor --yes
   spicrawl init --client all --global --yes
@@ -214,7 +216,7 @@ func runInit(cmd *cobra.Command, _ []string) error {
 				}
 			}
 			p.Info("nothing written")
-			return agentReport(p, rs, s)
+			return agentReport(p, rs, s, initBuildReport(rs, key))
 		}
 	}
 
@@ -226,20 +228,37 @@ func runInit(cmd *cobra.Command, _ []string) error {
 			return err
 		}
 	}
-	if err := agentReport(p, rs, s); err != nil {
+	rep := initBuildReport(rs, key)
+	if err := agentReport(p, rs, s, rep); err != nil {
 		return err
 	}
 	mcpEnvHint(p, rs)
-	initPrintReport(p, rs, keyLine, key == "")
+	initPrintReport(p, rs, rep, keyLine)
 	return nil
 }
 
-// initPrintReport is the short report after a run: the clients connected and
-// skipped (with why), the key (masked) and the next step. It goes to stderr,
-// as plain "name: value" lines unless a terminal gets the live view; stdout
-// stays the result list. noKey: no API key is configured anywhere.
-func initPrintReport(p *output.Printer, rs []*agentResult, keyLine string, noKey bool) {
-	var connected, skipped []string
+// initReport is what a run came to: the clients connected and skipped (with
+// why), the key (masked) and the next steps. It is the last element of the
+// result array in JSON mode, so an agent that reads only stdout sees it (the
+// human report goes to stderr, which is silent there). Every other element is
+// an agentResult (kind mcp, skill, agents_md or gitignore) and is unchanged.
+type initReport struct {
+	Kind      string        `json:"kind"`      // always "report"
+	Connected []string      `json:"connected"` // client ids
+	Skipped   []initSkipped `json:"skipped"`
+	APIKey    string        `json:"api_key"` // masked; "" when none is configured
+	Next      []string      `json:"next"`
+}
+
+type initSkipped struct {
+	Client string `json:"client"`
+	Reason string `json:"reason"`
+}
+
+// initBuildReport summarises rs. key is the API key in use, if any; only its
+// masked form is kept.
+func initBuildReport(rs []*agentResult, key string) initReport {
+	rep := initReport{Kind: "report", Connected: []string{}, Skipped: []initSkipped{}, APIKey: config.MaskKey(key)}
 	for _, c := range agentClients {
 		var mcp *agentResult
 		for _, r := range rs {
@@ -249,14 +268,41 @@ func initPrintReport(p *output.Printer, rs []*agentResult, keyLine string, noKey
 		}
 		switch {
 		case mcp == nil && initFlags.client == "":
-			skipped = append(skipped, c.Name+" (not detected)")
+			rep.Skipped = append(rep.Skipped, initSkipped{c.ID, "not detected"})
 		case mcp == nil:
-			skipped = append(skipped, c.Name+" (not selected)")
+			rep.Skipped = append(rep.Skipped, initSkipped{c.ID, "not selected"})
 		case mcp.Action == agentActionSkipped:
-			skipped = append(skipped, c.Name+" ("+mcp.Reason+")")
+			rep.Skipped = append(rep.Skipped, initSkipped{c.ID, mcp.Reason})
 		default:
-			connected = append(connected, c.Name)
+			rep.Connected = append(rep.Connected, c.ID)
 		}
+	}
+
+	cli := cliInvocation()
+	if key == "" {
+		rep.Next = append(rep.Next, cli+" login --api-key <YOUR_API_KEY> (no API key is configured)")
+	}
+	if env := mcpEnvClients(rs); len(env) > 0 {
+		rep.Next = append(rep.Next, "export "+config.EnvAPIKey+"=<YOUR_API_KEY> in the shell or profile that starts "+strings.Join(env, ", ")+": their MCP config reads the key from it")
+	}
+	if names := agentChanged(rs); len(names) > 0 {
+		rep.Next = append(rep.Next, "restart "+strings.Join(names, ", ")+" to load the MCP server and the skill")
+	}
+	rep.Next = append(rep.Next, "run "+cli+" status, then ask your agent to scrape a page (or try: "+cli+" scrape https://example.com)")
+	return rep
+}
+
+// initPrintReport is the short report after a run: the clients connected and
+// skipped (with why), the key and the next steps. It goes to stderr, as plain
+// "name: value" lines unless a terminal gets the live view; stdout stays the
+// result list. keyLine says where the key came from and whether it was saved.
+func initPrintReport(p *output.Printer, rs []*agentResult, rep initReport, keyLine string) {
+	var connected, skipped []string
+	for _, id := range rep.Connected {
+		connected = append(connected, agentClientByID(id).Name)
+	}
+	for _, sk := range rep.Skipped {
+		skipped = append(skipped, agentClientByID(sk.Client).Name+" ("+sk.Reason+")")
 	}
 	list := func(l []string) string {
 		if len(l) == 0 {
@@ -274,24 +320,11 @@ func initPrintReport(p *output.Printer, rs []*agentResult, keyLine string, noKey
 		p.Info("api key: %s", keyLine)
 	}
 
-	cli := cliInvocation()
-	var steps []string
-	if noKey {
-		steps = append(steps, cli+" login --api-key <YOUR_API_KEY> (no API key is configured)")
-	}
-	if env := mcpEnvClients(rs); len(env) > 0 {
-		steps = append(steps, "export "+config.EnvAPIKey+"=<YOUR_API_KEY> in the shell or profile that starts "+strings.Join(env, ", ")+": their MCP config reads the key from it")
-	}
-	names := agentChanged(rs)
-	if len(names) > 0 {
-		steps = append(steps, "restart "+strings.Join(names, ", ")+" to load the MCP server and the skill")
-	}
-	steps = append(steps, "run "+cli+" status, then ask your agent to scrape a page (or try: "+cli+" scrape https://example.com)")
-	if len(names) > 0 || noKey { // on a terminal, an unchanged re-run needs no list
-		viewNext(p, steps...)
+	if len(agentChanged(rs)) > 0 || rep.APIKey == "" { // on a terminal, an unchanged re-run needs no list
+		viewNext(p, rep.Next...)
 	}
 	if !errUI(p).On() {
-		for _, st := range steps {
+		for _, st := range rep.Next {
 			p.Info("next: %s", st)
 		}
 	}

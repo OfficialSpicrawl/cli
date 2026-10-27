@@ -162,7 +162,7 @@ Status is one of: success, failed, timeout, blocked, rejected, cancelled.
 				all = append(all, page.Data...)
 			}
 			read += len(page.Data)
-			sp.Label("Fetching the request log · %d so far", read)
+			sp.Label("Fetching the request log %s %d so far", errUI(p).Glyphs().Dot, read)
 			last = page
 			if !logsAll || !page.Page.HasMore || page.Page.NextBefore == "" || page.Page.NextBeforeID == "" {
 				break

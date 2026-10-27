@@ -170,7 +170,7 @@ func TestLiveErrorKeepsCodeAndHint(t *testing.T) {
 	srv, _ := newRecordingServer(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/problem+json")
 		w.WriteHeader(http.StatusForbidden)
-		fmt.Fprint(w, `{"title":"blocked","status":403,"code":"ERR::TARGET::BLOCKED","detail":"the site refused the request","retryable":true,"request_id":"01REQ","target_status":403,"diagnostics":{"hint":"try --render"}}`)
+		fmt.Fprint(w, `{"title":"blocked","status":403,"code":"ERR::TARGET::BLOCKED","detail":"the site refused the request","retryable":true,"request_id":"01REQ","doc_url":"https://docs.spicrawl.com/errors/target-blocked","target_status":403,"diagnostics":{"hint":"try --render"}}`)
 	})
 	args := []string{"scrape", "https://example.com/x"}
 	_, plainErr, pc := runHuman(t, srv.URL, false, args...)
@@ -187,10 +187,13 @@ func TestLiveErrorKeepsCodeAndHint(t *testing.T) {
 		t.Errorf("plain error has escape codes: %q", plainErr)
 	}
 	flat := ansi.ReplaceAllString(liveErr, "")
-	for _, want := range []string{"✗ ERR::TARGET::BLOCKED: the site refused the request", "try --render", "01REQ", "https://example.com/x", "after"} {
+	for _, want := range []string{"✗ ERR::TARGET::BLOCKED: the site refused the request", "try --render", "spicrawl logs get 01REQ", "docs", "https://docs.spicrawl.com/errors/target-blocked", "https://example.com/x", "after"} {
 		if !strings.Contains(flat, want) {
 			t.Errorf("live error lacks %q: %q", want, flat)
 		}
+	}
+	if n := strings.Count(flat, "01REQ"); n != 1 {
+		t.Errorf("request id printed %d times, want once: %q", n, flat)
 	}
 }
 
@@ -223,7 +226,7 @@ func TestLiveBatchWaitShowsProgress(t *testing.T) {
 		t.Errorf("stdout changed:\nlive  %q\nplain %q", liveOut, plainOut)
 	}
 	flat := ansi.ReplaceAllString(liveErr, "")
-	for _, want := range []string{"Batch job 1/4 done", "✓ batch J9  completed · 4/4 items"} {
+	for _, want := range []string{"J9", "━", "1/4", "✓ batch J9  completed · 4/4 items"} {
 		if !strings.Contains(flat, want) {
 			t.Errorf("live stderr lacks %q: %q", want, flat)
 		}

@@ -34,5 +34,27 @@
     "file": "<DIR>/.gitignore",
     "action": "updated",
     "reason": "keeps .mcp.json, .mcp.json.bak, .cursor/mcp.json, .cursor/mcp.json.bak (holds the API key) out of git"
+  },
+  {
+    "kind": "report",
+    "connected": [
+      "claude",
+      "cursor"
+    ],
+    "skipped": [
+      {
+        "client": "vscode",
+        "reason": "not detected"
+      },
+      {
+        "client": "codex",
+        "reason": "not detected"
+      }
+    ],
+    "api_key": "spicrawl_live_GOLD…9xyz",
+    "next": [
+      "restart Claude Code, Cursor to load the MCP server and the skill",
+      "run spicrawl status, then ask your agent to scrape a page (or try: spicrawl scrape https://example.com)"
+    ]
   }
 ]

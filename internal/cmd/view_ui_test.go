@@ -66,6 +66,23 @@ func TestViewMarksDegradeToASCII(t *testing.T) {
 	}
 }
 
+func TestAgentMarksDegradeToASCII(t *testing.T) {
+	unicode, ascii := ui.Force(&bytes.Buffer{}), ui.ForceCaps(&bytes.Buffer{}, ui.Caps{})
+	for action, want := range map[string][2]string{
+		agentActionCreated:  {"✓", "+"},
+		agentActionUpdated:  {"✓", "+"},
+		agentActionUnchange: {"=", "="},
+		agentActionSkipped:  {"–", "-"},
+	} {
+		if got := agentMark(unicode, action); got != want[0] {
+			t.Errorf("%s mark = %q, want %q", action, got, want[0])
+		}
+		if got := agentMark(ascii, action); got != want[1] {
+			t.Errorf("ASCII %s mark = %q, want %q", action, got, want[1])
+		}
+	}
+}
+
 func TestViewTableAlignsWideCharacters(t *testing.T) {
 	headers := []string{"NAME", "NOTE"}
 	rows := [][]string{{"日本語", "x"}, {"abcdef", "y"}}

@@ -125,7 +125,7 @@ func authRunLogin(cmd *cobra.Command, _ []string) error {
 	res := map[string]any{"saved": r.Path, "key": config.MaskKey(key), "base_url": r.BaseURL}
 	err = p.Result(res, func(w io.Writer) {
 		if u := outUI(p); u.On() {
-			fmt.Fprintf(w, "%s Logged in\n", u.Green("✓"))
+			fmt.Fprintf(w, "%s Logged in\n", viewMark(u, markOK))
 			fmt.Fprint(w, viewRows(u, "  ", []ui.Row{
 				{Key: "key", Val: config.MaskKey(key)},
 				{Key: "base url", Val: r.BaseURL},
@@ -196,7 +196,7 @@ func authPromptKey() (string, error) {
 	if authPromptW == nil {
 		u = errUI(Printer())
 	}
-	fmt.Fprintf(w, "Create an API key at %s\n", u.Cyan(authKeysURL))
+	fmt.Fprintf(w, "Create an API key at %s\n", u.Link(authKeysURL, ""))
 	fmt.Fprintln(w, "warning: the key will be visible as you type or paste it")
 	fmt.Fprint(w, u.Bold("API key: "))
 	line, err := bufio.NewReader(authStdin).ReadString('\n')
@@ -320,12 +320,12 @@ func authRunStatus(cmd *cobra.Command, _ []string) error {
 // the facts the plain table lists.
 func authPrintLive(w io.Writer, u *ui.UI, r config.Resolved, key, valid string) {
 	verdict := map[string]string{
-		"yes":         u.Green("✓") + " " + u.Bold("The API accepts your key"),
-		"no":          u.Red("✗") + " " + u.Bold("The API rejected your key"),
+		"yes":         viewMark(u, markOK) + " " + u.Bold("The API accepts your key"),
+		"no":          viewMark(u, markBad) + " " + u.Bold("The API rejected your key"),
 		"not checked": viewMark(u, markNeutral) + " " + u.Bold("Key not checked"),
 	}[valid]
 	if r.APIKey == "" {
-		verdict = u.Red("✗") + " " + u.Bold("No API key is configured")
+		verdict = viewMark(u, markBad) + " " + u.Bold("No API key is configured")
 	}
 	fmt.Fprintln(w, verdict)
 	fmt.Fprint(w, viewRows(u, "  ", []ui.Row{
