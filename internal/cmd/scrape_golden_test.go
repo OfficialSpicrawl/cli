@@ -107,6 +107,8 @@ func init() {
 		goldenCase{name: "scrape_human/markdown_meta", human: true, args: []string{"scrape", u, "--format", "markdown", "--meta"}, server: gScrape(md)},
 		goldenCase{name: "scrape_human/text_no_trailing_newline", human: true, args: []string{"scrape", u, "--format", "text"}, server: gScrape(gScrapeRaw("text/plain", "Example Domain", 200))},
 		goldenCase{name: "scrape_human/extract_data", human: true, args: []string{"scrape", u, "--extract", `{"title":"h1"}`}, server: gScrape(gScrapeEnv(`,"data":{"title":"Anvil","price":"$19.99 & free shipping"}`))},
+		goldenCase{name: "scrape_human/extract_data_nested", human: true, args: []string{"scrape", u, "--extract", `{"title":"h1"}`},
+			server: gScrape(gScrapeEnv(`,"data":{"title":"Anvil","sku":"A-1","specs":{"weight":"50kg","color":"black","dims":{"w":1.0,"h":2e3}},"tags":["z","a"],"price":19.99,"empty":{},"none":null}`))},
 		goldenCase{name: "scrape_human/links", human: true, args: []string{"scrape", u, "--links", "--format", "markdown"}, server: gScrape(gScrapeEnv(`,"links":["https://example.com/a","https://example.com/b?x=1&y=2"]`))},
 		goldenCase{name: "scrape_human/network", human: true, args: []string{"scrape", u, "--render", "--network-capture", `{}`},
 			server: gScrape(gScrapeEnv(`,"network":[{"url":"https://example.com/api/price","status":200,"resource_type":"xhr","content_type":"application/json"},{"url":"https://example.com/x.png","resource_type":"image"}]`))},

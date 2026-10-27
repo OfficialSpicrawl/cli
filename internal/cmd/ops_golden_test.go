@@ -120,7 +120,7 @@ func init() {
 		goldenCase{name: "logs_human/list", human: true, args: []string{"logs"}, server: logs(both)},
 		goldenCase{name: "logs_human/all_projects", human: true, args: []string{"logs", "--all-projects", "--errors"}, server: logs(both)},
 		goldenCase{name: "logs_human/has_more", human: true, args: []string{"logs"}, server: logs(`{"data":[` + gLogOK + `],` + gLogPageMore + `}`)},
-		goldenCase{name: "logs_human/empty", human: true, args: []string{"logs"}, server: logs(`{"data":[],` + gLogPageEnd + `}`)},
+		goldenCase{name: "logs_human/empty", human: true, stderr: true, args: []string{"logs"}, server: logs(`{"data":[],` + gLogPageEnd + `}`)},
 		goldenCase{name: "logs_human/get_full", human: true, args: []string{"logs", "get", "x"}, server: logGet(gLogOK)},
 		goldenCase{name: "logs_human/get_blocked", human: true, args: []string{"logs", "get", "x"}, server: logGet(gLogBlocked)},
 
