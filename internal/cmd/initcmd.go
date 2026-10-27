@@ -58,9 +58,11 @@ Without a terminal on stdin, --yes is required. See "spicrawl mcp install
 
 Unattended, in one command: "spicrawl init --all --yes --api-key <key>". --all
 connects every detected client (and conflicts with --client); --yes skips the
-confirmation. --api-key is checked with the API and saved to the config file as
-"spicrawl login" does, before any client file is written; a rejected key writes
-nothing. The key is then written into each client's MCP config as is, in your
+confirmation. --api-key is checked with the API first (a rejected key writes
+nothing), then the plan is made and confirmed, the client files are written, and
+the key is saved to the config file, as "spicrawl login" does, after those
+changes are applied; a refused or declined plan saves nothing. The key is
+written into each client's MCP config as is, in your
 user-level files (~/.claude.json, ~/.cursor/mcp.json, ...) so the agents work
 with nothing exported: --global is implied, and --global=false picks the
 project files, which are added to .gitignore when the project has one.

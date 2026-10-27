@@ -27,9 +27,9 @@ never invent a field the API does not accept (the API rejects unknown fields).
    `internal/cmd/json_stderr_test.go` runs every golden case against this.
    An empty result is not data either: in human mode an empty list
    (`sessions list`, `logs`, `batch list`, `batch results`) prints nothing on
-   stdout and its one-line message ("no sessions") on stderr, so
-   `spicrawl sessions list | wc -l` is 0 and `-q` silences the message. JSON
-   mode prints the empty collection on stdout.
+   stdout and its one-line message ("no sessions") on stderr, and `-q`
+   silences the message. JSON mode, which is what a pipe gets, prints the
+   empty collection on stdout, so `spicrawl sessions list | wc -l` is not 0.
    The same gate (plus `CLICOLOR=0`) covers the grouped, coloured `--help`,
    which is written to stdout and so tests stdout; piped, the help is cobra's own.
    Inside the gate the UI adapts to what the terminal can do (`ui.Caps`): colour
