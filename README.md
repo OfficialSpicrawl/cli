@@ -205,7 +205,9 @@ The key is passed as an argument, so other users on the machine can see it in th
 
 When stderr is a terminal, a wait longer than about 300 ms shows a spinner with what the CLI is doing and how long it has taken (`⠹ Scraping example.com/pricing (rendering JavaScript) · 4.2s`, `⠸ Batch job 3/10 done · 12.1s`). It is cleared before the result prints, and `scrape`, `scrape -` and `batch wait` end with a `✓` or `✗` line on stderr: page, target status, credits charged, duration. API errors keep their `ERR::` code and hint in a short block.
 
-All of it is on stderr and stdout is byte-for-byte unchanged. It switches itself off, and the CLI prints exactly what it printed before, when stderr is not a terminal (a pipe, a file, an agent or CI log), with `--json` or `-q/--quiet`, with `NO_COLOR` set, with `TERM=dumb`, or when `CI` is set.
+On a terminal `spicrawl --help` lists the commands grouped by purpose, with examples and the docs link; piped, the help is the plain text it always was. Colour follows your terminal: your theme's own palette by default, richer where the terminal advertises it, ASCII symbols outside a UTF-8 locale.
+
+All of it is on stderr and stdout is byte-for-byte unchanged. It switches itself off, and the CLI prints exactly what it printed before, when stderr is not a terminal (a pipe, a file, an agent or CI log), with `--json` or `-q/--quiet`, with `NO_COLOR` set (or `CLICOLOR=0`), with `TERM=dumb`, or when `CI` is set.
 
 ### How to convert a web page to Markdown from the command line
 

@@ -28,6 +28,14 @@ never invent a field the API does not accept (the API rejects unknown fields).
    stdout and its one-line message ("no sessions") on stderr, so
    `spicrawl sessions list | wc -l` is 0 and `-q` silences the message. JSON
    mode prints the empty collection on stdout.
+   The same gate (plus `CLICOLOR=0`) covers the grouped, coloured `--help`,
+   which is written to stdout and so tests stdout; piped, the help is cobra's own.
+   Inside the gate the UI adapts to what the terminal can do (`ui.Caps`): colour
+   is a semantic role (accent, success, warn, danger, muted) resolved to the
+   16-colour palette, the 256-colour cube or 24-bit colour; glyphs fall back to
+   ASCII outside a UTF-8 locale; hyperlinks are OSC 8 only on terminals known to
+   have them. Commands never write escape codes themselves, they go through
+   `ui.UI` (or `internal/cmd/view.go`), so a new surface gets all of that.
 2. **JSON when not a terminal.** `--json` forces it. Human mode prints tables
    or the document itself.
 3. **Never prompts without a TTY.** Anything interactive has a flag form.
@@ -116,7 +124,7 @@ internal/api        HTTP client, Problem, DoWithRetry
 internal/config     key/base resolution, config file
 internal/exitcode   exit codes
 internal/output     Printer (JSON/human/JSONL, stderr info and warnings in human mode only)
-internal/ui         stderr spinner, summary line, error block, colour (off unless a terminal)
+internal/ui         terminal output: spinner and progress bar, summary line, error block, colour roles, glyphs, width-aware text, capability detection (off unless a terminal)
 internal/cmd        one file per command group; each registers in init()
 ```
 

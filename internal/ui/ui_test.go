@@ -56,6 +56,8 @@ func TestLiveGating(t *testing.T) {
 		{"not a terminal", os.Stderr, env(), "linux", notTTY, false},
 		{"buffer is never live", &bytes.Buffer{}, env(), "linux", tty, false},
 		{"NO_COLOR", os.Stderr, env("NO_COLOR", "1"), "linux", tty, false},
+		{"CLICOLOR=0", os.Stderr, env("CLICOLOR", "0"), "linux", tty, false},
+		{"CLICOLOR=1", os.Stderr, env("CLICOLOR", "1"), "linux", tty, true},
 		{"empty NO_COLOR is ignored", os.Stderr, env("NO_COLOR", ""), "linux", tty, true},
 		{"TERM=dumb", os.Stderr, env("TERM", "dumb"), "linux", tty, false},
 		{"TERM=xterm-256color", os.Stderr, env("TERM", "xterm-256color"), "linux", tty, true},
@@ -193,8 +195,8 @@ func TestDoneAndFail(t *testing.T) {
 	for _, want := range []string{
 		"\x1b[32m✓\x1b[0m https://example.com  \x1b[2m200 · 1 credit · 4.2s\x1b[0m\n",
 		"\x1b[31m✗\x1b[0m https://example.com  \x1b[2m503\x1b[0m\n",
-		"\x1b[31m✗\x1b[0m \x1b[1mERR::TARGET::BLOCKED: refused\x1b[0m\n",
-		"  \x1b[2mhint   \x1b[0m  use --render\n",
+		"\x1b[31m✗\x1b[0m \x1b[2mERR::TARGET::BLOCKED:\x1b[0m \x1b[1mrefused\x1b[0m\n",
+		"  \x1b[36mhint   \x1b[0m  use --render\n",
 		"  \x1b[2mrequest\x1b[0m  01J9\n",
 	} {
 		if !strings.Contains(out, want) {
@@ -217,10 +219,18 @@ func TestElapsedAndTruncate(t *testing.T) {
 			t.Errorf("Elapsed(%s) = %q, want %q", d, got, want)
 		}
 	}
-	if got := truncate("https://example.com/a/very/long/path", 12); got != "https://exa…" {
-		t.Errorf("truncate = %q", got)
+	if got := Truncate("https://example.com/a/very/long/path", 12, "…"); got != "https://exa…" {
+		t.Errorf("Truncate = %q", got)
 	}
-	if got := truncate("short", 12); got != "short" {
-		t.Errorf("truncate = %q", got)
+	if got := Truncate("short", 12, "…"); got != "short" {
+		t.Errorf("Truncate = %q", got)
+	}
+	for d, want := range map[time.Duration]string{
+		3900 * time.Second: "1h05m",
+		22 * time.Second:   "22s",
+	} {
+		if got := Span(d); got != want {
+			t.Errorf("Span(%s) = %q, want %q", d, got, want)
+		}
 	}
 }
