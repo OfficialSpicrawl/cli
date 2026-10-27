@@ -7,8 +7,8 @@ import (
 )
 
 // An empty list in human mode is not data (DESIGN.md: stdout is data only):
-// stdout stays empty, so `cmd | wc -l` is 0, and the message goes to stderr.
-// JSON mode is unchanged: it prints the empty collection.
+// stdout stays empty and the message goes to stderr. JSON mode (what a pipe
+// gets) is unchanged: it prints the empty collection.
 func TestHumanEmptyResultsAreStderrOnly(t *testing.T) {
 	cases := []struct {
 		name string
