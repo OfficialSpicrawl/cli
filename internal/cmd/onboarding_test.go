@@ -59,8 +59,11 @@ func savedKey(t *testing.T) string {
 }
 
 func TestInitAllYesAPIKey(t *testing.T) {
+	testKey = "" // $SPICRAWL_API_KEY is not exported in this shell
+	t.Cleanup(func() { testKey = "spicrawl_test_key" })
 	base := onboardAPI(t)
 	dir := onboardProject(t)
+	home := os.Getenv("HOME")
 	out, errb, code := runCLI(t, base, "init", "--all", "--yes", "--api-key", onboardKey, "--dir", dir)
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, errb)
@@ -79,9 +82,27 @@ func TestInitAllYesAPIKey(t *testing.T) {
 	if len(got) != 2 || got["claude"] != agentActionCreated || got["cursor"] != agentActionCreated {
 		t.Errorf("mcp results %v", got)
 	}
-	for _, f := range []string{".mcp.json", ".cursor/mcp.json", ".claude/skills/spicrawl/SKILL.md"} {
-		if _, err := os.Stat(filepath.Join(dir, f)); err != nil {
-			t.Errorf("not written: %v", err)
+	// A key given with --api-key goes into the user-level configs as is, and
+	// nothing is written to the project.
+	for _, f := range []string{".claude.json", ".cursor/mcp.json"} {
+		path := filepath.Join(home, f)
+		b, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("not written: %v", err)
+		}
+		if !strings.Contains(string(b), `"Bearer `+onboardKey+`"`) {
+			t.Errorf("%s lacks the key:\n%s", f, b)
+		}
+		if fi, _ := os.Stat(path); fi.Mode().Perm() != 0o600 {
+			t.Errorf("%s mode %v, want 0600", f, fi.Mode().Perm())
+		}
+	}
+	if _, err := os.Stat(filepath.Join(home, ".claude", "skills", "spicrawl", "SKILL.md")); err != nil {
+		t.Errorf("skill not written: %v", err)
+	}
+	for _, f := range []string{".mcp.json", ".cursor/mcp.json", ".gitignore"} {
+		if _, err := os.Stat(filepath.Join(dir, f)); err == nil {
+			t.Errorf("project file %s written", f)
 		}
 	}
 	// The key was saved like "login" does, and only masked in the report.
@@ -92,6 +113,7 @@ func TestInitAllYesAPIKey(t *testing.T) {
 		"connected: Claude Code, Cursor\n",
 		"skipped: VS Code (Copilot) (not detected), Codex (not detected)\n",
 		"api key: " + config.MaskKey(onboardKey) + " (checked, saved to ",
+		"; written into the client configs)\n",
 		"next: restart Claude Code, Cursor to load the MCP server and the skill\n",
 		"next: run spicrawl status",
 	} {
@@ -99,11 +121,127 @@ func TestInitAllYesAPIKey(t *testing.T) {
 			t.Errorf("stderr lacks %q:\n%s", want, errb)
 		}
 	}
+	// Nothing to export: the key is in the configs.
+	for _, not := range []string{"export", "note:"} {
+		if strings.Contains(errb, not) {
+			t.Errorf("stderr has %q although the key is embedded:\n%s", not, errb)
+		}
+	}
 	noKeyIn(t, onboardKey, "stdout", out)
 	noKeyIn(t, onboardKey, "stderr", errb)
-	// The MCP configs reference the environment, never the literal key.
+}
+
+// --use-env=true keeps the environment reference (and the project files); the
+// user then has to export the key, and the next steps say so.
+func TestInitAPIKeyUseEnvTrueReferencesTheEnvironment(t *testing.T) {
+	testKey = "" // $SPICRAWL_API_KEY is not exported in this shell
+	t.Cleanup(func() { testKey = "spicrawl_test_key" })
+	base := onboardAPI(t)
+	dir := onboardProject(t)
+	_, errb, code := runCLI(t, base, "init", "--all", "--yes", "--api-key", onboardKey, "--use-env=true", "--dir", dir)
+	if code != 0 {
+		t.Fatalf("exit %d: %s", code, errb)
+	}
+	b, err := os.ReadFile(filepath.Join(dir, ".mcp.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), "${SPICRAWL_API_KEY}") || strings.Contains(string(b), onboardKey) {
+		t.Errorf(".mcp.json:\n%s", b)
+	}
+	if !strings.Contains(errb, "next: export SPICRAWL_API_KEY=<YOUR_API_KEY> in the shell or profile that starts Claude Code, Cursor") {
+		t.Errorf("no export step:\n%s", errb)
+	}
+	if savedKey(t) != onboardKey {
+		t.Error("the key is still saved for the CLI")
+	}
+	noKeyIn(t, onboardKey, "stderr", errb)
+}
+
+// --global=false writes the project files with the literal key; they are added
+// to the project's .gitignore, once.
+func TestInitAPIKeyProjectFilesAreGitignored(t *testing.T) {
+	base := onboardAPI(t)
+	dir := onboardProject(t)
+	agentWrite(t, filepath.Join(dir, ".gitignore"), "node_modules/\n/.cursor/mcp.json\n")
+	args := []string{"init", "--all", "--yes", "--api-key", onboardKey, "--global=false", "--dir", dir}
+	out, errb, code := runCLI(t, base, args...)
+	if code != 0 {
+		t.Fatalf("exit %d: %s", code, errb)
+	}
 	b, _ := os.ReadFile(filepath.Join(dir, ".mcp.json"))
-	noKeyIn(t, onboardKey, ".mcp.json", string(b))
+	if !strings.Contains(string(b), onboardKey) {
+		t.Errorf(".mcp.json lacks the key:\n%s", b)
+	}
+	if fi, _ := os.Stat(filepath.Join(dir, ".mcp.json")); fi.Mode().Perm() != 0o600 {
+		t.Errorf(".mcp.json mode %v", fi.Mode().Perm())
+	}
+	// Only the file that was not ignored yet is added; no .bak is left behind.
+	gi, _ := os.ReadFile(filepath.Join(dir, ".gitignore"))
+	if string(gi) != "node_modules/\n/.cursor/mcp.json\n.mcp.json\n" {
+		t.Errorf(".gitignore:\n%s", gi)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".gitignore.bak")); err == nil {
+		t.Error(".gitignore.bak written")
+	}
+	// The warning stays; the "add it to .gitignore" advice is moot.
+	if !strings.Contains(errb, ".mcp.json now contains your API key in plain text") || strings.Contains(errb, ">> .gitignore") {
+		t.Errorf("stderr:\n%s", errb)
+	}
+	var rs []agentResult
+	_ = json.Unmarshal([]byte(out), &rs)
+	if last := rs[len(rs)-1]; last.Kind != "gitignore" || last.Action != agentActionUpdated || last.Client != "" {
+		t.Errorf("last result %+v", last)
+	}
+
+	// A second run changes nothing, and adds nothing to .gitignore.
+	out, errb, code = runCLI(t, base, args...)
+	if code != 0 {
+		t.Fatalf("second run: exit %d: %s", code, errb)
+	}
+	if gi2, _ := os.ReadFile(filepath.Join(dir, ".gitignore")); string(gi2) != string(gi) {
+		t.Errorf("second run changed .gitignore:\n%s", gi2)
+	}
+	if strings.Contains(out, "gitignore") || strings.Contains(out, `"created"`) || strings.Contains(out, `"updated"`) {
+		t.Errorf("second run changed something:\n%s", out)
+	}
+	noKeyIn(t, onboardKey, "stdout", out)
+	noKeyIn(t, onboardKey, "stderr", errb)
+}
+
+// Without a .gitignore nothing is created; the warning tells the user what to do.
+func TestInitAPIKeyProjectFilesWithoutGitignoreWarn(t *testing.T) {
+	base := onboardAPI(t)
+	dir := onboardProject(t)
+	_, errb, code := runCLI(t, base, "init", "--all", "--yes", "--api-key", onboardKey, "--global=false", "--dir", dir)
+	if code != 0 {
+		t.Fatalf("exit %d: %s", code, errb)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".gitignore")); err == nil {
+		t.Error(".gitignore created")
+	}
+	for _, want := range []string{"echo .mcp.json >> .gitignore", "echo .cursor/mcp.json >> .gitignore"} {
+		if !strings.Contains(errb, want) {
+			t.Errorf("stderr lacks %q:\n%s", want, errb)
+		}
+	}
+	noKeyIn(t, onboardKey, "stderr", errb)
+}
+
+// Without --api-key nothing changes: project files, environment references.
+func TestInitWithoutAPIKeyKeepsTheEnvironmentReference(t *testing.T) {
+	dir := onboardProject(t)
+	_, errb, code := runCLI(t, "http://127.0.0.1:1", "init", "--all", "--yes", "--dir", dir)
+	if code != 0 {
+		t.Fatalf("exit %d: %s", code, errb)
+	}
+	b, err := os.ReadFile(filepath.Join(dir, ".mcp.json"))
+	if err != nil || !strings.Contains(string(b), "${SPICRAWL_API_KEY}") {
+		t.Errorf(".mcp.json: %v\n%s", err, b)
+	}
+	if _, err := os.Stat(filepath.Join(os.Getenv("HOME"), ".claude.json")); err == nil {
+		t.Error("user-level file written without --api-key")
+	}
 }
 
 func noKeyIn(t *testing.T, key, where, s string) {
@@ -173,6 +311,24 @@ func TestInitNeverEchoesTheKeyInErrors(t *testing.T) {
 		}
 		noKeyIn(t, onboardKey, "stdout", out)
 		noKeyIn(t, onboardKey, "stderr", errb)
+	}
+}
+
+// A customised entry is refused (no --force); the diff it shows masks both the
+// old key in the file and the new one.
+func TestInitRefusalMasksBothKeys(t *testing.T) {
+	base := onboardAPI(t)
+	dir := onboardProject(t)
+	oldKey := "spicrawl_live_OLDSECRETKEY0123456789abcdef"
+	agentWrite(t, filepath.Join(os.Getenv("HOME"), ".cursor", "mcp.json"),
+		`{"mcpServers":{"spicrawl":{"url":"https://mine.example/mcp","headers":{"Authorization":"Bearer `+oldKey+`"}}}}`)
+	out, errb, code := runCLI(t, base, "init", "--all", "--yes", "--api-key", onboardKey, "--dir", dir)
+	if code != 2 || !strings.Contains(errb, "--force") {
+		t.Fatalf("exit %d: %s", code, errb)
+	}
+	for _, k := range []string{onboardKey, oldKey} {
+		noKeyIn(t, k, "stdout", out)
+		noKeyIn(t, k, "stderr", errb)
 	}
 }
 

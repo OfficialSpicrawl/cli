@@ -168,7 +168,8 @@ spicrawl status                                    /readyz + workers + key check
 
 spicrawl init [--client claude|cursor|codex|vscode|all | --all] [--yes] [--api-key K]
                                                 detect agent tooling, write MCP config + skill;
-                                                --api-key is checked and saved like login, never printed
+                                                --api-key is checked and saved like login, never printed, and written
+                                                into the user-level client configs (--use-env=true / --global=false change that)
 spicrawl mcp install [--client ...] [--print]      add the hosted MCP server to a client config
 spicrawl skill install [--client ...] [--print]    write the Spicrawl agent skill (SKILL.md)
 spicrawl docs [topic] [--list]                     print raw Markdown (from docs.spicrawl.com); JSON only with --json

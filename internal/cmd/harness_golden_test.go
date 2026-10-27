@@ -80,7 +80,7 @@ type goldenCase struct {
 
 	stderr bool     // golden stderr too: it is machine-readable in this case
 	digest bool     // golden a sha256 of stdout instead of the bytes (big outputs)
-	files  []string // paths under {dir} the command writes; their bytes are golden too
+	files  []string // paths under {dir} (or ~/ for $HOME) the command writes; their bytes are golden too
 }
 
 // goldenEnv is the sandbox of one run.
@@ -165,7 +165,11 @@ func goldenRun(t *testing.T, c goldenCase, update bool, variantEnv map[string]st
 		goldenCompare(t, update, c.name, ".stderr", []byte(norm(r.stderr)))
 	}
 	for _, rel := range c.files {
-		b, err := os.ReadFile(filepath.Join(e.Dir, rel))
+		path := filepath.Join(e.Dir, rel)
+		if h, ok := strings.CutPrefix(rel, "~/"); ok { // under $HOME
+			path = filepath.Join(e.Home, h)
+		}
+		b, err := os.ReadFile(path)
 		if err != nil {
 			t.Errorf("expected the command to write %s: %v", rel, err)
 			continue

@@ -122,13 +122,13 @@ npx @spicrawl/cli init
 The skill goes to `spicrawl/SKILL.md` under `.claude/skills` (Claude Code), `.cursor/skills` (Cursor), `.github/skills` (VS Code) or `.agents/skills` (Codex); with `--global`, under `~/.claude/skills`, `~/.cursor/skills`, `~/.copilot/skills` or `~/.agents/skills`. Project paths are relative to `--dir` (default: the current directory). With `--client all` the skill is written only to `.claude/skills` and `.agents/skills`, since Cursor and VS Code also read `.claude/skills`.
 
 ```sh
-spicrawl init --all --yes --api-key <key>      # every detected client, no prompt, key checked and saved
+spicrawl init --all --yes --api-key <key>      # every detected client, no prompt, key checked, saved and written into your user-level configs
 spicrawl init --client claude,cursor --yes     # no prompt; required without a terminal
 spicrawl init --client all --global --yes      # user-level config for every client
 spicrawl init --client codex --agents-md --yes # also add a Spicrawl section to AGENTS.md
 ```
 
-The API key is referenced, not copied: Claude Code, Cursor and Codex read `$SPICRAWL_API_KEY` from the environment of the shell that starts them, and VS Code asks for it once. The exception is `--global --client claude`: `~/.claude.json` cannot expand variables, so the key is written into it with mode 0600 and a warning. `--use-env=false` embeds the key everywhere.
+The API key is referenced, not copied: Claude Code, Cursor and Codex read `$SPICRAWL_API_KEY` from the environment of the shell that starts them, and VS Code asks for it once. There are two exceptions. `--global --client claude`: `~/.claude.json` cannot expand variables, so the key is written into it with mode 0600 and a warning. And `--api-key <key>` (see "Set up with one prompt" below) writes the key it checked into every client's config, so nothing needs exporting. `--use-env=false` embeds the key everywhere.
 
 The two steps also run on their own: `spicrawl mcp install --client cursor` (add `--print` for the snippet only) and `spicrawl skill install --client all` (`--print > SKILL.md` to print it).
 
@@ -151,18 +151,17 @@ Set up Spicrawl for yourself. My API key is <YOUR_API_KEY>. Only if your shell r
 
 What the two commands do, with no questions asked:
 
-- `init --all --yes --api-key <key>` connects every detected client (`--all`; it conflicts with `--client`) without confirming (`--yes`). The key is checked with the API and saved to the config file as `spicrawl login` does, before any client file is written; a rejected key exits 3 and writes nothing. The key is never printed, only masked (`spicrawl_live_ab12…cd34`), and API errors are masked too. The result list stays on stdout (JSON when it is not a terminal); a short report follows on stderr:
+- `init --all --yes --api-key <key>` connects every detected client (`--all`; it conflicts with `--client`) without confirming (`--yes`). The key is checked with the API and saved to the config file as `spicrawl login` does, before any client file is written; a rejected key exits 3 and writes nothing. Then the key is written into each client's MCP config as is, in your **user-level** files (`~/.claude.json`, `~/.cursor/mcp.json`, ... with mode 0600; `--global` is implied), so the agents authenticate right after a restart with nothing to export. Pass `--use-env=true` to keep the `${SPICRAWL_API_KEY}` reference instead, or `--global=false` to write the project files: those get the same key, a warning, and a line in the project's `.gitignore` when it has one that does not ignore them yet. The key is never printed, only masked (`spicrawl_live_ab12…cd34`), and API errors are masked too. The result list stays on stdout (JSON when it is not a terminal); a short report follows on stderr:
 
   ```text
   connected: Claude Code, Cursor
   skipped: VS Code (Copilot) (not detected), Codex (not detected)
-  api key: spicrawl_live_ab12…cd34 (checked, saved to /home/you/.config/spicrawl/config.json)
-  next: export SPICRAWL_API_KEY=<YOUR_API_KEY> in the shell or profile that starts Claude Code, Cursor: their MCP config reads the key from it
+  api key: spicrawl_live_ab12…cd34 (checked, saved to /home/you/.config/spicrawl/config.json; written into the client configs)
   next: restart Claude Code, Cursor to load the MCP server and the skill
   next: run npx -y @spicrawl/cli@latest status, then ask your agent to scrape a page (or try: npx -y @spicrawl/cli@latest scrape https://example.com)
   ```
 
-  Commands in `next` and in the repairs below say `npx -y @spicrawl/cli@latest` when the CLI was started by npx, and `spicrawl` otherwise.
+  Commands in `next` and in the repairs below say `npx -y @spicrawl/cli@latest` when the CLI was started by npx, and `spicrawl` otherwise. Without `--api-key`, `init` is unchanged: project files that reference `$SPICRAWL_API_KEY`, and a `next: export SPICRAWL_API_KEY=...` step.
 - `status --json` adds a `repairs` array with one entry per failed check, in the order to run them, and exits non-zero when any check fails:
 
   ```json
@@ -174,7 +173,7 @@ What the two commands do, with no questions asked:
 
   `unattended_safe: false` means the user must act (supply a key) or decide; the command holds a placeholder, never a key. The checks are `reachable`, `ready`, `key`, `workers.<kind>` and `mcp` (an agent client found in this directory or your home directory without a Spicrawl MCP server; skipped when none is found). Without `--json`, `status` prints the same repairs as `check:`, `command:`, `unattended_safe:` and `why:` lines.
 
-The key is passed as an argument, so other users on the machine can see it in the process list while the command runs. To avoid that, export `SPICRAWL_API_KEY` and drop `--api-key`: `init` uses it for the client configs but does not check or save it (run `spicrawl login` to save it).
+The key is passed as an argument, so other users on the machine can see it in the process list while the command runs, and it ends up in plain text in the client configs. To avoid both, export `SPICRAWL_API_KEY` and drop `--api-key`: `init` then writes `$SPICRAWL_API_KEY` references and does not check or save the key (run `spicrawl login` to save it). Claude Code rewrites `~/.claude.json` itself, so if a running session overwrites the entry, `status` reports the `mcp` check as failed and its repair writes it again.
 
 ## Commands
 

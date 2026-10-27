@@ -2,9 +2,12 @@ package cmd
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -57,7 +60,12 @@ Unattended, in one command: "spicrawl init --all --yes --api-key <key>". --all
 connects every detected client (and conflicts with --client); --yes skips the
 confirmation. --api-key is checked with the API and saved to the config file as
 "spicrawl login" does, before any client file is written; a rejected key writes
-nothing. The key is never printed, only masked (spicrawl_live_ab12…cd34).
+nothing. The key is then written into each client's MCP config as is, in your
+user-level files (~/.claude.json, ~/.cursor/mcp.json, ...) so the agents work
+with nothing exported: --global is implied, and --global=false picks the
+project files, which are added to .gitignore when the project has one.
+--use-env=true keeps the ${SPICRAWL_API_KEY} reference instead. The key is
+never printed, only masked (spicrawl_live_ab12…cd34).
 $SPICRAWL_API_KEY is used as before (referenced by the client configs) but is
 neither checked nor saved here. A short report follows on stderr: connected and
 skipped clients, the key, and the next step. The results stay on stdout, as
@@ -75,10 +83,10 @@ func init() {
 	f.StringVar(&initFlags.client, "client", "", "claude, cursor, vscode, codex or all (comma-separated; default: detected clients)")
 	f.BoolVar(&initFlags.all, "all", false, "connect every detected client (the default selection, stated outright; conflicts with --client)")
 	f.BoolVarP(&initFlags.yes, "yes", "y", false, "apply without asking")
-	f.BoolVar(&initFlags.global, "global", false, "configure your user-level client settings instead of the project")
+	f.BoolVar(&initFlags.global, "global", false, "configure your user-level client settings instead of the project (the default with --api-key)")
 	f.StringVar(&initFlags.url, "mcp-url", "", "MCP server URL (default: $"+agentEnvMCPURL+", then <API origin>/mcp from the base URL; "+agentPublicMCPURL+" for the hosted API)")
 	f.StringVar(&initFlags.skillURL, "skill-url", "", "skill URL (default: $"+agentEnvSkillURL+", then <docs URL>/skill.md)")
-	f.BoolVar(&initFlags.useEnv, "use-env", true, "reference $SPICRAWL_API_KEY instead of embedding the key, where the client supports it")
+	f.BoolVar(&initFlags.useEnv, "use-env", true, "reference $SPICRAWL_API_KEY instead of embedding the key, where the client supports it (with --api-key the key is embedded unless you pass --use-env=true)")
 	f.BoolVar(&initFlags.agentsMD, "agents-md", false, "also add a Spicrawl section to AGENTS.md")
 	f.StringVar(&initFlags.dir, "dir", "", "project directory (default: current directory)")
 	f.BoolVar(&initFlags.force, "force", false, "replace an existing spicrawl MCP entry that differs from the one to write")
@@ -91,7 +99,12 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	s, err := agentResolveScope(initFlags.dir, initFlags.global)
+	// A key given with --api-key goes into the client configs as is, at user
+	// level, so the agents work with nothing exported. --use-env=true keeps
+	// the environment reference and --global=false the project files.
+	embed := strings.TrimSpace(flagAPIKey) != "" && !(cmd.Flags().Changed("use-env") && initFlags.useEnv)
+	global := initFlags.global || embed && !cmd.Flags().Changed("global")
+	s, err := agentResolveScope(initFlags.dir, global)
 	if err != nil {
 		return err
 	}
@@ -125,9 +138,13 @@ func runInit(cmd *cobra.Command, _ []string) error {
 		if err != nil {
 			return err
 		}
-		keyLine = config.MaskKey(key) + " (checked, saved to " + r.Path + ")"
+		keyLine = config.MaskKey(key) + " (checked, saved to " + r.Path
+		if embed {
+			keyLine += "; written into the client configs"
+		}
+		keyLine += ")"
 	}
-	opt := mcpOptions{URL: ep.MCP, UseEnv: initFlags.useEnv, Key: key, Force: initFlags.force}
+	opt := mcpOptions{URL: ep.MCP, UseEnv: initFlags.useEnv && !embed, Key: key, Force: initFlags.force}
 
 	var rs []*agentResult
 	for _, c := range clients {
@@ -148,6 +165,12 @@ func runInit(cmd *cobra.Command, _ []string) error {
 		if err != nil {
 			return err
 		}
+		rs = append(rs, r)
+	}
+
+	if r, err := initPlanGitignore(s, rs); err != nil {
+		return err
+	} else if r != nil {
 		rs = append(rs, r)
 	}
 
@@ -249,6 +272,55 @@ func initPrintReport(p *output.Printer, rs []*agentResult, keyLine string, noKey
 			p.Info("next: %s", st)
 		}
 	}
+}
+
+// initPlanGitignore plans adding the project files that now hold the literal
+// key to .gitignore, when the project directory has one that does not ignore
+// them yet. Without one, the warning after the run tells the user what to do.
+// ponytail: matches the exact path only (a pattern such as *.json is not
+// recognised, so the path is added anyway), and only looks in the project
+// directory, not at a repository root above it.
+func initPlanGitignore(s agentScope, rs []*agentResult) (*agentResult, error) {
+	path := filepath.Join(s.Dir, ".gitignore")
+	old, err := os.ReadFile(path)
+	if err != nil {
+		return nil, nil
+	}
+	var add []string
+	for _, r := range rs {
+		if r.Kind != "mcp" || !r.Secret || r.Action == agentActionSkipped {
+			continue
+		}
+		rel, err := filepath.Rel(s.Dir, r.File)
+		if err != nil || strings.HasPrefix(rel, "..") {
+			continue
+		}
+		rel = filepath.ToSlash(rel)
+		if !gitignoreHas(old, rel) && !slices.Contains(add, rel) {
+			add = append(add, rel)
+		}
+	}
+	if len(add) == 0 {
+		return nil, nil
+	}
+	content := old
+	if !bytes.HasSuffix(content, []byte("\n")) {
+		content = append(content, '\n')
+	}
+	content = append(content, strings.Join(add, "\n")+"\n"...)
+	r := &agentResult{Kind: "gitignore", File: path, Reason: "keeps " + strings.Join(add, ", ") + " (holds the API key) out of git"}
+	return r, agentPlanFile(r, content, 0o644)
+}
+
+// gitignoreHas reports whether a .gitignore lists rel (a slash-separated path
+// relative to it), alone or anchored with a leading slash.
+func gitignoreHas(content []byte, rel string) bool {
+	for _, l := range strings.Split(string(content), "\n") {
+		if l = strings.TrimSpace(l); l == rel || l == "/"+rel {
+			return true
+		}
+	}
+	return false
 }
 
 func initPrintPlan(w io.Writer, u *ui.UI, rs []*agentResult, s agentScope) {
