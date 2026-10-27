@@ -1,0 +1,39 @@
+{
+  "api_reachable": true,
+  "ready": true,
+  "checks": {
+    "postgres": "ok",
+    "redis": "ok"
+  },
+  "cdp": "enabled",
+  "key_valid": true,
+  "key_source": "env",
+  "base_url": "http://SERVER",
+  "workers": {
+    "batch": {
+      "present": 2,
+      "ready": 0
+    },
+    "browser": {
+      "present": 3,
+      "ready": 2
+    },
+    "egress": {
+      "present": 1,
+      "ready": 1
+    }
+  },
+  "mcp": {
+    "detected": [],
+    "connected": [],
+    "needs_env": []
+  },
+  "repairs": [
+    {
+      "check": "workers.batch",
+      "command": "spicrawl status",
+      "unattended_safe": true,
+      "why": "no batch worker is ready (0 of 2): that is on the server side, wait a minute and re-run; if it persists, tell Spicrawl support"
+    }
+  ]
+}

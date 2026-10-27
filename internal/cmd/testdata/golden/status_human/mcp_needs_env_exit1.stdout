@@ -1,0 +1,15 @@
+base url:    http://SERVER
+reachable:   yes
+ready:       yes
+cdp:         enabled
+key:         valid (from file)
+mcp:         needs $SPICRAWL_API_KEY, which is not set here: Claude Code
+workers:
+  browser    3 ready of 3
+  egress     1 ready of 1
+  batch      2 ready of 2
+repairs:
+  - check: mcp
+    command: spicrawl init --client claude --yes --force
+    unattended_safe: true
+    why: Claude Code read the key from $SPICRAWL_API_KEY, which is not set here, so the MCP server cannot authenticate; this rewrites the entry with the key saved in the CLI config (the old file is kept as .bak)

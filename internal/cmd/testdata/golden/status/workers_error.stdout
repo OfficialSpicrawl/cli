@@ -10,5 +10,11 @@
   "key_source": "env",
   "base_url": "http://SERVER",
   "workers": null,
-  "workers_error": "ERR::INTERNAL::UNAVAILABLE: fleet registry is down"
+  "workers_error": "ERR::INTERNAL::UNAVAILABLE: fleet registry is down",
+  "mcp": {
+    "detected": [],
+    "connected": [],
+    "needs_env": []
+  },
+  "repairs": []
 }

@@ -1,0 +1,15 @@
+base url:    http://SERVER
+reachable:   yes
+ready:       yes
+cdp:         enabled
+key:         valid (from env)
+mcp:         not configured: Claude Code
+workers:
+  browser    3 ready of 3
+  egress     1 ready of 1
+  batch      2 ready of 2
+repairs:
+  - check: mcp
+    command: spicrawl init --all --yes
+    unattended_safe: true
+    why: no Spicrawl MCP server is configured for Claude Code; this writes the MCP entry and the skill for every client found here

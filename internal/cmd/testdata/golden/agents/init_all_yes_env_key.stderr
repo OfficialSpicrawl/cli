@@ -1,0 +1,7 @@
+clients: Claude Code, Cursor
+MCP server: http://SERVER/mcp
+connected: Claude Code, Cursor
+skipped: VS Code (Copilot) (not detected), Codex (not detected)
+api key: spicrawl_test_0123…ghij (from env)
+next: restart Claude Code, Cursor to load the MCP server and the skill
+next: run spicrawl status, then ask your agent to scrape a page (or try: spicrawl scrape https://example.com)

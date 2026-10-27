@@ -1,0 +1,9 @@
+clients: Claude Code, Cursor
+MCP server: http://SERVER/mcp
+warning: <HOME>/.claude.json now contains your API key in plain text; its permissions are 0600 (owner only)
+warning: <HOME>/.cursor/mcp.json now contains your API key in plain text; its permissions are 0600 (owner only)
+connected: Claude Code, Cursor
+skipped: VS Code (Copilot) (not detected), Codex (not detected)
+api key: spicrawl_live_GOLD…9xyz (checked, saved to <CONFIG_DIR>/config.json; written into the client configs)
+next: restart Claude Code, Cursor to load the MCP server and the skill
+next: run spicrawl status, then ask your agent to scrape a page (or try: spicrawl scrape https://example.com)

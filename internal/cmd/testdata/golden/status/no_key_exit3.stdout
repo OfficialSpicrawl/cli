@@ -10,5 +10,18 @@
   "key_error": "no API key configured",
   "key_source": "",
   "base_url": "http://SERVER",
-  "workers": null
+  "workers": null,
+  "mcp": {
+    "detected": [],
+    "connected": [],
+    "needs_env": []
+  },
+  "repairs": [
+    {
+      "check": "key",
+      "command": "spicrawl login --api-key <YOUR_API_KEY>",
+      "unattended_safe": false,
+      "why": "no API key is configured: create one at https://app.spicrawl.com/dashboard/keys and supply it"
+    }
+  ]
 }

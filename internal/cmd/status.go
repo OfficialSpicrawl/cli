@@ -8,6 +8,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"slices"
 	"sort"
 	"strings"
 
@@ -39,6 +41,31 @@ type statusReport struct {
 	BaseURL      string                   `json:"base_url"`
 	Workers      map[string]statusWorkers `json:"workers"`
 	WorkersError string                   `json:"workers_error,omitempty"`
+	// MCP is which agent clients are in use here (project directory and home)
+	// and which of them have a Spicrawl MCP server configured. Client ids.
+	MCP statusMCP `json:"mcp"`
+	// Repairs has one entry per failed check, in the order to run them.
+	Repairs []statusRepair `json:"repairs"`
+}
+
+type statusMCP struct {
+	Detected  []string `json:"detected"`
+	Connected []string `json:"connected"` // has a Spicrawl MCP server that can authenticate
+	// NeedsEnv has a server whose key is $SPICRAWL_API_KEY, which is not set
+	// here: the client cannot authenticate.
+	NeedsEnv []string `json:"needs_env"`
+
+	needsEnvAt map[string]string // client id -> where that entry is: "user" or "project"
+}
+
+// statusRepair is a command that fixes a failed check. UnattendedSafe says an
+// agent may run it without asking: false means the user must act (supply a
+// key) or decide.
+type statusRepair struct {
+	Check          string `json:"check"`
+	Command        string `json:"command"`
+	UnattendedSafe bool   `json:"unattended_safe"`
+	Why            string `json:"why"`
 }
 
 var statusCmd = &cobra.Command{
@@ -51,10 +78,24 @@ var statusCmd = &cobra.Command{
   GET /v1/workers          worker kinds present and ready
   GET /v1/requests?limit=1 the key is accepted
 
-Exit codes: 0 all good, 3 the key is missing or rejected, 10 the API could not
-be reached; it also exits with the transport error's code when the connection
-fails during the key check. A reachable API that reports not ready still exits 0; read
-"ready" and "checks".`,
+It also looks for agent clients in this directory and your home directory
+(Claude Code, Cursor, VS Code, Codex) and checks each has a Spicrawl MCP server
+configured and able to authenticate; with no client found that check is skipped.
+A project-level entry shadows a user-level one, and an entry whose key is
+$SPICRAWL_API_KEY ("needs_env" in --json) does not count while that variable
+is unset here.
+
+For every failed check it prints a repair command, marked unattended_safe
+true (an agent may run it) or false (the user must act, for example supply an
+API key). With --json they are the "repairs" array of {check, command,
+unattended_safe, why}, in the order to run them. Run the commands as written;
+placeholders such as <YOUR_API_KEY> are for the user to fill in.
+
+Exit codes: 0 all checks passed, 3 the key is missing or rejected, 10 the API
+could not be reached, and the transport error's code when the connection fails
+during the key check. Any other failed check (the API reports not ready, a
+worker kind has none ready, no MCP server configured for a client) exits 1; read
+"repairs".`,
 	Example: `  spicrawl status
   spicrawl status --json | jq .workers
   spicrawl status --base-url http://localhost:8080 --api-key "$KEY"`,
@@ -66,7 +107,7 @@ fails during the key check. A reachable API that reports not ready still exits 0
 		}
 		ctx := cmd.Context()
 		c := api.New(r.BaseURL, r.APIKey, flagTimeout)
-		rep := statusReport{BaseURL: r.BaseURL, KeySource: r.APIKeySource}
+		rep := statusReport{BaseURL: r.BaseURL, KeySource: r.APIKeySource, MCP: statusMCPCheck(), Repairs: []statusRepair{}}
 
 		p := Printer()
 		sp := spin(p, "Checking the API")
@@ -75,6 +116,7 @@ fails during the key check. A reachable API that reports not ready still exits 0
 		rep.APIReachable, rep.Ready, rep.Checks, rep.CDP, readyErr = statusReadyz(ctx, c)
 		if !rep.APIReachable {
 			sp.Stop()
+			rep.Repairs = statusRepairs(&rep)
 			if err := statusPrint(p, &rep); err != nil {
 				return err
 			}
@@ -116,6 +158,7 @@ fails during the key check. A reachable API that reports not ready still exits 0
 		}
 
 		sp.Stop()
+		rep.Repairs = statusRepairs(&rep)
 		if err := statusPrint(p, &rep); err != nil {
 			return err
 		}
@@ -125,7 +168,13 @@ fails during the key check. A reachable API that reports not ready still exits 0
 			}
 			return &ExitError{Code: exitcode.Auth, Err: errors.New("the API rejected the key: " + rep.KeyError)}
 		}
-		return keyCheckErr
+		if keyCheckErr != nil {
+			return keyCheckErr
+		}
+		if n := statusFailedChecks(rep.Repairs); n > 0 {
+			return &ExitError{Code: exitcode.Internal, Err: fmt.Errorf("%d %s failed: run the repairs listed in the status output", n, map[bool]string{true: "check", false: "checks"}[n == 1])}
+		}
+		return nil
 	},
 }
 
@@ -189,20 +238,23 @@ func statusYN(b bool) string {
 	return "no"
 }
 
+// statusBadChecks lists the server checks that are not ok, sorted: "redis=unreachable".
+func statusBadChecks(rep *statusReport) string {
+	var bad []string
+	for k, v := range rep.Checks {
+		if v != "ok" {
+			bad = append(bad, k+"="+v)
+		}
+	}
+	sort.Strings(bad)
+	return strings.Join(bad, ", ")
+}
+
 // statusReadyText is the ready value: yes, or no with the checks that failed.
 func statusReadyText(rep *statusReport) string {
 	ready := statusYN(rep.Ready)
-	if !rep.Ready && len(rep.Checks) > 0 {
-		var bad []string
-		for k, v := range rep.Checks {
-			if v != "ok" {
-				bad = append(bad, k+"="+v)
-			}
-		}
-		sort.Strings(bad)
-		if len(bad) > 0 {
-			ready += " (" + strings.Join(bad, ", ") + ")"
-		}
+	if bad := statusBadChecks(rep); !rep.Ready && bad != "" {
+		ready += " (" + bad + ")"
 	}
 	return ready
 }
@@ -234,6 +286,201 @@ func statusKeyText(rep *statusReport) string {
 	return key
 }
 
+// cliInvocation is how a repair or next step names this program: through npx
+// when that is how it was started (it may not be on PATH), else "spicrawl".
+func cliInvocation() string {
+	if os.Getenv("npm_command") == "exec" {
+		return "npx -y @spicrawl/cli@latest"
+	}
+	return "spicrawl"
+}
+
+// statusMCPCheck finds the agent clients in use here (project directory and
+// home, the ones "init --all" would pick) and whether each has a Spicrawl MCP
+// server that can authenticate. A project entry shadows the user-level one of
+// the same name. An entry that takes the key from $SPICRAWL_API_KEY works only
+// while that is set, which is taken from this process's environment.
+func statusMCPCheck() statusMCP {
+	m := statusMCP{Detected: []string{}, Connected: []string{}, NeedsEnv: []string{}, needsEnvAt: map[string]string{}}
+	s, err := agentResolveScope("", false)
+	if err != nil {
+		return m
+	}
+	g := agentScope{Global: true, Dir: s.Dir, Home: s.Home}
+	envSet := strings.TrimSpace(os.Getenv(config.EnvAPIKey)) != ""
+	for _, c := range agentDetect(s) {
+		m.Detected = append(m.Detected, c.ID)
+		entry, ok := mcpExistingEntry(c, c.MCPPath(s))
+		where := "project"
+		if !ok && s.Home != "" {
+			entry, ok = mcpExistingEntry(c, c.MCPPath(g))
+			where = "user"
+		}
+		switch {
+		case !ok:
+		case mcpEntryNeedsEnv(entry) && !envSet:
+			m.NeedsEnv = append(m.NeedsEnv, c.ID)
+			m.needsEnvAt[c.ID] = where
+		default:
+			m.Connected = append(m.Connected, c.ID)
+		}
+	}
+	return m
+}
+
+// missing are the detected clients with no Spicrawl MCP server at all.
+func (m statusMCP) missing() []string {
+	var out []string
+	for _, id := range m.Detected {
+		if !slices.Contains(m.Connected, id) && !slices.Contains(m.NeedsEnv, id) {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+// failed: some detected client cannot use Spicrawl over MCP.
+func (m statusMCP) failed() bool { return len(m.Connected) < len(m.Detected) }
+
+func clientNames(ids []string) []string {
+	out := make([]string, len(ids))
+	for i, id := range ids {
+		out[i] = agentClientByID(id).Name
+	}
+	return out
+}
+
+func statusMCPText(m statusMCP) string {
+	if len(m.Detected) == 0 {
+		return "no agent client found here"
+	}
+	if !m.failed() {
+		return "connected: " + strings.Join(clientNames(m.Connected), ", ")
+	}
+	var parts []string
+	if len(m.NeedsEnv) > 0 {
+		parts = append(parts, "needs $"+config.EnvAPIKey+", which is not set here: "+strings.Join(clientNames(m.NeedsEnv), ", "))
+	}
+	if miss := m.missing(); len(miss) > 0 {
+		parts = append(parts, "not configured: "+strings.Join(clientNames(miss), ", "))
+	}
+	return strings.Join(parts, "; ")
+}
+
+// statusKeyBad is a key check that failed: rejected or missing, or not
+// answered (key_valid null with an error).
+func statusKeyBad(rep *statusReport) bool {
+	return rep.KeyValid != nil && !*rep.KeyValid || rep.KeyValid == nil && rep.KeyError != ""
+}
+
+// statusWorkerBad is a worker kind that runs here but has none ready.
+func statusWorkerBad(v statusWorkers) bool { return v.Present > 0 && v.Ready == 0 }
+
+// statusRepairs has one repair per failed check, in the order to run them.
+// Only a repair that needs the user (a key to supply) or a decision is
+// unattended_safe false. Commands use the placeholder <YOUR_API_KEY>, never a key.
+func statusRepairs(rep *statusReport) []statusRepair {
+	cli := cliInvocation()
+	out := []statusRepair{}
+	add := func(check, command string, safe bool, why string) {
+		out = append(out, statusRepair{check, command, safe, why})
+	}
+	if !rep.APIReachable {
+		add("reachable", "curl -sS -m 10 "+rep.BaseURL+"/readyz", true,
+			rep.BaseURL+" did not answer: check the network, any proxy and the base URL (--base-url, $"+config.EnvBaseURL+")")
+	} else {
+		if !rep.Ready {
+			why := "the API reports it is not ready"
+			if bad := statusBadChecks(rep); bad != "" {
+				why += " (" + bad + ")"
+			}
+			add("ready", cli+" status", true, why+": that is on the server side, wait a minute and re-run; nothing to change here")
+		}
+		if statusKeyBad(rep) {
+			login := cli + " login --api-key <YOUR_API_KEY>"
+			switch {
+			case rep.KeyValid == nil:
+				add("key", cli+" status", true, "the key check got no answer ("+rep.KeyError+"): re-run it")
+			case rep.KeySource == "":
+				add("key", login, false, "no API key is configured: create one at "+authKeysURL+" and supply it")
+			case rep.KeySource == "env":
+				add("key", "export "+config.EnvAPIKey+"=<YOUR_API_KEY>", false,
+					"the API rejected the key in $"+config.EnvAPIKey+" ("+rep.KeyError+"): create a new one at "+authKeysURL)
+			default:
+				add("key", login, false,
+					"the API rejected the key from the "+rep.KeySource+" ("+rep.KeyError+"): create a new one at "+authKeysURL)
+			}
+		}
+		for _, k := range statusWorkerKinds {
+			if v, ok := rep.Workers[k]; ok && statusWorkerBad(v) {
+				add("workers."+k, cli+" status", true,
+					fmt.Sprintf("no %s worker is ready (0 of %d): that is on the server side, wait a minute and re-run; if it persists, tell Spicrawl support", k, v.Present))
+			}
+		}
+	}
+	if missing := rep.MCP.missing(); len(missing) > 0 {
+		add("mcp", cli+" init --all --yes", true,
+			"no Spicrawl MCP server is configured for "+strings.Join(clientNames(missing), ", ")+"; this writes the MCP entry and the skill for every client found here")
+	}
+	// An entry that reads $SPICRAWL_API_KEY, unset here, is rewritten with the
+	// key saved in the CLI config (init embeds it); without a saved key the
+	// user has to supply one.
+	saved := rep.KeySource == "file"
+	for _, where := range []string{"user", "project"} {
+		var ids []string
+		for _, id := range rep.MCP.NeedsEnv {
+			if rep.MCP.needsEnvAt[id] == where {
+				ids = append(ids, id)
+			}
+		}
+		if len(ids) == 0 {
+			continue
+		}
+		command := cli + " init --client " + strings.Join(ids, ",") + " --yes --force"
+		if where == "project" {
+			command += " --global=false"
+		}
+		why := strings.Join(clientNames(ids), ", ") + " read the key from $" + config.EnvAPIKey + ", which is not set here, so the MCP server cannot authenticate; "
+		if saved {
+			why += "this rewrites the entry with the key saved in the CLI config (the old file is kept as .bak)"
+		} else {
+			command += " --api-key <YOUR_API_KEY>"
+			why += "this checks your key, saves it and writes it into the entry (the old file is kept as .bak)"
+		}
+		add("mcp", command, saved, why)
+	}
+	return out
+}
+
+// statusFailedChecks counts the checks the repairs are for (one check can have two).
+func statusFailedChecks(rs []statusRepair) int {
+	seen := map[string]bool{}
+	for _, r := range rs {
+		seen[r.Check] = true
+	}
+	return len(seen)
+}
+
+// statusPrintRepairs lists the repairs: a block under the checklist on a
+// terminal, else greppable "key: value" lines. Nothing when none are needed.
+func statusPrintRepairs(w io.Writer, u *ui.UI, rs []statusRepair) {
+	if len(rs) == 0 {
+		return
+	}
+	if u.On() {
+		fmt.Fprintf(w, "\n%s\n", u.Bold("repairs"))
+		for _, r := range rs {
+			fmt.Fprintf(w, "  %s %s  %s\n", viewMark(u, markBad), viewKey(u, 9, r.Check), u.Cyan(r.Command))
+			fmt.Fprintf(w, "    %s\n", u.Dim(fmt.Sprintf("unattended_safe: %t · %s", r.UnattendedSafe, r.Why)))
+		}
+		return
+	}
+	fmt.Fprintln(w, "repairs:")
+	for _, r := range rs {
+		fmt.Fprintf(w, "  - check: %s\n    command: %s\n    unattended_safe: %t\n    why: %s\n", r.Check, r.Command, r.UnattendedSafe, r.Why)
+	}
+}
+
 var statusWorkerKinds = []string{"browser", "egress", "extract", "batch"}
 
 func statusPrint(p *output.Printer, rep *statusReport) error {
@@ -244,22 +491,25 @@ func statusPrint(p *output.Printer, rep *statusReport) error {
 		}
 		fmt.Fprintf(w, "%-12s %s\n", "base url:", rep.BaseURL)
 		fmt.Fprintf(w, "%-12s %s\n", "reachable:", statusYN(rep.APIReachable))
-		if !rep.APIReachable {
-			return
-		}
-		fmt.Fprintf(w, "%-12s %s\n", "ready:", statusReadyText(rep))
-		fmt.Fprintf(w, "%-12s %s\n", "cdp:", statusCDPText(rep))
-		fmt.Fprintf(w, "%-12s %s\n", "key:", statusKeyText(rep))
-		if rep.WorkersError != "" {
-			fmt.Fprintf(w, "%-12s %s\n", "workers:", rep.WorkersError)
-		} else if len(rep.Workers) > 0 {
-			fmt.Fprintln(w, "workers:")
-			for _, k := range statusWorkerKinds {
-				if v, ok := rep.Workers[k]; ok {
-					fmt.Fprintf(w, "  %-10s %d ready of %d\n", k, v.Ready, v.Present)
+		if rep.APIReachable {
+			fmt.Fprintf(w, "%-12s %s\n", "ready:", statusReadyText(rep))
+			fmt.Fprintf(w, "%-12s %s\n", "cdp:", statusCDPText(rep))
+			fmt.Fprintf(w, "%-12s %s\n", "key:", statusKeyText(rep))
+			if len(rep.MCP.Detected) > 0 {
+				fmt.Fprintf(w, "%-12s %s\n", "mcp:", statusMCPText(rep.MCP))
+			}
+			if rep.WorkersError != "" {
+				fmt.Fprintf(w, "%-12s %s\n", "workers:", rep.WorkersError)
+			} else if len(rep.Workers) > 0 {
+				fmt.Fprintln(w, "workers:")
+				for _, k := range statusWorkerKinds {
+					if v, ok := rep.Workers[k]; ok {
+						fmt.Fprintf(w, "  %-10s %d ready of %d\n", k, v.Ready, v.Present)
+					}
 				}
 			}
 		}
+		statusPrintRepairs(w, nil, rep.Repairs)
 	})
 }
 
@@ -284,6 +534,7 @@ func statusPrintLive(w io.Writer, u *ui.UI, rep *statusReport) {
 	check(pick(rep.APIReachable), "reachable", statusYN(rep.APIReachable))
 	if !rep.APIReachable {
 		fmt.Fprintf(w, "\n%s %s\n", u.Red("✗"), "the API could not be reached")
+		statusPrintRepairs(w, u, rep.Repairs)
 		return
 	}
 	check(pick(rep.Ready), "ready", statusReadyText(rep))
@@ -295,8 +546,15 @@ func statusPrintLive(w io.Writer, u *ui.UI, rep *statusReport) {
 	key := markNeutral
 	if rep.KeyValid != nil {
 		key = pick(*rep.KeyValid)
+	} else if statusKeyBad(rep) {
+		key = markBad
 	}
 	check(key, "key", statusKeyText(rep))
+	mcp := markNeutral
+	if len(rep.MCP.Detected) > 0 {
+		mcp = pick(!rep.MCP.failed())
+	}
+	check(mcp, "mcp", statusMCPText(rep.MCP))
 
 	switch {
 	case rep.WorkersError != "":
@@ -312,7 +570,7 @@ func statusPrintLive(w io.Writer, u *ui.UI, rep *statusReport) {
 			switch {
 			case v.Present == 0:
 				m = markNeutral // none of this kind runs here
-			case v.Ready == 0:
+			case statusWorkerBad(v):
 				m = markBad
 			case v.Ready >= v.Present:
 				m = markOK
@@ -329,6 +587,7 @@ func statusPrintLive(w io.Writer, u *ui.UI, rep *statusReport) {
 	} else {
 		fmt.Fprintf(w, "\n%s %d %s failed\n", u.Red("✗"), failed, map[bool]string{true: "check", false: "checks"}[failed == 1])
 	}
+	statusPrintRepairs(w, u, rep.Repairs)
 }
 
 func init() {

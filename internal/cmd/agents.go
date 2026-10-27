@@ -394,7 +394,7 @@ func agentSelectClients(flag string, s agentScope) ([]*agentClient, error) {
 // agentResult is one line of a command's report.
 type agentResult struct {
 	Client string `json:"client"`
-	Kind   string `json:"kind"` // mcp | skill | agents_md
+	Kind   string `json:"kind"` // mcp | skill | agents_md | gitignore (no client)
 	File   string `json:"file"`
 	Action string `json:"action"` // created | updated | unchanged | skipped
 	Reason string `json:"reason,omitempty"`
@@ -412,8 +412,8 @@ func agentApply(rs []*agentResult) error {
 		if r.Action != agentActionCreated && r.Action != agentActionUpdated {
 			continue
 		}
-		// A generated skill is not worth a backup; configs and AGENTS.md hold the user's own content.
-		bak, err := agentWriteFile(r.File, r.content, r.mode, r.Secret, r.Kind != "skill")
+		// A generated skill is not worth a backup, nor is a line added to .gitignore; configs and AGENTS.md hold the user's own content.
+		bak, err := agentWriteFile(r.File, r.content, r.mode, r.Secret, r.Kind != "skill" && r.Kind != "gitignore")
 		if err != nil {
 			return err
 		}
@@ -500,9 +500,10 @@ func agentChanged(rs []*agentResult) []string {
 	var names []string
 	seen := map[string]bool{}
 	for _, r := range rs {
-		if (r.Action == agentActionCreated || r.Action == agentActionUpdated) && !seen[r.Client] {
+		c := agentClientByID(r.Client) // nil for a .gitignore result: no client to restart
+		if (r.Action == agentActionCreated || r.Action == agentActionUpdated) && c != nil && !seen[r.Client] {
 			seen[r.Client] = true
-			names = append(names, agentClientByID(r.Client).Name)
+			names = append(names, c.Name)
 		}
 	}
 	return names
@@ -521,7 +522,9 @@ func agentSecretGuidance(p *output.Printer, rs []*agentResult, s agentScope) {
 			p.Warn("%s now contains your API key in plain text; its permissions are 0600 (owner only)", r.File)
 		}
 		if rel, err := filepath.Rel(s.Dir, r.File); err == nil && !strings.HasPrefix(rel, "..") {
-			p.Warn("keep it out of version control: echo %s >> .gitignore", filepath.ToSlash(rel))
+			if ignored, _ := os.ReadFile(filepath.Join(s.Dir, ".gitignore")); !gitignoreHas(ignored, filepath.ToSlash(rel)) {
+				p.Warn("keep it out of version control: echo %s >> .gitignore", filepath.ToSlash(rel))
+			}
 		}
 	}
 }

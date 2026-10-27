@@ -12,15 +12,21 @@
   "workers": {
     "batch": {
       "present": 2,
-      "ready": 0
+      "ready": 2
     },
     "browser": {
       "present": 3,
-      "ready": 2
+      "ready": 3
     },
     "egress": {
       "present": 1,
       "ready": 1
     }
-  }
+  },
+  "mcp": {
+    "detected": [],
+    "connected": [],
+    "needs_env": []
+  },
+  "repairs": []
 }

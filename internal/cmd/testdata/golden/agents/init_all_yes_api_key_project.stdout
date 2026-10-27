@@ -1,0 +1,38 @@
+[
+  {
+    "client": "claude",
+    "kind": "mcp",
+    "file": "<DIR>/.mcp.json",
+    "action": "created",
+    "reason": "contains the literal API key",
+    "secret": true
+  },
+  {
+    "client": "cursor",
+    "kind": "mcp",
+    "file": "<DIR>/.cursor/mcp.json",
+    "action": "created",
+    "reason": "contains the literal API key",
+    "secret": true
+  },
+  {
+    "client": "claude",
+    "kind": "skill",
+    "file": "<DIR>/.claude/skills/spicrawl/SKILL.md",
+    "action": "created"
+  },
+  {
+    "client": "cursor",
+    "kind": "skill",
+    "file": "<DIR>/.claude/skills/spicrawl/SKILL.md",
+    "action": "skipped",
+    "reason": "already reads this skill"
+  },
+  {
+    "client": "",
+    "kind": "gitignore",
+    "file": "<DIR>/.gitignore",
+    "action": "updated",
+    "reason": "keeps .mcp.json, .cursor/mcp.json (holds the API key) out of git"
+  }
+]

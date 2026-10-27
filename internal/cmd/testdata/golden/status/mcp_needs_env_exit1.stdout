@@ -1,0 +1,43 @@
+{
+  "api_reachable": true,
+  "ready": true,
+  "checks": {
+    "postgres": "ok",
+    "redis": "ok"
+  },
+  "cdp": "enabled",
+  "key_valid": true,
+  "key_source": "file",
+  "base_url": "http://SERVER",
+  "workers": {
+    "batch": {
+      "present": 2,
+      "ready": 2
+    },
+    "browser": {
+      "present": 3,
+      "ready": 3
+    },
+    "egress": {
+      "present": 1,
+      "ready": 1
+    }
+  },
+  "mcp": {
+    "detected": [
+      "claude"
+    ],
+    "connected": [],
+    "needs_env": [
+      "claude"
+    ]
+  },
+  "repairs": [
+    {
+      "check": "mcp",
+      "command": "spicrawl init --client claude --yes --force",
+      "unattended_safe": true,
+      "why": "Claude Code read the key from $SPICRAWL_API_KEY, which is not set here, so the MCP server cannot authenticate; this rewrites the entry with the key saved in the CLI config (the old file is kept as .bak)"
+    }
+  ]
+}
