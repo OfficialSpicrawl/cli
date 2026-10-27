@@ -60,6 +60,10 @@ func goldenWantUpdate() bool { return *goldenUpdate || os.Getenv("GOLDEN_UPDATE"
 // goldenKey is the fake API key every case runs with (unless noKey).
 const goldenKey = "spicrawl_test_0123456789abcdefghij"
 
+// goldenFlagKey is the key cases pass with --api-key. No output may carry
+// either key.
+const goldenFlagKey = "spicrawl_live_GOLDENFLAG0123456789xyz"
+
 // goldenCase is one invocation of the CLI.
 type goldenCase struct {
 	name  string   // "group/case": the golden file stem; unique
@@ -135,6 +139,11 @@ func goldenRun(t *testing.T, c goldenCase, update bool, variantEnv map[string]st
 	for name, s := range map[string]string{"stdout": r.stdout, "stderr": r.stderr} {
 		if strings.Contains(s, "\x1b") {
 			t.Errorf("%s has an ANSI escape on a non-terminal: %q", name, s)
+		}
+		for _, k := range []string{goldenKey, goldenFlagKey} {
+			if strings.Contains(s, k) {
+				t.Errorf("%s contains the API key: %q", name, s)
+			}
 		}
 	}
 	if strings.Contains(r.stderr, "\r") {

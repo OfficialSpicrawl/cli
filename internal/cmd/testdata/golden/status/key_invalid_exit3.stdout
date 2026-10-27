@@ -10,5 +10,17 @@
   "key_error": "ERR::AUTH::INVALID_KEY: the API key is not valid",
   "key_source": "env",
   "base_url": "http://SERVER",
-  "workers": null
+  "workers": null,
+  "mcp": {
+    "detected": [],
+    "connected": []
+  },
+  "repairs": [
+    {
+      "check": "key",
+      "command": "export SPICRAWL_API_KEY=<YOUR_API_KEY>",
+      "unattended_safe": false,
+      "why": "the API rejected the key in $SPICRAWL_API_KEY (ERR::AUTH::INVALID_KEY: the API key is not valid): create a new one at https://app.spicrawl.com/dashboard/keys"
+    }
+  ]
 }

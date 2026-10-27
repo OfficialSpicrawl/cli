@@ -32,7 +32,7 @@ func statusServer(t *testing.T, keyOK bool) (*httptest.Server, *[]recordedReques
 func TestStatusReport(t *testing.T) {
 	srv, reqs := statusServer(t, true)
 	out, errb, code := runCLI(t, srv.URL, "status")
-	if code != 0 {
+	if code != 1 { // not ready is a failed check
 		t.Fatalf("exit %d: %s", code, errb)
 	}
 	var rep statusReport
@@ -86,7 +86,7 @@ func TestStatusUnreachableExits10(t *testing.T) {
 func TestStatusReportsCDP(t *testing.T) {
 	srv, _ := statusServer(t, true)
 	out, errb, code := runCLI(t, srv.URL, "status")
-	if code != 0 {
+	if code != 1 { // the server is not ready
 		t.Fatalf("exit %d: %s", code, errb)
 	}
 	var rep statusReport
@@ -103,11 +103,12 @@ func TestStatusReportsCDP(t *testing.T) {
 }
 
 // The checklist is for a person at a terminal. Piped, or with the live output
-// off, the old key/value lines come out byte for byte.
+// off, the old key/value lines come out byte for byte; failed checks add a
+// repairs block after them.
 func TestStatusHumanPlainIsUnchanged(t *testing.T) {
 	srv, _ := statusServer(t, true)
 	out, errb, code := runCLIHuman(t, srv.URL, "status")
-	if code != 0 {
+	if code != 1 {
 		t.Fatalf("exit %d: %s", code, errb)
 	}
 	want := "base url:    " + srv.URL + "\n" +
@@ -117,7 +118,12 @@ func TestStatusHumanPlainIsUnchanged(t *testing.T) {
 		"key:         valid (from env)\n" +
 		"workers:\n" +
 		"  browser    1 ready of 2\n" +
-		"  egress     0 ready of 0\n"
+		"  egress     0 ready of 0\n" +
+		"repairs:\n" +
+		"  - check: ready\n" +
+		"    command: spicrawl status\n" +
+		"    unattended_safe: true\n" +
+		"    why: the API reports it is not ready (redis=unreachable): that is on the server side, wait a minute and re-run; nothing to change here\n"
 	if out != want {
 		t.Errorf("stdout changed:\n%q\nwant\n%q", out, want)
 	}
@@ -129,7 +135,7 @@ func TestStatusLiveChecklist(t *testing.T) {
 	liveUI(t)
 	srv, _ := statusServer(t, true)
 	out, errb, code := runCLIHuman(t, srv.URL, "status")
-	if code != 0 {
+	if code != 1 {
 		t.Fatalf("exit %d: %s", code, errb)
 	}
 	if !strings.Contains(out, "\x1b[") {
@@ -145,7 +151,11 @@ func TestStatusLiveChecklist(t *testing.T) {
 		"workers",
 		"! browser    1 ready of 2",
 		"– egress     0 ready of 0",
+		"– mcp        no agent client found here",
 		"✗ 1 check failed",
+		"repairs",
+		"✗ ready      spicrawl status",
+		"unattended_safe: true · the API reports it is not ready (redis=unreachable)",
 	} {
 		if !strings.Contains(plain, want) {
 			t.Errorf("missing %q in\n%s", want, plain)
@@ -198,7 +208,7 @@ func TestStatusLiveNeverTouchesMachineOutput(t *testing.T) {
 	spinNow(t)
 	srv, _ := statusServer(t, true)
 	out, errb, code := runCLI(t, srv.URL, "status")
-	if code != 0 {
+	if code != 1 {
 		t.Fatalf("exit %d: %s", code, errb)
 	}
 	var rep statusReport

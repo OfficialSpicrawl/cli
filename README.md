@@ -122,6 +122,7 @@ npx @spicrawl/cli init
 The skill goes to `spicrawl/SKILL.md` under `.claude/skills` (Claude Code), `.cursor/skills` (Cursor), `.github/skills` (VS Code) or `.agents/skills` (Codex); with `--global`, under `~/.claude/skills`, `~/.cursor/skills`, `~/.copilot/skills` or `~/.agents/skills`. Project paths are relative to `--dir` (default: the current directory). With `--client all` the skill is written only to `.claude/skills` and `.agents/skills`, since Cursor and VS Code also read `.claude/skills`.
 
 ```sh
+spicrawl init --all --yes --api-key <key>      # every detected client, no prompt, key checked and saved
 spicrawl init --client claude,cursor --yes     # no prompt; required without a terminal
 spicrawl init --client all --global --yes      # user-level config for every client
 spicrawl init --client codex --agents-md --yes # also add a Spicrawl section to AGENTS.md
@@ -140,6 +141,41 @@ There is no uninstall command. Remove the `spicrawl` entry from each MCP config 
 
 For other clients (Gemini CLI, OpenCode, Factory Droid, Devin and more) use the plugins in [OfficialSpicrawl/agent-plugins](https://github.com/OfficialSpicrawl/agent-plugins). More in the [agent setup guide](https://docs.spicrawl.com/cli/agent-setup).
 
+## Set up with one prompt
+
+Paste this into a coding agent that runs shell commands on your computer (Claude Code, Cursor, Codex, VS Code with Copilot agent mode), and put your key in place of `<YOUR_API_KEY>`. Create a key at [app.spicrawl.com/dashboard/keys](https://app.spicrawl.com/dashboard/keys).
+
+```text
+Set up Spicrawl for yourself. My API key is <YOUR_API_KEY>. Only if your shell runs on my computer, run: npx -y @spicrawl/cli@latest init --all --yes --api-key <YOUR_API_KEY> — it finds every coding agent installed here, adds the Spicrawl MCP server and installs the Spicrawl skill. Check it: npx -y @spicrawl/cli@latest status --json. If a check failed, run the repairs it lists in order; repairs with unattended_safe: false are mine, so show me the command instead of running it. Prove it works: scrape https://news.ycombinator.com with Spicrawl and tell me today's top story. Report which agents connected and anything you could not finish. Never repeat my API key back to me. If you have no shell on my computer (a chat app or cloud sandbox), stop and send me to https://docs.spicrawl.com/agents/quickstart instead. New MCP tools appear only in a session started after the install.
+```
+
+What the two commands do, with no questions asked:
+
+- `init --all --yes --api-key <key>` connects every detected client (`--all`; it conflicts with `--client`) without confirming (`--yes`). The key is checked with the API and saved to the config file as `spicrawl login` does, before any client file is written; a rejected key exits 3 and writes nothing. The key is never printed, only masked (`spicrawl_live_ab12…cd34`), and API errors are masked too. The result list stays on stdout (JSON when it is not a terminal); a short report follows on stderr:
+
+  ```text
+  connected: Claude Code, Cursor
+  skipped: VS Code (Copilot) (not detected), Codex (not detected)
+  api key: spicrawl_live_ab12…cd34 (checked, saved to /home/you/.config/spicrawl/config.json)
+  next: export SPICRAWL_API_KEY=<YOUR_API_KEY> in the shell or profile that starts Claude Code, Cursor: their MCP config reads the key from it
+  next: restart Claude Code, Cursor to load the MCP server and the skill
+  next: run npx -y @spicrawl/cli@latest status, then ask your agent to scrape a page (or try: npx -y @spicrawl/cli@latest scrape https://example.com)
+  ```
+
+  Commands in `next` and in the repairs below say `npx -y @spicrawl/cli@latest` when the CLI was started by npx, and `spicrawl` otherwise.
+- `status --json` adds a `repairs` array with one entry per failed check, in the order to run them, and exits non-zero when any check fails:
+
+  ```json
+  "repairs": [
+    {"check": "key", "command": "spicrawl login --api-key <YOUR_API_KEY>", "unattended_safe": false, "why": "no API key is configured: create one at https://app.spicrawl.com/dashboard/keys and supply it"},
+    {"check": "mcp", "command": "spicrawl init --all --yes", "unattended_safe": true, "why": "no Spicrawl MCP server is configured for Claude Code; this writes the MCP entry and the skill for every client found here"}
+  ]
+  ```
+
+  `unattended_safe: false` means the user must act (supply a key) or decide; the command holds a placeholder, never a key. The checks are `reachable`, `ready`, `key`, `workers.<kind>` and `mcp` (an agent client found in this directory or your home directory without a Spicrawl MCP server; skipped when none is found). Without `--json`, `status` prints the same repairs as `check:`, `command:`, `unattended_safe:` and `why:` lines.
+
+The key is passed as an argument, so other users on the machine can see it in the process list while the command runs. To avoid that, export `SPICRAWL_API_KEY` and drop `--api-key`: `init` uses it for the client configs but does not check or save it (run `spicrawl login` to save it).
+
 ## Commands
 
 | Command | What it does |
@@ -157,7 +193,7 @@ For other clients (Gemini CLI, OpenCode, Factory Droid, Devin and more) use the 
 | `spicrawl config` | Read and write the config file: `get`, `set`, `unset`, `path` |
 | `spicrawl logs` | Recent API requests, newest first; `logs get <request-id>` for one |
 | `spicrawl usage` | Billed usage over a time window; `usage summary`, `usage reconciliation` |
-| `spicrawl status` | Check the API is reachable, ready and accepts your key |
+| `spicrawl status` | Check the API is reachable, ready and accepts your key, and that detected agent clients have the MCP server; prints a repair command for each failed check |
 | `spicrawl docs` | Print a Spicrawl docs page as Markdown (`--list` for the index); no API key needed |
 | `spicrawl schema` | Print the JSON Schema of a request body: `scrape`, `batch`, `batch-item`, `session` |
 | `spicrawl exit-codes` | List the exit codes and what they mean |
@@ -302,6 +338,8 @@ There are 14 exit codes: 0 to 12, and 130. They are stable: never renumbered, on
 | 11 | `pending` | a `--wait` gave up before the job finished | The job is still running: resume with `spicrawl batch wait <id>`. |
 | 12 | `timeout` | the request was sent but `--timeout` expired or the connection dropped; it may have run and been billed | Check `spicrawl logs` before retrying. |
 | 130 | `interrupted` | Ctrl-C | Nothing to do; a request already sent may still have run. |
+
+`spicrawl status` also exits 1 when a check other than the key or the network fails (the API reports not ready, a worker kind has none ready, an agent client has no Spicrawl MCP server); its `repairs` say what to run.
 
 ## Configuration
 

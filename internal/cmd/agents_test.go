@@ -896,8 +896,11 @@ func TestInitHumanPlainIsUnchanged(t *testing.T) {
 	if !strings.HasPrefix(errOut, "clients: Claude Code\nMCP server: "+agentTestMCPURL+"\n") {
 		t.Errorf("stderr changed:\n%s", errOut)
 	}
-	if strings.Contains(errOut, "next") {
-		t.Errorf("hints without a terminal:\n%s", errOut)
+	// After the intro comes the report, as plain "name: value" lines.
+	for _, want := range []string{"\nconnected: Claude Code\n", "\nskipped: Cursor (not detected), VS Code (Copilot) (not detected), Codex (not detected)\n", "\napi key: ", "\nnext: restart Claude Code to load the MCP server and the skill\n", "\nnext: run spicrawl status"} {
+		if !strings.Contains(errOut, want) {
+			t.Errorf("stderr lacks %q:\n%s", want, errOut)
+		}
 	}
 	noEscapes(t, "stdout", out)
 	noEscapes(t, "stderr", errOut)

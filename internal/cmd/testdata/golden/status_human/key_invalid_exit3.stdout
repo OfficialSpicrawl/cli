@@ -3,3 +3,8 @@ reachable:   yes
 ready:       yes
 cdp:         enabled
 key:         invalid (from env): ERR::AUTH::INVALID_KEY: the API key is not valid
+repairs:
+  - check: key
+    command: export SPICRAWL_API_KEY=<YOUR_API_KEY>
+    unattended_safe: false
+    why: the API rejected the key in $SPICRAWL_API_KEY (ERR::AUTH::INVALID_KEY: the API key is not valid): create a new one at https://app.spicrawl.com/dashboard/keys

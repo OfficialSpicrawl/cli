@@ -13,6 +13,28 @@ import (
 	"github.com/spf13/pflag"
 )
 
+// TestMain gives the whole package an empty home, so what is installed on the
+// developer's machine (agent clients under ~, $CODEX_HOME, how npm started
+// the tests) never changes a result. Tests that need files in a home set their own.
+func TestMain(m *testing.M) {
+	home, err := os.MkdirTemp("", "spicrawl-test-home-")
+	if err != nil {
+		panic(err)
+	}
+	for _, k := range []string{"HOME", "USERPROFILE"} {
+		os.Setenv(k, home)
+	}
+	for _, k := range []string{"XDG_CONFIG_HOME", "CODEX_HOME", "npm_command"} {
+		os.Unsetenv(k)
+	}
+	code := m.Run()
+	os.RemoveAll(home)
+	os.Exit(code)
+}
+
+// testKey is the $SPICRAWL_API_KEY runCLI exports; a test clears it to run without a key.
+var testKey = "spicrawl_test_key"
+
 // runCLI executes the command tree in-process against baseURL and returns
 // stdout, stderr and the exit code. It forces --json and a test key, points
 // the config file at a temp dir, and resets every flag afterwards so tests
@@ -20,7 +42,7 @@ import (
 func runCLI(t *testing.T, baseURL string, args ...string) (string, string, int) {
 	t.Helper()
 	t.Setenv("SPICRAWL_CONFIG", t.TempDir()+"/config.json")
-	t.Setenv("SPICRAWL_API_KEY", "spicrawl_test_key")
+	t.Setenv("SPICRAWL_API_KEY", testKey)
 	var out, errb bytes.Buffer
 	stdout, stderr = &out, &errb
 	defer func() {

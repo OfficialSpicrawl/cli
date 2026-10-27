@@ -16,6 +16,7 @@ import (
 
 var initFlags struct {
 	client   string
+	all      bool
 	yes      bool
 	global   bool
 	url      string
@@ -50,10 +51,21 @@ through. An existing "spicrawl" MCP entry that differs from the one to write is
 not replaced unless you pass --force.
 
 Without a terminal on stdin, --yes is required. See "spicrawl mcp install
---help" for how the API key is referenced in each client's config.`,
+--help" for how the API key is referenced in each client's config.
+
+Unattended, in one command: "spicrawl init --all --yes --api-key <key>". --all
+connects every detected client (and conflicts with --client); --yes skips the
+confirmation. --api-key is checked with the API and saved to the config file as
+"spicrawl login" does, before any client file is written; a rejected key writes
+nothing. The key is never printed, only masked (spicrawl_live_ab12…cd34).
+$SPICRAWL_API_KEY is used as before (referenced by the client configs) but is
+neither checked nor saved here. A short report follows on stderr: connected and
+skipped clients, the key, and the next step. The results stay on stdout, as
+JSON when it is not a terminal.`,
 	Example: `  spicrawl init
   spicrawl init --client claude,cursor --yes
-  spicrawl init --client all --global --yes`,
+  spicrawl init --client all --global --yes
+  spicrawl init --all --yes --api-key spicrawl_live_...`,
 	Args: cobra.NoArgs,
 	RunE: runInit,
 }
@@ -61,6 +73,7 @@ Without a terminal on stdin, --yes is required. See "spicrawl mcp install
 func init() {
 	f := initCmd.Flags()
 	f.StringVar(&initFlags.client, "client", "", "claude, cursor, vscode, codex or all (comma-separated; default: detected clients)")
+	f.BoolVar(&initFlags.all, "all", false, "connect every detected client (the default selection, stated outright; conflicts with --client)")
 	f.BoolVarP(&initFlags.yes, "yes", "y", false, "apply without asking")
 	f.BoolVar(&initFlags.global, "global", false, "configure your user-level client settings instead of the project")
 	f.StringVar(&initFlags.url, "mcp-url", "", "MCP server URL (default: $"+agentEnvMCPURL+", then <API origin>/mcp from the base URL; "+agentPublicMCPURL+" for the hosted API)")
@@ -82,6 +95,9 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
+	if initFlags.all && initFlags.client != "" {
+		return Usagef("--all and --client are mutually exclusive: --all connects every detected client")
+	}
 	clients, err := agentSelectClients(initFlags.client, s)
 	if err != nil {
 		return err
@@ -98,7 +114,19 @@ func runInit(cmd *cobra.Command, _ []string) error {
 		p.Info("MCP server: %s", ep.MCP)
 	}
 
-	key, _ := agentAPIKey()
+	key, keySource := agentAPIKey()
+	keyLine := "none configured"
+	if key != "" {
+		keyLine = config.MaskKey(key) + " (from " + keySource + ")"
+	}
+	if keySource == "flag" {
+		// Check it and save it before writing any client file: a bad key must not leave a half-done setup.
+		r, err := authSaveKey(p, key)
+		if err != nil {
+			return err
+		}
+		keyLine = config.MaskKey(key) + " (checked, saved to " + r.Path + ")"
+	}
 	opt := mcpOptions{URL: ep.MCP, UseEnv: initFlags.useEnv, Key: key, Force: initFlags.force}
 
 	var rs []*agentResult
@@ -156,16 +184,71 @@ func runInit(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	mcpEnvHint(p, rs)
-	if key == "" {
-		p.Warn("no API key is configured: run \"spicrawl login\" or set %s", config.EnvAPIKey)
-	}
-	if names := agentChanged(rs); len(names) > 0 {
-		viewNext(p,
-			"restart "+strings.Join(names, ", ")+" to load the MCP server and the skill",
-			"then ask your agent to scrape a page, or try: spicrawl scrape https://example.com",
-		)
-	}
+	initPrintReport(p, rs, keyLine, key == "")
 	return nil
+}
+
+// initPrintReport is the short report after a run: the clients connected and
+// skipped (with why), the key (masked) and the next step. It goes to stderr,
+// as plain "name: value" lines unless a terminal gets the live view; stdout
+// stays the result list. noKey: no API key is configured anywhere.
+func initPrintReport(p *output.Printer, rs []*agentResult, keyLine string, noKey bool) {
+	var connected, skipped []string
+	for _, c := range agentClients {
+		var mcp *agentResult
+		for _, r := range rs {
+			if r.Client == c.ID && r.Kind == "mcp" {
+				mcp = r
+			}
+		}
+		switch {
+		case mcp == nil && initFlags.client == "":
+			skipped = append(skipped, c.Name+" (not detected)")
+		case mcp == nil:
+			skipped = append(skipped, c.Name+" (not selected)")
+		case mcp.Action == agentActionSkipped:
+			skipped = append(skipped, c.Name+" ("+mcp.Reason+")")
+		default:
+			connected = append(connected, c.Name)
+		}
+	}
+	list := func(l []string) string {
+		if len(l) == 0 {
+			return "none"
+		}
+		return strings.Join(l, ", ")
+	}
+	if !viewIntro(p, "Result",
+		ui.Row{Key: "connected", Val: list(connected)},
+		ui.Row{Key: "skipped", Val: list(skipped)},
+		ui.Row{Key: "api key", Val: keyLine},
+	) {
+		p.Info("connected: %s", list(connected))
+		p.Info("skipped: %s", list(skipped))
+		p.Info("api key: %s", keyLine)
+	}
+
+	cli := cliInvocation()
+	var steps []string
+	if noKey {
+		steps = append(steps, cli+" login --api-key <YOUR_API_KEY> (no API key is configured)")
+	}
+	if env := mcpEnvClients(rs); len(env) > 0 {
+		steps = append(steps, "export "+config.EnvAPIKey+"=<YOUR_API_KEY> in the shell or profile that starts "+strings.Join(env, ", ")+": their MCP config reads the key from it")
+	}
+	names := agentChanged(rs)
+	if len(names) > 0 {
+		steps = append(steps, "restart "+strings.Join(names, ", ")+" to load the MCP server and the skill")
+	}
+	steps = append(steps, "run "+cli+" status, then ask your agent to scrape a page (or try: "+cli+" scrape https://example.com)")
+	if len(names) > 0 || noKey { // on a terminal, an unchanged re-run needs no list
+		viewNext(p, steps...)
+	}
+	if !errUI(p).On() {
+		for _, st := range steps {
+			p.Info("next: %s", st)
+		}
+	}
 }
 
 func initPrintPlan(w io.Writer, u *ui.UI, rs []*agentResult, s agentScope) {

@@ -138,6 +138,41 @@ func runMCPInstall(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
+// mcpConfigured reports whether the MCP config at path has a "spicrawl"
+// server. A file that is missing or cannot be parsed has none.
+func mcpConfigured(c *agentClient, path string) bool {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	if c.MCPFormat == agentCodexTOML {
+		stmts, err := tomlScan(strings.Split(strings.ReplaceAll(string(b), "\r\n", "\n"), "\n"))
+		if err != nil {
+			return false
+		}
+		table, inline, err := mcpTOMLLocate(stmts)
+		return err == nil && (table >= 0 || inline >= 0)
+	}
+	root, _, err := mcpParseConfig(b)
+	if err != nil {
+		return false
+	}
+	key := "mcpServers"
+	if c.MCPFormat == agentVSCodeJSON {
+		key = "servers"
+	}
+	raw, ok := root.get(key)
+	if !ok {
+		return false
+	}
+	servers, err := agentParseObject(raw)
+	if err != nil {
+		return false
+	}
+	_, ok = servers.get(agentServerName)
+	return ok
+}
+
 const mcpNoKeyReason = "this config must embed the API key and none is configured"
 
 // mcpServerEntry keeps the conventional key order (type, url, headers).
@@ -1135,11 +1170,12 @@ func mcpPrint(jsonMode bool, clients []*agentClient, s agentScope, opt mcpOption
 	})
 }
 
-// mcpEnvHint reminds the user that env-based configs need SPICRAWL_API_KEY
-// exported where the client starts.
-func mcpEnvHint(p interface{ Info(string, ...any) }, rs []*agentResult) {
+// mcpEnvClients names the clients just configured to read the key from
+// $SPICRAWL_API_KEY while it is not exported here: they cannot authenticate
+// until it is set where they start.
+func mcpEnvClients(rs []*agentResult) []string {
 	if os.Getenv(config.EnvAPIKey) != "" {
-		return
+		return nil
 	}
 	var names []string
 	for _, r := range rs {
@@ -1150,7 +1186,13 @@ func mcpEnvHint(p interface{ Info(string, ...any) }, rs []*agentResult) {
 			names = append(names, agentClientByID(r.Client).Name)
 		}
 	}
-	if len(names) > 0 {
+	return names
+}
+
+// mcpEnvHint reminds the user that env-based configs need SPICRAWL_API_KEY
+// exported where the client starts.
+func mcpEnvHint(p interface{ Info(string, ...any) }, rs []*agentResult) {
+	if names := mcpEnvClients(rs); len(names) > 0 {
 		p.Info("note: %s read the key from $%s; export it in the shell or profile that starts the client", strings.Join(names, ", "), config.EnvAPIKey)
 	}
 }

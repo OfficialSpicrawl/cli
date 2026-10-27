@@ -46,6 +46,40 @@ func init() {
 	c11 := agent("agents/init_err_no_client_detected", false, nil, nil, "init", "--yes", "--dir", "{dir}")
 	c11.stderr = true
 
+	// One prompt, no questions: --all --yes --api-key against a fake API that
+	// accepts or rejects the key. The report on stderr is machine-readable here.
+	setupClients := func(t *testing.T, e *goldenEnv) {
+		goldenWrite(t, e.Dir, ".claude/settings.json", `{}`)
+		goldenWrite(t, e.Dir, ".cursor/rules/x.mdc", `x`)
+	}
+	oneShot := func(name string, key int, noKey bool, args ...string) goldenCase {
+		return goldenCase{
+			name: name, args: append([]string{"init", "--all", "--yes", "--dir", "{dir}"}, args...), noKey: noKey, stderr: true,
+			env: env, setup: setupClients,
+			server: goldenServe(map[string]http.HandlerFunc{
+				"GET /skill.md": func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(gAgentSkill)) },
+				"GET /v1/requests": func(w http.ResponseWriter, r *http.Request) {
+					if key == 401 {
+						gProblem(401, "ERR::AUTH::INVALID_KEY", "the API key is not valid")(w, r)
+						return
+					}
+					gJSON(200, `{"data":[],`+gLogPageEnd+`}`)(w, r)
+				},
+			}),
+			files: []string{".mcp.json", ".cursor/mcp.json", ".claude/skills/spicrawl/SKILL.md"},
+		}
+	}
+	allKey := oneShot("agents/init_all_yes_api_key", 200, true, "--api-key", goldenFlagKey)
+	rejected := oneShot("agents/init_api_key_rejected_exit3", 401, true, "--api-key", goldenFlagKey)
+	rejected.files = nil
+	noKeyAtAll := oneShot("agents/init_all_yes_no_key", 200, true)
+	noKeyAtAll.files = nil
+	envKey := oneShot("agents/init_all_yes_env_key", 200, false)
+	envKey.files = nil
+	both := agent("agents/init_all_conflicts_with_client", false, nil, nil, "init", "--all", "--client", "claude", "--yes", "--dir", "{dir}")
+	both.stderr = true
+
+	goldenAdd(allKey, rejected, noKeyAtAll, envKey, both)
 	goldenAdd(c, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11,
 		agent("agents_human/mcp_print_all", true, nil, nil, "mcp", "install", "--client", "all", "--dir", "{dir}", "--print"),
 		agent("agents_human/mcp_install_all", true, nil, nil, "mcp", "install", "--client", "all", "--dir", "{dir}"),

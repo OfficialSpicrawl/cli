@@ -1,0 +1,40 @@
+{
+  "api_reachable": true,
+  "ready": true,
+  "checks": {
+    "postgres": "ok",
+    "redis": "ok"
+  },
+  "cdp": "enabled",
+  "key_valid": true,
+  "key_source": "env",
+  "base_url": "http://SERVER",
+  "workers": {
+    "batch": {
+      "present": 2,
+      "ready": 2
+    },
+    "browser": {
+      "present": 3,
+      "ready": 3
+    },
+    "egress": {
+      "present": 1,
+      "ready": 1
+    }
+  },
+  "mcp": {
+    "detected": [
+      "claude"
+    ],
+    "connected": []
+  },
+  "repairs": [
+    {
+      "check": "mcp",
+      "command": "spicrawl init --all --yes",
+      "unattended_safe": true,
+      "why": "no Spicrawl MCP server is configured for Claude Code; this writes the MCP entry and the skill for every client found here"
+    }
+  ]
+}
