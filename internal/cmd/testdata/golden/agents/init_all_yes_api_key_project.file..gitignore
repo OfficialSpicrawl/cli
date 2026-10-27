@@ -1,3 +1,5 @@
 node_modules/
 .mcp.json
+.mcp.json.bak
 .cursor/mcp.json
+.cursor/mcp.json.bak

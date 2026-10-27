@@ -67,6 +67,14 @@ func gStatusEnvRefClient(t *testing.T, e *goldenEnv) {
 	goldenWrite(t, e.CfgDir, "config.json", `{"api_key": "`+goldenKey+`"}`)
 }
 
+// gStatusStaleClient is Claude Code with a Spicrawl server that holds another
+// key than the one saved in the CLI config.
+func gStatusStaleClient(t *testing.T, e *goldenEnv) {
+	goldenWrite(t, e.Home, ".claude/settings.json", `{}`)
+	goldenWrite(t, e.Home, ".claude.json", `{"mcpServers": {"spicrawl": {"type": "http", "url": "https://mcp.spicrawl.com/mcp", "headers": {"Authorization": "Bearer spicrawl_live_OLDOLDOLD0123456789"}}}}`)
+	goldenWrite(t, e.CfgDir, "config.json", `{"api_key": "`+goldenKey+`"}`)
+}
+
 // gStatusAPIWorkersDown is a healthy API whose fleet endpoint fails.
 func gStatusAPIWorkersDown() func() http.HandlerFunc {
 	ok := gStatusAPI(true, 200, "")()
@@ -155,6 +163,7 @@ func init() {
 		goldenCase{name: "status/worker_kind_down_exit1", args: []string{"status"}, server: gStatusAPI(true, 200, gWorkers)},
 		goldenCase{name: "status/mcp_not_configured_exit1", args: []string{"status"}, server: gStatusAPI(true, 200, gWorkersOK), setup: gStatusClient(false)},
 		goldenCase{name: "status/mcp_needs_env_exit1", args: []string{"status"}, noKey: true, server: gStatusAPI(true, 200, gWorkersOK), setup: gStatusEnvRefClient},
+		goldenCase{name: "status/mcp_stale_key_exit1", args: []string{"status"}, noKey: true, server: gStatusAPI(true, 200, gWorkersOK), setup: gStatusStaleClient},
 		goldenCase{name: "status/mcp_connected", args: []string{"status"}, server: gStatusAPI(true, 200, gWorkersOK), setup: gStatusClient(true)},
 		goldenCase{name: "status/key_invalid_exit3", args: []string{"status"}, stderr: true, server: gStatusAPI(true, 401, gWorkers)},
 		goldenCase{name: "status/key_without_read_scope", args: []string{"status"}, server: gStatusAPI(true, 403, gWorkersOK)},
@@ -164,6 +173,7 @@ func init() {
 		goldenCase{name: "status_human/ok", human: true, args: []string{"status"}, server: gStatusAPI(true, 200, gWorkersOK)},
 		goldenCase{name: "status_human/not_ready", human: true, args: []string{"status"}, server: gStatusAPI(false, 200, gWorkers)},
 		goldenCase{name: "status_human/mcp_needs_env_exit1", human: true, args: []string{"status"}, noKey: true, server: gStatusAPI(true, 200, gWorkersOK), setup: gStatusEnvRefClient},
+		goldenCase{name: "status_human/mcp_stale_key_exit1", human: true, args: []string{"status"}, noKey: true, server: gStatusAPI(true, 200, gWorkersOK), setup: gStatusStaleClient},
 		goldenCase{name: "status_human/mcp_not_configured_exit1", human: true, args: []string{"status"}, server: gStatusAPI(true, 200, gWorkersOK), setup: gStatusClient(false)},
 		goldenCase{name: "status_human/key_invalid_exit3", human: true, args: []string{"status"}, server: gStatusAPI(true, 401, gWorkers)},
 		goldenCase{name: "status_human/no_key_exit3", human: true, args: []string{"status"}, noKey: true, server: gStatusAPI(true, 200, gWorkers)},

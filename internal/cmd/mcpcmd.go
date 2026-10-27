@@ -2,11 +2,13 @@ package cmd
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -198,6 +200,22 @@ func mcpConfigured(c *agentClient, path string) bool {
 // bearer_token_env_var (Codex). A ${VAR:-default} form has a fallback and does not match.
 var mcpEnvRefRE = regexp.MustCompile(`\$\{(?:env:)?` + config.EnvAPIKey + `\}|bearer_token_env_var\s*=\s*["']` + config.EnvAPIKey + `["']`)
 
+// mcpEntryKeyRE finds the token of an Authorization header in an entry.
+var mcpEntryKeyRE = regexp.MustCompile(`Bearer\s+([^"'\s]+)`)
+
+// mcpEntryStale reports whether an entry has a literal key that is not key.
+// The keys are compared by fingerprint and never printed. An entry with a
+// reference, or no key at all, is not stale; with no key in use nothing is.
+func mcpEntryStale(entry, key string) bool {
+	m := mcpEntryKeyRE.FindStringSubmatch(entry)
+	if m == nil || key == "" || strings.Contains(m[1], "${") {
+		return false
+	}
+	return keyFingerprint(m[1]) != keyFingerprint(key)
+}
+
+func keyFingerprint(k string) [sha256.Size]byte { return sha256.Sum256([]byte(k)) }
+
 // mcpEntryNeedsEnv reports whether an entry's key comes from the environment.
 func mcpEntryNeedsEnv(entry string) bool { return mcpEnvRefRE.MatchString(entry) }
 
@@ -299,6 +317,12 @@ func mcpPlan(c *agentClient, s agentScope, opt mcpOptions) (*agentResult, error)
 	if secret && r.Action != agentActionUnchange && r.Reason == "" {
 		r.Reason = "contains the literal API key"
 	}
+	if rel := agentProjectRel(s, r.File); secret && rel != "" && gitTracked(s.Dir, rel) {
+		if r.Reason != "" {
+			r.Reason += "; "
+		}
+		r.Reason += "tracked by git: git rm --cached " + rel
+	}
 	return r, nil
 }
 
@@ -330,7 +354,7 @@ func mcpMergeJSON(c *agentClient, path string, s agentScope, opt mcpOptions) ([]
 	desired := agentRaw(entry)
 	current, had := servers.get(agentServerName)
 	changed := !had || !agentJSONEqual(current, desired)
-	if had && changed && !opt.Force {
+	if had && changed && !opt.Force && !mcpOnlyAuthDiffers(current, desired) {
 		o, _ := agentIndent(current)
 		n, _ := agentIndent(desired)
 		return nil, secret, false, mcpRefuse(path, string(o), string(n))
@@ -369,6 +393,33 @@ func mcpMergeJSON(c *agentClient, path string, s agentScope, opt mcpOptions) ([]
 	}
 	out, err := agentIndent(root)
 	return out, secret, true, err
+}
+
+// mcpOnlyAuthDiffers reports whether an existing server entry is the one we
+// would write except for its bearer token: same keys, same URL, and an
+// Authorization header of the form "Bearer <token>" on both sides (a literal
+// key, or the ${...} reference we write). Such an entry is ours from an
+// earlier run, so a new key or a switch between key and reference replaces it
+// without --force; the file is still copied to .bak first.
+func mcpOnlyAuthDiffers(current, desired json.RawMessage) bool {
+	var c, d map[string]any
+	if json.Unmarshal(current, &c) != nil || json.Unmarshal(desired, &d) != nil {
+		return false
+	}
+	bearer := func(m map[string]any) (string, bool) {
+		h, _ := m["headers"].(map[string]any)
+		a, _ := h["Authorization"].(string)
+		tok, ok := strings.CutPrefix(a, "Bearer ")
+		return tok, ok && tok != "" && !strings.ContainsAny(tok, " \t")
+	}
+	if _, ok := bearer(c); !ok {
+		return false
+	}
+	if _, ok := bearer(d); !ok {
+		return false
+	}
+	c["headers"].(map[string]any)["Authorization"] = d["headers"].(map[string]any)["Authorization"]
+	return reflect.DeepEqual(c, d)
 }
 
 // mcpParseConfig parses a client's JSON config. It accepts a UTF-8 BOM and,
@@ -997,6 +1048,34 @@ func mcpTOMLUpdate(entries []tomlEntry, opt mcpOptions) ([]tomlEntry, error) {
 	return res, nil
 }
 
+// mcpTOMLAuthOnly reports whether the update res of an entry's pairs changes
+// only how the key is passed (bearer_token_env_var, http_headers): the url and
+// every other pair stay as they were.
+func mcpTOMLAuthOnly(entries, res []tomlEntry) bool {
+	isAuth := func(k []string) bool {
+		return tomlPathIs(k, "bearer_token_env_var") || len(k) > 0 && k[0] == "http_headers"
+	}
+	kept := map[int]bool{}
+	for _, e := range res {
+		switch {
+		case e.orig < 0:
+			if !strings.HasPrefix(e.text, "bearer_token_env_var") && !strings.HasPrefix(e.text, "http_headers") {
+				return false
+			}
+		case e.text != "" && !isAuth(e.key):
+			return false
+		default:
+			kept[e.orig] = true
+		}
+	}
+	for i, e := range entries {
+		if !kept[i] && !isAuth(e.key) {
+			return false
+		}
+	}
+	return true
+}
+
 // mcpMergeTOML sets the spicrawl server in a Codex config.toml, editing an
 // existing entry in place (whatever form it takes) or appending a
 // [mcp_servers.spicrawl] table. The rest of the file is left byte-for-byte.
@@ -1028,6 +1107,7 @@ func mcpMergeTOML(path string, _ agentScope, opt mcpOptions) ([]byte, bool, bool
 	}
 
 	var out string
+	authOnly := false // the update changes nothing but the token (see mcpOnlyAuthDiffers)
 	switch {
 	case table < 0 && inline < 0:
 		var b strings.Builder
@@ -1049,6 +1129,7 @@ func mcpMergeTOML(path string, _ agentScope, opt mcpOptions) ([]byte, bool, bool
 		if err != nil {
 			return refuse(err)
 		}
+		authOnly = mcpTOMLAuthOnly(entries, res)
 		line := st.indent + st.rawKey + " = " + tomlRenderInline(res)
 		if st.comment != "" {
 			line += " " + st.comment
@@ -1073,6 +1154,7 @@ func mcpMergeTOML(path string, _ agentScope, opt mcpOptions) ([]byte, bool, bool
 		if err != nil {
 			return refuse(err)
 		}
+		authOnly = mcpTOMLAuthOnly(entries, res)
 		// Where each source pair goes (or nothing, if dropped), and the new
 		// pairs that follow it; new pairs before any source pair follow the header.
 		emit := map[int]*tomlEntry{}
@@ -1124,7 +1206,7 @@ func mcpMergeTOML(path string, _ agentScope, opt mcpOptions) ([]byte, bool, bool
 	if out == string(old) {
 		return old, secret, false, nil
 	}
-	if (table >= 0 || inline >= 0) && !opt.Force && out != strings.TrimSuffix(text, "\n")+"\n" {
+	if (table >= 0 || inline >= 0) && !opt.Force && !authOnly && out != strings.TrimSuffix(text, "\n")+"\n" {
 		return nil, secret, false, mcpRefuse(path, text, out)
 	}
 	// Never write something we would refuse to read back.

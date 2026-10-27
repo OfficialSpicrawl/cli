@@ -3,4 +3,4 @@ claude  mcp        created  .mcp.json                         contains the liter
 cursor  mcp        created  .cursor/mcp.json                  contains the literal API key
 claude  skill      created  .claude/skills/spicrawl/SKILL.md  
 cursor  skill      skipped  .claude/skills/spicrawl/SKILL.md  already reads this skill
-        gitignore  updated  .gitignore                        keeps .mcp.json, .cursor/mcp.json (holds the API key) out of git
+        gitignore  updated  .gitignore                        keeps .mcp.json, .mcp.json.bak, .cursor/mcp.json, .cursor/mcp.json.bak (holds the API key) out of git

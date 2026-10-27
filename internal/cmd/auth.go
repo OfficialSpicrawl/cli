@@ -146,11 +146,9 @@ func authRunLogin(cmd *cobra.Command, _ []string) error {
 	return err
 }
 
-// authSaveKey checks key against the API and saves it to the config file (and
-// --base-url, when given) exactly as "login" does; "init --api-key" shares it.
-// Nothing is saved when the check fails. It returns the settings the key was
-// checked against.
-func authSaveKey(p *output.Printer, key string) (config.Resolved, error) {
+// authCheck resolves the settings for key and checks the key against the API.
+// Nothing is saved.
+func authCheck(p *output.Printer, key string) (config.Resolved, error) {
 	r, err := config.Resolve(key, flagBaseURL)
 	if err != nil {
 		return r, err
@@ -158,18 +156,33 @@ func authSaveKey(p *output.Printer, key string) (config.Resolved, error) {
 	sp := spin(p, "Checking the key with %s", r.BaseURL)
 	err = authCheckKey(rootCmd.Context(), r.BaseURL, key)
 	sp.Stop()
-	if err != nil {
-		return r, err
-	}
+	return r, err
+}
+
+// authStore saves key to the config file, and --base-url when given, as
+// "login" does.
+func authStore(key string) error {
 	f, err := config.Load()
 	if err != nil {
-		return r, err
+		return err
 	}
 	f.APIKey = key
 	if flagBaseURL != "" {
 		f.BaseURL = strings.TrimRight(flagBaseURL, "/")
 	}
-	return r, config.Save(f)
+	return config.Save(f)
+}
+
+// authSaveKey checks key against the API and saves it, exactly as "login" does.
+// Nothing is saved when the check fails. It returns the settings the key was
+// checked against. "init --api-key" checks first and saves only after its plan
+// is confirmed and applied.
+func authSaveKey(p *output.Printer, key string) (config.Resolved, error) {
+	r, err := authCheck(p, key)
+	if err != nil {
+		return r, err
+	}
+	return r, authStore(key)
 }
 
 // authPromptKey asks for the key on the terminal. Without golang.org/x/term

@@ -30,7 +30,8 @@
     "connected": [
       "claude"
     ],
-    "needs_env": []
+    "needs_env": [],
+    "stale": []
   },
   "repairs": []
 }

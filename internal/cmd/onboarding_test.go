@@ -13,7 +13,10 @@ import (
 
 // The one-prompt setup: "init --all --yes --api-key K", then "status --json".
 
-const onboardKey = "spicrawl_live_ONBOARDSECRET0123456789abcd"
+const (
+	onboardKey    = "spicrawl_live_ONBOARDSECRET0123456789abcd"
+	onboardOldKey = "spicrawl_live_OLDSECRETKEY0123456789abcdef"
+)
 
 // onboardAPI answers like a healthy API that accepts onboardKey only.
 func onboardAPI(t *testing.T) string {
@@ -25,7 +28,7 @@ func onboardAPI(t *testing.T) string {
 		case "/v1/workers":
 			_, _ = w.Write([]byte(`{"kinds":[{"kind":"browser","present":1,"ready":1}]}`))
 		case "/v1/requests":
-			if r.Header.Get("Authorization") != "Bearer "+onboardKey && r.Header.Get("Authorization") != "Bearer spicrawl_test_key" {
+			if a := r.Header.Get("Authorization"); a != "Bearer "+onboardKey && a != "Bearer "+onboardOldKey && a != "Bearer spicrawl_test_key" {
 				writeProblem(w, 401, "ERR::AUTH::INVALID_KEY", false)
 				return
 			}
@@ -193,9 +196,10 @@ func TestInitAPIKeyProjectFilesAreGitignored(t *testing.T) {
 	if fi, _ := os.Stat(filepath.Join(dir, ".mcp.json")); fi.Mode().Perm() != 0o600 {
 		t.Errorf(".mcp.json mode %v", fi.Mode().Perm())
 	}
-	// Only the file that was not ignored yet is added; no .bak is left behind.
+	// What was not ignored yet is added, with the .bak copies (they can hold a
+	// previous key); no .gitignore.bak is left behind.
 	gi, _ := os.ReadFile(filepath.Join(dir, ".gitignore"))
-	if string(gi) != "node_modules/\n/.cursor/mcp.json\n.mcp.json\n" {
+	if string(gi) != "node_modules/\n/.cursor/mcp.json\n.mcp.json\n.mcp.json.bak\n.cursor/mcp.json.bak\n" {
 		t.Errorf(".gitignore:\n%s", gi)
 	}
 	if _, err := os.Stat(filepath.Join(dir, ".gitignore.bak")); err == nil {
@@ -335,7 +339,7 @@ func TestInitNeverEchoesTheKeyInErrors(t *testing.T) {
 func TestInitRefusalMasksBothKeys(t *testing.T) {
 	base := onboardAPI(t)
 	dir := onboardProject(t)
-	oldKey := "spicrawl_live_OLDSECRETKEY0123456789abcdef"
+	oldKey := onboardOldKey
 	agentWrite(t, filepath.Join(os.Getenv("HOME"), ".cursor", "mcp.json"),
 		`{"mcpServers":{"spicrawl":{"url":"https://mine.example/mcp","headers":{"Authorization":"Bearer `+oldKey+`"}}}}`)
 	out, errb, code := runCLI(t, base, "init", "--all", "--yes", "--api-key", onboardKey, "--dir", dir)
@@ -575,6 +579,7 @@ func TestStatusRepairsUseNpx(t *testing.T) {
 // The loop the prompt relies on: status fails with an mcp repair, running that
 // repair fixes it, status passes and exits 0.
 func TestStatusPassesAfterInit(t *testing.T) {
+	usesSavedKey(t) // the key status uses is the one init embeds
 	base := onboardAPI(t)
 	dir := onboardProject(t)
 	t.Chdir(dir)
@@ -671,7 +676,7 @@ func TestStatusMCPNeedsEnv(t *testing.T) {
 		t.Fatalf("env unset: exit %d, mcp %+v\n%s", code, bad.MCP, errb)
 	}
 	r := repairFor(bad, "mcp")
-	if r == nil || r.UnattendedSafe || r.Command != "spicrawl init --client claude,cursor --yes --force --global=false --api-key <YOUR_API_KEY>" {
+	if r == nil || r.UnattendedSafe || r.Command != "spicrawl init --client claude,cursor --yes --global=false --api-key <YOUR_API_KEY>" {
 		t.Errorf("repair %+v", r)
 	}
 	noKeyIn(t, onboardKey, "stdout", out)
@@ -686,9 +691,11 @@ func TestStatusMCPNeedsEnvRepairLoop(t *testing.T) {
 	base := onboardAPI(t)
 	dir := onboardProject(t)
 	t.Chdir(dir)
-	agentWrite(t, filepath.Join(dir, ".mcp.json"), envRefEntry)
+	// The entries are the ones init wrote for this server, with the key as a reference.
+	agentWrite(t, filepath.Join(dir, ".mcp.json"),
+		`{"mcpServers": {"spicrawl": {"type": "http", "url": "`+base+`/mcp", "headers": {"Authorization": "Bearer ${SPICRAWL_API_KEY}"}}}}`)
 	agentWrite(t, filepath.Join(os.Getenv("HOME"), ".cursor", "mcp.json"),
-		`{"mcpServers": {"spicrawl": {"url": "https://mcp.spicrawl.com/mcp", "headers": {"Authorization": "Bearer ${env:SPICRAWL_API_KEY}"}}}}`)
+		`{"mcpServers": {"spicrawl": {"url": "`+base+`/mcp", "headers": {"Authorization": "Bearer ${env:SPICRAWL_API_KEY}"}}}}`)
 	// Claude's entry is in the project, Cursor's at user level.
 	rep, _, code := statusJSON(t, base)
 	if code != 1 || strings.Join(rep.MCP.NeedsEnv, ",") != "claude,cursor" {
@@ -701,7 +708,7 @@ func TestStatusMCPNeedsEnvRepairLoop(t *testing.T) {
 		}
 		cmds = append(cmds, r.Command)
 	}
-	want := []string{"spicrawl init --client cursor --yes --force", "spicrawl init --client claude --yes --force --global=false"}
+	want := []string{"spicrawl init --client cursor --yes", "spicrawl init --client claude --yes --global=false"}
 	if strings.Join(cmds, "|") != strings.Join(want, "|") {
 		t.Fatalf("repairs %q, want %q", cmds, want)
 	}

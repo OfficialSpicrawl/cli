@@ -7,8 +7,7 @@
 // runs it with the same argv, stdio and exit code. There is no postinstall
 // step and nothing is downloaded at install time.
 //
-// SPICRAWL_BINARY=/path/to/spicrawl overrides the lookup (SPICRAWL_BINARY is
-// still honoured as a fallback).
+// SPICRAWL_BINARY=/path/to/spicrawl overrides the lookup.
 "use strict";
 
 const { spawn } = require("child_process");
@@ -18,7 +17,6 @@ const path = require("path");
 const INSTALL_DOCS = "https://docs.spicrawl.com/cli/install";
 
 function binaryPath() {
-  if (process.env.SPICRAWL_BINARY) return process.env.SPICRAWL_BINARY;
   if (process.env.SPICRAWL_BINARY) return process.env.SPICRAWL_BINARY;
 
   const target = `${process.platform}-${process.arch}`;

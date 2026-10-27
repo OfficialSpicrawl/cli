@@ -30,14 +30,15 @@
     "connected": [],
     "needs_env": [
       "claude"
-    ]
+    ],
+    "stale": []
   },
   "repairs": [
     {
       "check": "mcp",
-      "command": "spicrawl init --client claude --yes --force",
+      "command": "spicrawl init --client claude --yes",
       "unattended_safe": true,
-      "why": "Claude Code read the key from $SPICRAWL_API_KEY, which is not set here, so the MCP server cannot authenticate; this rewrites the entry with the key saved in the CLI config (the old file is kept as .bak)"
+      "why": "The MCP config for Claude Code reads the key from $SPICRAWL_API_KEY, which is not set here, so the MCP server cannot authenticate; this rewrites the entry with the key saved in the CLI config (the old file is kept as .bak)"
     }
   ]
 }
