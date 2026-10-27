@@ -109,12 +109,13 @@ func TestBrowserURLLegacyEngineNamesStillWork(t *testing.T) {
 		api := &fakeTokenAPI{}
 		srv := api.server(t)
 		_, errb, code := runCLI(t, srv.URL, "browser", "url", "--engine", legacy)
-		if code != 0 {
-			t.Fatalf("%s: exit %d: %s", legacy, code, errb)
+		if code != 0 || errb != "" { // JSON mode: no prose on stderr
+			t.Fatalf("%s: exit %d: %q", legacy, code, errb)
 		}
 		if api.body["engine"] != legacy {
 			t.Errorf("%s: sent engine %v", legacy, api.body["engine"])
 		}
+		_, errb, _ = runCLIHuman(t, srv.URL, "browser", "url", "--engine", legacy)
 		if !strings.Contains(errb, "warning: --engine: this value is deprecated; use browser or js") || strings.Contains(errb, legacy) {
 			t.Errorf("%s: stderr %q", legacy, errb)
 		}

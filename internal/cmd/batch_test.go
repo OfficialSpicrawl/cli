@@ -260,8 +260,11 @@ func TestBatchResultsToFileSinglePage(t *testing.T) {
 	if !strings.HasSuffix(string(b), "}\n") {
 		t.Errorf("file: %q", b)
 	}
-	if len(*reqs) != 1 || !strings.Contains(errOut, "--cursor ff") {
+	if len(*reqs) != 1 || errOut != "" { // JSON mode: stderr is the problem document or empty
 		t.Errorf("reqs=%d stderr=%s", len(*reqs), errOut)
+	}
+	if _, errOut, code = runCLIHuman(t, srv.URL, "batch", "results", "J8", "-o", path); code != 0 || !strings.Contains(errOut, "--cursor ff") {
+		t.Errorf("human: exit %d stderr %q", code, errOut)
 	}
 }
 
@@ -486,8 +489,11 @@ func TestBatchContent(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &doc); err != nil || doc != "<html><p>hi</p></html>" {
 		t.Errorf("JSON stdout %q (%v)", out, err)
 	}
-	if (*reqs)[0].Path != "/v1/batch/J1/tasks/3/content" || !strings.Contains(errOut, "512 KiB") {
+	if (*reqs)[0].Path != "/v1/batch/J1/tasks/3/content" || errOut != "" { // JSON mode: no prose on stderr
 		t.Errorf("path %s stderr %s", (*reqs)[0].Path, errOut)
+	}
+	if _, errOut, code = runCLIHuman(t, srv.URL, "batch", "content", "J1", "3"); code != 0 || !strings.Contains(errOut, "512 KiB") {
+		t.Errorf("human: exit %d stderr %q", code, errOut)
 	}
 
 	path := filepath.Join(t.TempDir(), "page.html")

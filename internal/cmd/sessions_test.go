@@ -51,14 +51,15 @@ func TestSessionsCreateEngineTiersAndLegacyNames(t *testing.T) {
 			_, _ = w.Write([]byte(sessionsTestBody))
 		})
 		_, errb, code := runCLI(t, srv.URL, "sessions", "create", "--engine", legacy)
-		if code != 0 {
-			t.Fatalf("%s: exit %d: %s", legacy, code, errb)
+		if code != 0 || errb != "" { // JSON mode: no prose on stderr
+			t.Fatalf("%s: exit %d: %q", legacy, code, errb)
 		}
 		var body map[string]any
 		_ = json.Unmarshal((*reqs)[0].Body, &body)
 		if body["engine"] != legacy {
 			t.Errorf("%s: sent %v", legacy, body["engine"])
 		}
+		_, errb, _ = runCLIHuman(t, srv.URL, "sessions", "create", "--engine", legacy)
 		if !strings.Contains(errb, "warning: --engine: this value is deprecated; use fetch, js or browser") || strings.Contains(errb, legacy) {
 			t.Errorf("%s: stderr %q", legacy, errb)
 		}

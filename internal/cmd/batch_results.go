@@ -207,7 +207,7 @@ var batchContentCmd = &cobra.Command{
 	Short: "Print one finished item's document (GET /v1/batch/{id}/tasks/{seq}/content)",
 	Long: `Fetch a single item's payload by its seq (0-based submission order, "seq" on a
 result line) without paging the whole result set. The API caps it at 512 KiB;
-a cut payload is reported on stderr.
+a cut payload is reported on stderr in human mode.
 
 In JSON mode the payload is printed as the API returned it (a JSON string holding
 the document). In human mode, and always with -o, the document itself is written.

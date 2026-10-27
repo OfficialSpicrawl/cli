@@ -1,5 +1,3 @@
-clients: Claude Code
-MCP server: http://127.0.0.1:1/mcp
 plan:
   create  claude  mcp    .mcp.json
   create  claude  skill  .claude/skills/spicrawl/SKILL.md
