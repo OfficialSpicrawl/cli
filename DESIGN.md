@@ -16,6 +16,11 @@ never invent a field the API does not accept (the API rejects unknown fields).
    `TERM=dumb` or `CI`. Switched off, the output is the plain text it always was.
    It never prints an engine or browser name; it says what the request asked for
    ("rendering JavaScript"), not which tier the API picked.
+   An empty result is not data either: in human mode an empty list
+   (`sessions list`, `logs`, `batch list`, `batch results`) prints nothing on
+   stdout and its one-line message ("no sessions") on stderr, so
+   `spicrawl sessions list | wc -l` is 0 and `-q` silences the message. JSON
+   mode prints the empty collection on stdout.
 2. **JSON when not a terminal.** `--json` forces it. Human mode prints tables
    or the document itself.
 3. **Never prompts without a TTY.** Anything interactive has a flag form.

@@ -58,7 +58,7 @@ func init() {
 
 		goldenCase{name: "sessions_human/create", human: true, args: []string{"sessions", "create"}, server: one("POST", "/v1/sessions", gSessionNew, 201)},
 		goldenCase{name: "sessions_human/list", human: true, args: []string{"sessions", "list"}, server: list(page)},
-		goldenCase{name: "sessions_human/list_empty", human: true, args: []string{"sessions", "list"}, server: list(`{"sessions":[]}`)},
+		goldenCase{name: "sessions_human/list_empty", human: true, stderr: true, args: []string{"sessions", "list"}, server: list(`{"sessions":[]}`)},
 		goldenCase{name: "sessions_human/list_next_cursor", human: true, args: []string{"sessions", "list"}, server: list(more)},
 		goldenCase{name: "sessions_human/get", human: true, args: []string{"sessions", "get", gSessionID}, server: one("GET", "/v1/sessions/{id}", gSession, 200)},
 		goldenCase{name: "sessions_human/get_released", human: true, args: []string{"sessions", "get", gSessionID}, server: one("GET", "/v1/sessions/{id}", gSessionReleased, 200)},

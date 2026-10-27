@@ -388,7 +388,7 @@ func batchRunList(cmd *cobra.Command, _ []string) error {
 				fmt.Sprintf("%d/%d", j.Progress.Completed, j.Progress.Total), j.SubmittedAt})
 		}
 		if len(rows) == 0 {
-			fmt.Fprintln(w, "no batch jobs")
+			p.Info("no batch jobs") // not data: stderr, so stdout stays empty
 		} else {
 			p.Table([]string{"ID", "STATUS", "NAME", "DONE", "SUBMITTED"}, rows)
 		}

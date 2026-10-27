@@ -1,0 +1,19 @@
+{
+  "title": "Anvil",
+  "sku": "A-1",
+  "specs": {
+    "weight": "50kg",
+    "color": "black",
+    "dims": {
+      "w": 1.0,
+      "h": 2e3
+    }
+  },
+  "tags": [
+    "z",
+    "a"
+  ],
+  "price": 19.99,
+  "empty": {},
+  "none": null
+}
