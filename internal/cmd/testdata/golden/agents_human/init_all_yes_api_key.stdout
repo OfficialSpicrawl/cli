@@ -1,0 +1,5 @@
+CLIENT  KIND   ACTION   FILE                                NOTE
+claude  mcp    created  ~/.claude.json                      contains the literal API key
+cursor  mcp    created  ~/.cursor/mcp.json                  contains the literal API key
+claude  skill  created  ~/.claude/skills/spicrawl/SKILL.md  
+cursor  skill  skipped  ~/.claude/skills/spicrawl/SKILL.md  already reads this skill

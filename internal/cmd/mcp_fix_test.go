@@ -71,12 +71,19 @@ func TestMCPInstallAcceptsJSONCAndBOM(t *testing.T) {
 	orig := "\xef\xbb\xbf{\n  // my servers\n  \"servers\": {\n    \"other\": {\"url\": \"http://x//y\", /* inline */ },\n  },\n}\n"
 	agentWrite(t, path, orig)
 
+	// The warning about dropped comments is for a person: JSON mode keeps stderr empty.
+	other := filepath.Join(t.TempDir(), ".vscode", "mcp.json")
+	agentWrite(t, other, orig)
+	if _, errOut, code := runCLIHuman(t, agentTestBase, "mcp", "install", "--client", "vscode", "--dir", filepath.Dir(filepath.Dir(other))); code != 0 || !strings.Contains(errOut, "comments") {
+		t.Errorf("human: exit %d, no warning about dropped comments: %q", code, errOut)
+	}
+
 	rs, errOut, code := agentRun(t, "mcp", "install", "--client", "vscode", "--dir", dir)
 	if code != 0 || rs[0].Action != "updated" {
 		t.Fatalf("exit %d %+v: %s", code, rs, errOut)
 	}
-	if !strings.Contains(errOut, "comments") {
-		t.Errorf("no warning about dropped comments: %s", errOut)
+	if errOut != "" {
+		t.Errorf("JSON mode wrote prose to stderr: %q", errOut)
 	}
 	servers := agentReadJSON(t, path)["servers"].(map[string]any)
 	if servers["spicrawl"] == nil || servers["other"].(map[string]any)["url"] != "http://x//y" {

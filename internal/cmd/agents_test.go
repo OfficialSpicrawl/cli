@@ -255,6 +255,14 @@ func TestMCPInstallCodexAppendsToGlobal(t *testing.T) {
 }
 
 func TestMCPInstallClaudeGlobalEmbedsKeyAndWarns(t *testing.T) {
+	// The warning is for a person; JSON mode keeps stderr empty and says
+	// `secret: true` in the result.
+	dirH, _ := agentTestEnv(t)
+	_, humanErr, code := runCLIHuman(t, agentTestBase, "mcp", "install", "--client", "claude", "--global", "--dir", dirH)
+	if code != 0 || !strings.Contains(humanErr, "API key in plain text") || strings.Contains(humanErr, ".gitignore") {
+		t.Errorf("human: exit %d, stderr %q", code, humanErr)
+	}
+
 	dir, home := agentTestEnv(t)
 	path := filepath.Join(home, ".claude.json")
 	agentWrite(t, path, `{"numStartups": 3, "projects": {"/x": {}}}`)
@@ -262,11 +270,8 @@ func TestMCPInstallClaudeGlobalEmbedsKeyAndWarns(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, errOut)
 	}
-	if !rs[0].Secret || !strings.Contains(errOut, "API key in plain text") {
-		t.Errorf("no secret warning: %+v %s", rs, errOut)
-	}
-	if strings.Contains(errOut, ".gitignore") {
-		t.Errorf("gitignore advice for a home file: %s", errOut)
+	if !rs[0].Secret || errOut != "" {
+		t.Errorf("JSON mode: %+v, stderr %q", rs, errOut)
 	}
 	m := agentReadJSON(t, path)
 	if m["numStartups"] != float64(3) {
@@ -280,7 +285,7 @@ func TestMCPInstallClaudeGlobalEmbedsKeyAndWarns(t *testing.T) {
 
 func TestMCPInstallLiteralInProjectSuggestsGitignore(t *testing.T) {
 	dir, _ := agentTestEnv(t)
-	_, errOut, code := agentRun(t, "mcp", "install", "--client", "cursor", "--use-env=false", "--dir", dir)
+	_, errOut, code := runCLIHuman(t, agentTestBase, "mcp", "install", "--client", "cursor", "--use-env=false", "--dir", dir)
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, errOut)
 	}
@@ -378,15 +383,23 @@ func TestSkillInstallUpdatesExistingCopyInPlace(t *testing.T) {
 }
 
 func TestSkillInstallFallsBackToEmbedded(t *testing.T) {
-	dir, _ := agentTestEnv(t)
+	dirH, _ := agentTestEnv(t)
 	srv, _ := newRecordingServer(t, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(500) })
+	t.Setenv(agentEnvSkillURL, srv.URL)
+	// The notice is for a person; JSON mode keeps stderr empty.
+	_, humanErr, code := runCLIHuman(t, agentTestBase, "skill", "install", "--client", "codex", "--global", "--dir", dirH)
+	if code != 0 || !strings.Contains(humanErr, "built into this CLI") {
+		t.Errorf("human: exit %d, stderr %q", code, humanErr)
+	}
+
+	dir, _ := agentTestEnv(t)
 	t.Setenv(agentEnvSkillURL, srv.URL)
 	rs, errOut, code := agentRun(t, "skill", "install", "--client", "codex", "--global", "--dir", dir)
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, errOut)
 	}
-	if !strings.Contains(errOut, "built into this CLI") {
-		t.Errorf("stderr = %s", errOut)
+	if errOut != "" {
+		t.Errorf("JSON mode wrote prose to stderr: %q", errOut)
 	}
 	b, _ := os.ReadFile(rs[0].File)
 	if !strings.Contains(string(b), "name: spicrawl\n") || !strings.Contains(string(b), "http://127.0.0.1:1/v1/scrape") {
@@ -838,7 +851,8 @@ func TestMCPInstallSecretTightensExistingFile(t *testing.T) {
 	if err := os.Chmod(path, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	_, errOut, code := agentRun(t, "mcp", "install", "--client", "claude", "--global", "--dir", dir)
+	// A person is told on stderr; JSON mode keeps it empty and says so in the result's reason.
+	_, errOut, code := runCLIHuman(t, agentTestBase, "mcp", "install", "--client", "claude", "--global", "--dir", dir)
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, errOut)
 	}

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -47,14 +48,15 @@ func init() {
 	c11.stderr = true
 
 	// One prompt, no questions: --all --yes --api-key against a fake API that
-	// accepts or rejects the key. The report on stderr is machine-readable here.
+	// accepts or rejects the key. In JSON mode stderr is empty (or the problem
+	// document), so the report a person reads is golden in the human variants.
 	setupClients := func(t *testing.T, e *goldenEnv) {
 		goldenWrite(t, e.Dir, ".claude/settings.json", `{}`)
 		goldenWrite(t, e.Dir, ".cursor/rules/x.mdc", `x`)
 	}
 	oneShot := func(name string, key int, noKey bool, args ...string) goldenCase {
 		return goldenCase{
-			name: name, args: append([]string{"init", "--all", "--yes", "--dir", "{dir}"}, args...), noKey: noKey, stderr: true,
+			name: name, args: append([]string{"init", "--all", "--yes", "--dir", "{dir}"}, args...), noKey: noKey,
 			env: env, setup: setupClients,
 			server: goldenServe(map[string]http.HandlerFunc{
 				"GET /skill.md": func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(gAgentSkill)) },
@@ -89,7 +91,7 @@ func init() {
 	}
 	savedKey.files = []string{"~/.claude.json", "~/.cursor/mcp.json"}
 	rejected := oneShot("agents/init_api_key_rejected_exit3", 401, true, "--api-key", goldenFlagKey)
-	rejected.files = nil
+	rejected.files, rejected.stderr = nil, true
 	noKeyAtAll := oneShot("agents/init_all_yes_no_key", 200, true)
 	noKeyAtAll.files = nil
 	envKey := oneShot("agents/init_all_yes_env_key", 200, false)
@@ -98,6 +100,13 @@ func init() {
 	both.stderr = true
 
 	goldenAdd(allKey, projectKey, useEnv, savedKey, rejected, noKeyAtAll, envKey, both)
+	// What a person reads: the table on stdout and the report (connected,
+	// skipped, key, next steps) on stderr.
+	for _, c := range []goldenCase{allKey, projectKey, useEnv, savedKey, rejected, noKeyAtAll, envKey} {
+		c.name = "agents_human/" + strings.TrimPrefix(c.name, "agents/")
+		c.human, c.stderr, c.files = true, true, nil
+		goldenAdd(c)
+	}
 	goldenAdd(c, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11,
 		agent("agents_human/mcp_print_all", true, nil, nil, "mcp", "install", "--client", "all", "--dir", "{dir}", "--print"),
 		agent("agents_human/mcp_install_all", true, nil, nil, "mcp", "install", "--client", "all", "--dir", "{dir}"),

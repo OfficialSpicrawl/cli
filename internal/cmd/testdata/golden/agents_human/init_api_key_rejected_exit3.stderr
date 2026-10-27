@@ -1,0 +1,5 @@
+clients: Claude Code, Cursor
+MCP server: http://SERVER/mcp
+error: ERR::AUTH::INVALID_KEY: the API key is not valid
+hint: check the request and try again
+request id: <REQUEST_ID> (spicrawl logs get <REQUEST_ID>)

@@ -109,6 +109,25 @@ func TestInitAllYesAPIKey(t *testing.T) {
 	if savedKey(t) != onboardKey {
 		t.Errorf("key not saved to the config file")
 	}
+	// JSON mode: stderr is empty, whatever happened (DESIGN.md); the report is for a person.
+	if errb != "" {
+		t.Errorf("JSON mode wrote to stderr:\n%s", errb)
+	}
+	noKeyIn(t, onboardKey, "stdout", out)
+	noKeyIn(t, onboardKey, "stderr", errb)
+}
+
+// What a person (or a CI log) reads after the run, in human mode: connected,
+// skipped, the masked key and the next steps, as stable "name: value" lines.
+func TestInitReportLines(t *testing.T) {
+	testKey = "" // $SPICRAWL_API_KEY is not exported in this shell
+	t.Cleanup(func() { testKey = "spicrawl_test_key" })
+	base := onboardAPI(t)
+	dir := onboardProject(t)
+	_, errb, code := runCLIHuman(t, base, "init", "--all", "--yes", "--api-key", onboardKey, "--dir", dir)
+	if code != 0 {
+		t.Fatalf("exit %d: %s", code, errb)
+	}
 	for _, want := range []string{
 		"connected: Claude Code, Cursor\n",
 		"skipped: VS Code (Copilot) (not detected), Codex (not detected)\n",
@@ -121,13 +140,11 @@ func TestInitAllYesAPIKey(t *testing.T) {
 			t.Errorf("stderr lacks %q:\n%s", want, errb)
 		}
 	}
-	// Nothing to export: the key is in the configs.
 	for _, not := range []string{"export", "note:"} {
 		if strings.Contains(errb, not) {
 			t.Errorf("stderr has %q although the key is embedded:\n%s", not, errb)
 		}
 	}
-	noKeyIn(t, onboardKey, "stdout", out)
 	noKeyIn(t, onboardKey, "stderr", errb)
 }
 
@@ -138,7 +155,7 @@ func TestInitAPIKeyUseEnvTrueReferencesTheEnvironment(t *testing.T) {
 	t.Cleanup(func() { testKey = "spicrawl_test_key" })
 	base := onboardAPI(t)
 	dir := onboardProject(t)
-	_, errb, code := runCLI(t, base, "init", "--all", "--yes", "--api-key", onboardKey, "--use-env=true", "--dir", dir)
+	_, errb, code := runCLIHuman(t, base, "init", "--all", "--yes", "--api-key", onboardKey, "--use-env=true", "--dir", dir)
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, errb)
 	}
@@ -184,9 +201,8 @@ func TestInitAPIKeyProjectFilesAreGitignored(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, ".gitignore.bak")); err == nil {
 		t.Error(".gitignore.bak written")
 	}
-	// The warning stays; the "add it to .gitignore" advice is moot.
-	if !strings.Contains(errb, ".mcp.json now contains your API key in plain text") || strings.Contains(errb, ">> .gitignore") {
-		t.Errorf("stderr:\n%s", errb)
+	if errb != "" {
+		t.Errorf("JSON mode wrote to stderr:\n%s", errb)
 	}
 	var rs []agentResult
 	_ = json.Unmarshal([]byte(out), &rs)
@@ -213,7 +229,7 @@ func TestInitAPIKeyProjectFilesAreGitignored(t *testing.T) {
 func TestInitAPIKeyProjectFilesWithoutGitignoreWarn(t *testing.T) {
 	base := onboardAPI(t)
 	dir := onboardProject(t)
-	_, errb, code := runCLI(t, base, "init", "--all", "--yes", "--api-key", onboardKey, "--global=false", "--dir", dir)
+	_, errb, code := runCLIHuman(t, base, "init", "--all", "--yes", "--api-key", onboardKey, "--global=false", "--dir", dir)
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, errb)
 	}
@@ -353,7 +369,7 @@ func TestInitAllConflictsWithClient(t *testing.T) {
 // check it (no network) or copy it into the config file.
 func TestInitEnvKeyIsNotCheckedOrSaved(t *testing.T) {
 	dir := onboardProject(t)
-	_, errb, code := runCLI(t, "http://127.0.0.1:1", "init", "--all", "--yes", "--dir", dir)
+	_, errb, code := runCLIHuman(t, "http://127.0.0.1:1", "init", "--all", "--yes", "--dir", dir)
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, errb)
 	}
@@ -388,7 +404,7 @@ func TestInitSavedKeyIsEmbedded(t *testing.T) {
 	usesSavedKey(t)
 	base := onboardAPI(t)
 	dir := onboardProject(t)
-	out, errb, code := runCLI(t, base, "init", "--all", "--yes", "--dir", dir)
+	out, errb, code := runCLIHuman(t, base, "init", "--all", "--yes", "--dir", dir)
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, errb)
 	}
@@ -416,7 +432,7 @@ func TestInitSavedKeyIsEmbedded(t *testing.T) {
 func TestInitSavedKeyWithUseEnvTrueReferencesTheEnvironment(t *testing.T) {
 	usesSavedKey(t)
 	dir := onboardProject(t)
-	_, errb, code := runCLI(t, onboardAPI(t), "init", "--all", "--yes", "--use-env=true", "--dir", dir)
+	_, errb, code := runCLIHuman(t, onboardAPI(t), "init", "--all", "--yes", "--use-env=true", "--dir", dir)
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, errb)
 	}
@@ -428,7 +444,7 @@ func TestInitSavedKeyWithUseEnvTrueReferencesTheEnvironment(t *testing.T) {
 func TestInitNextStepUsesNpxWhenStartedByNpx(t *testing.T) {
 	t.Setenv("npm_command", "exec")
 	dir := onboardProject(t)
-	_, errb, code := runCLI(t, "http://127.0.0.1:1", "init", "--all", "--yes", "--dir", dir)
+	_, errb, code := runCLIHuman(t, "http://127.0.0.1:1", "init", "--all", "--yes", "--dir", dir)
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, errb)
 	}

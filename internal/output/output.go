@@ -108,9 +108,10 @@ func (p *Printer) Table(headers []string, rows [][]string) {
 }
 
 // Info writes a progress or status line to stderr unless --quiet. Like Warn it
-// shows server prose with tier names (PublicText).
+// shows server prose with tier names (PublicText), and like Warn it writes
+// nothing in JSON mode.
 func (p *Printer) Info(format string, a ...any) {
-	if p.Quiet {
+	if p.Quiet || p.JSON {
 		return
 	}
 	ui.Fprintf(p.Err, "%s", PublicText(fmt.Sprintf(format+"\n", a...)))
@@ -118,6 +119,14 @@ func (p *Printer) Info(format string, a ...any) {
 
 // Warn writes a warning to stderr, even with --quiet. Server prose in it is
 // shown with tier names, never engine names (PublicText).
+//
+// In JSON mode it writes nothing: stderr there is the problem document of a
+// failure and otherwise empty, so `cmd --json 2>err.json; jq . err.json` always
+// parses (DESIGN.md, "Errors are the API's problem document"). The API's own
+// warnings are already in the JSON on stdout.
 func (p *Printer) Warn(format string, a ...any) {
+	if p.JSON {
+		return
+	}
 	ui.Fprintf(p.Err, "%s", PublicText(fmt.Sprintf("warning: "+format+"\n", a...)))
 }

@@ -1,9 +1,4 @@
-clients: Claude Code
-MCP server: http://127.0.0.1:1/mcp
-plan:
-  create  claude  mcp    .mcp.json
-  create  claude  skill  .claude/skills/spicrawl/SKILL.md
 {
-  "error": "init changes files and stdin is not a terminal: re-run with --yes to apply the plan above",
+  "error": "init changes files and stdin is not a terminal: re-run with --yes to apply the changes",
   "exit_code": 2
 }

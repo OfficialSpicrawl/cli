@@ -16,6 +16,13 @@ never invent a field the API does not accept (the API rejects unknown fields).
    `TERM=dumb` or `CI`. Switched off, the output is the plain text it always was.
    It never prints an engine or browser name; it says what the request asked for
    ("rendering JavaScript"), not which tier the API picked.
+   In JSON mode stderr is stricter still: the problem document of a failure and
+   nothing else, or empty. `output.Printer.Warn` and `Info` (warnings, "wrote N
+   bytes", "more results: --cursor", deprecation notices) write nothing there,
+   so `cmd --json 2>err.json; jq . err.json` always parses. The API's
+   `warnings` field is still in the JSON on stdout. A command that must tell an
+   agent something puts it in its JSON result, not on stderr.
+   `internal/cmd/json_stderr_test.go` runs every golden case against this.
    An empty result is not data either: in human mode an empty list
    (`sessions list`, `logs`, `batch list`, `batch results`) prints nothing on
    stdout and its one-line message ("no sessions") on stderr, so
@@ -53,8 +60,9 @@ never invent a field the API does not accept (the API rejects unknown fields).
    retried POST could be billed twice. Commands that report per-item errors
    use `cmd.ExitCode(err)` to stay in step with the process exit code.
 5. **Errors are the API's problem document.** In JSON mode a failure writes
-   the RFC 7807 body to stderr unchanged; in human mode `error:`, `hint:`,
-   `target status:`, `retryable:` and `request id:` lines.
+   the RFC 7807 body to stderr unchanged, as the only thing on stderr; in
+   human mode `error:`, `hint:`, `target status:`, `retryable:` and
+   `request id:` lines.
 6. **`-` reads stdin.** Commands that take URLs accept `-` for one per line.
 7. **Streams are JSONL.** Anything that yields many records supports
    `--jsonl` (one compact JSON object per line) so output can be piped.
@@ -63,15 +71,16 @@ never invent a field the API does not accept (the API rejects unknown fields).
    stdout, JSON output carries `target_error`, and stderr gets one line.
 9. **Secrets are printed once.** `browser url` writes the URL (which carries
    the key) once on stdout; its connection hints on stderr use
-   `$SPICRAWL_BROWSER_URL` and are suppressed by `-q`. A `ws://` URL warns on
-   stderr, always, that the key travels unencrypted.
+   `$SPICRAWL_BROWSER_URL` and are suppressed by `-q`. In human mode a `ws://`
+   URL warns on stderr, always, that the key travels unencrypted; in JSON mode
+   stderr stays empty and the `url` field shows the scheme.
 10. **Engine routing is internal.** A customer sees three rendering tiers,
     `fetch`, `js` and `browser`, and never an engine or browser name. The API
     already reports tiers. `sessions create` and `browser url` take a tier with
     `--engine`; the engine names older CLIs took (which the API still honours)
-    are sent as typed, with a deprecation notice on stderr that does not repeat
-    them. `scrape` and `batch submit` keep `--engine` and the display flag next
-    to it hidden: the API ignores both and says so (`ENGINE_IGNORED`). In human output any
+    are sent as typed, with a deprecation notice on stderr (human mode only)
+    that does not repeat them. `scrape` and `batch submit` keep `--engine` and
+    the display flag next to it hidden: the API ignores both and says so (`ENGINE_IGNORED`). In human output any
     engine name the API sends is shown as its tier (`output.Tier`,
     `output.PublicText`). JSON and `--jsonl` are the API's data and stay exactly
     as sent. `internal/cmd/engine_names_test.go` locks the help, the human
@@ -106,7 +115,7 @@ cmd/spicrawl/main.go  entry point (go install github.com/OfficialSpicrawl/cli/cm
 internal/api        HTTP client, Problem, DoWithRetry
 internal/config     key/base resolution, config file
 internal/exitcode   exit codes
-internal/output     Printer (JSON/human/JSONL, stderr info)
+internal/output     Printer (JSON/human/JSONL, stderr info and warnings in human mode only)
 internal/ui         stderr spinner, summary line, error block, colour (off unless a terminal)
 internal/cmd        one file per command group; each registers in init()
 ```
