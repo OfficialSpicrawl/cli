@@ -46,7 +46,7 @@ func (c Caps) sgr(r Role) string {
 		if c.Light {
 			return "38;2;15;118;110" // teal-700
 		}
-		return "38;2;13;148;136" // teal-600: 3.7:1 on white, 6:1 on black
+		return "38;2;13;148;136" // teal-600: 3.7:1 on white, 5.7:1 on black
 	case Color256:
 		return "38;5;30"
 	}
