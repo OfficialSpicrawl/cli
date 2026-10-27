@@ -189,8 +189,12 @@ func TestBrowserURLHumanHintsAndWSWarning(t *testing.T) {
 // runCLIHuman is runCLI without --json, in human mode, with extra global args.
 func runCLIHuman(t *testing.T, baseURL string, args ...string) (string, string, int) {
 	t.Helper()
-	t.Setenv("SPICRAWL_CONFIG", t.TempDir()+"/config.json")
-	t.Setenv("SPICRAWL_API_KEY", "spicrawl_test_key")
+	cfg := t.TempDir() + "/config.json"
+	if testConfig != "" {
+		cfg = testConfig
+	}
+	t.Setenv("SPICRAWL_CONFIG", cfg)
+	t.Setenv("SPICRAWL_API_KEY", testKey)
 	var out, errb bytes.Buffer
 	stdout, stderr, humanOutput = &out, &errb, true
 	defer func() {

@@ -1,5 +1,3 @@
-clients: Claude Code, Cursor
-MCP server: http://SERVER/mcp
 {
   "type": "https://docs.spicrawl.com/errors",
   "title": "Unauthorized",

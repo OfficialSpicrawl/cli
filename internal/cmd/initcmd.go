@@ -188,8 +188,14 @@ func runInit(cmd *cobra.Command, _ []string) error {
 		}
 	}
 	if pending > 0 && !initFlags.yes {
-		initPrintPlan(p.Err, errUI(p), rs, s)
+		// JSON mode keeps stderr for the problem document, unless a person is about to be asked.
+		if !p.JSON || initStdinIsTerminal() {
+			initPrintPlan(p.Err, errUI(p), rs, s)
+		}
 		if !initStdinIsTerminal() {
+			if p.JSON {
+				return Usagef("init changes files and stdin is not a terminal: re-run with --yes to apply the changes")
+			}
 			return Usagef("init changes files and stdin is not a terminal: re-run with --yes to apply the plan above")
 		}
 		ok, err := initConfirm(p.Err, initStdin)

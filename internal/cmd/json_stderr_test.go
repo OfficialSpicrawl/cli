@@ -19,10 +19,7 @@ import (
 
 // jsonStderrKnownGaps are cases that still break the rule, with the reason.
 // The test fails when one starts to pass, so the entry gets deleted.
-var jsonStderrKnownGaps = map[string]string{
-	"agents/init_needs_yes_without_terminal": "runInit prints the plan with initPrintPlan(p.Err, ...) straight to stderr, " +
-		"not through Printer.Info; fix by guarding that call with p.JSON in initcmd.go (left to the PR that owns that file)",
-}
+var jsonStderrKnownGaps = map[string]string{}
 
 // jsonStderrHumanByDesign are cases that run in JSON mode by the harness but
 // leave it on purpose, so stderr is prose for a person.
