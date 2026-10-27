@@ -180,7 +180,7 @@ The key is passed as an argument, so other users on the machine can see it in th
 | Command | What it does |
 |---|---|
 | `spicrawl scrape <url\|->` | Fetch one page, or many from stdin, as Markdown, HTML, text, JSON, PDF or extracted data |
-| `spicrawl batch` | Run up to 10,000 URLs as one server-side job: `submit`, `wait`, `get`, `list`, `results`, `content`, `retry`, `cancel`, `append`, `close` |
+| `spicrawl batch` | Run up to 10,000 URLs as one server-side job: `submit`, `wait`, `watch`, `get`, `list`, `results`, `content`, `retry`, `cancel`, `append`, `close` |
 | `spicrawl sessions` | Keep one rendering tier and cookie jar across scrapes: `create`, `list`, `get`, `context`, `release`, `delete` |
 | `spicrawl browser` | Cloud browser over a DevTools Protocol (CDP) WebSocket (`browser url`). Coming soon |
 | `spicrawl init` | Set up AI agent clients: MCP server config and the agent skill |
@@ -190,7 +190,7 @@ The key is passed as an argument, so other users on the machine can see it in th
 | `spicrawl logout` | Remove the saved API key |
 | `spicrawl auth` | `auth status`: which key and base URL are in use, where they come from, and whether the key works |
 | `spicrawl config` | Read and write the config file: `get`, `set`, `unset`, `path` |
-| `spicrawl logs` | Recent API requests, newest first; `logs get <request-id>` for one |
+| `spicrawl logs` | Recent API requests, newest first; `logs get <request-id>` for one; `logs --watch` for a live view |
 | `spicrawl usage` | Billed usage over a time window; `usage summary`, `usage reconciliation` |
 | `spicrawl status` | Check the API is reachable, ready and accepts your key, and that detected agent clients have the MCP server; prints a repair command for each failed check |
 | `spicrawl docs` | Print a Spicrawl docs page as Markdown (`--list` for the index); no API key needed |
@@ -208,6 +208,17 @@ When stderr is a terminal, a wait longer than about 300 ms shows a spinner with 
 On a terminal `spicrawl --help` lists the commands grouped by purpose, with examples and the docs link; piped, the help is the plain text it always was. Colour follows your terminal: your theme's own palette by default, richer where the terminal advertises it, ASCII symbols outside a UTF-8 locale.
 
 All of it is on stderr and stdout is byte-for-byte unchanged. It switches itself off, and the CLI prints exactly what it printed before, when stderr is not a terminal (a pipe, a file, an agent or CI log), with `--json` or `-q/--quiet`, with `NO_COLOR` set (or `CLICOLOR=0`), with `TERM=dumb`, or when `CI` is set.
+
+### Live views
+
+`spicrawl logs --watch` and `spicrawl batch watch <id>` open a full-screen view that updates as the API answers. They need a terminal for stdin and stdout; the colours follow your terminal's theme and `NO_COLOR` turns them off (the view stays usable: the selected row is marked with `>`).
+
+- `logs --watch` polls the request log (`--poll`, default `2s`). New requests appear at the top and the selection stays on its row. Arrows, `PgUp`/`PgDn`, `g`/`G` move; `Enter` opens a request (what `logs get` prints); `/` searches; `s`, `t` and `e` filter by status, tier and errors only; `c` clears the filters; `p` pauses; `r` refreshes; `q` or `Esc` quits. `--errors`, `--status`, `--limit` and `--all-projects` work as in `logs`. The filters apply to the requests loaded so far (the newest `--limit`, 200 by default, and everything since), so start with `--errors` or `--status` to narrow the query itself.
+- `batch watch <id>` shows a progress bar with done, failed and total, the ETA and credits, and a table of the finished items (status, HTTP status, tier, duration, URL), newest first. `Enter` opens an item, `f` shows only failed ones, and `s`, `t`, `/` filter as above. When the job finishes the view closes, the final job is printed and the exit code is `batch wait`'s: `0` completed, `4` failed or cancelled, `11` if `--max-wait` elapsed first. `q` leaves the job running (exit `0`); `Ctrl-C` exits `130`.
+
+A failed poll never closes a view: the error shows on the status bar and the poll is retried with backoff (a `429` waits for its `Retry-After`). A wrong key or an unknown job id fails at once with its usual exit code, before the screen opens. Resizing is followed, and the views fit 80x24; below 40x10 they ask for a bigger terminal.
+
+When stdin or stdout is not a terminal, or with `--json`, `-q/--quiet`, `CI` or `TERM=dumb`, there is no full-screen view: `logs --watch` streams new requests as plain lines, oldest first (JSONL with `--json`, which is the default when stdout is piped), and `batch watch` is exactly `batch wait`.
 
 ### How to convert a web page to Markdown from the command line
 
