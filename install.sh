@@ -92,7 +92,7 @@ command -v tar >/dev/null 2>&1 || die "need tar"
 download() {
   fetch "$1" "$2" || die "download failed: $1
   The server was unreachable or has no such file (HTTP 404 means this release or platform does not exist).
-  Check your network, SPICRAWL_VERSION (a published tag such as v0.1.4), SPICRAWL_REPO and SPICRAWL_DOWNLOAD_URL,
+  Check your network, SPICRAWL_VERSION (a published tag such as v0.1.5), SPICRAWL_REPO and SPICRAWL_DOWNLOAD_URL,
   or pick a release from https://github.com/${SPICRAWL_REPO}/releases"
 }
 

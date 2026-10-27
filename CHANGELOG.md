@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.5 — 2026-10-27
+
+Corrections to 0.1.4's documentation; no behaviour change.
+
+- **`init --help` and README:** the API key is checked first, the plan is made and confirmed, the client files are written, and the key is saved only after the changes are applied; a refused or declined plan saves nothing. 0.1.4's help said the key was saved before any client file was written.
+- **README and DESIGN:** piped output is JSON mode, so an empty list still prints its empty collection (`{"batches": []}`); the empty-result message on stderr applies in human mode on a terminal. Ctrl-C prints "interrupted" in human mode only.
+- **Tests:** a data race in the request-recording test helper used by the `logs --watch` tests is fixed (test code only).
+
 ## 0.1.4 — 2026-10-27
 
 Set up every coding agent from one prompt (`init --all --yes --api-key`, `status` repairs), live full-screen views (`logs --watch`, `batch watch`), a polished terminal UI with live progress, tier names instead of engine names, and bug fixes from a review of 0.1.3. The behaviour changes are marked.
