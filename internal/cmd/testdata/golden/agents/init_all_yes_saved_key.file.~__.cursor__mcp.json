@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "spicrawl": {
+      "url": "http://SERVER/mcp",
+      "headers": {
+        "Authorization": "Bearer spicrawl_live_GOLDENFLAG0123456789xyz"
+      }
+    }
+  }
+}

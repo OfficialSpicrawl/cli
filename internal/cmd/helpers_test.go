@@ -35,13 +35,21 @@ func TestMain(m *testing.M) {
 // testKey is the $SPICRAWL_API_KEY runCLI exports; a test clears it to run without a key.
 var testKey = "spicrawl_test_key"
 
+// testConfig, when set, is the config file runCLI uses, so that a key saved by
+// one call is there for the next. Tests set it and clear it again.
+var testConfig = ""
+
 // runCLI executes the command tree in-process against baseURL and returns
 // stdout, stderr and the exit code. It forces --json and a test key, points
 // the config file at a temp dir, and resets every flag afterwards so tests
 // do not leak state into each other.
 func runCLI(t *testing.T, baseURL string, args ...string) (string, string, int) {
 	t.Helper()
-	t.Setenv("SPICRAWL_CONFIG", t.TempDir()+"/config.json")
+	cfg := t.TempDir() + "/config.json"
+	if testConfig != "" {
+		cfg = testConfig
+	}
+	t.Setenv("SPICRAWL_CONFIG", cfg)
 	t.Setenv("SPICRAWL_API_KEY", testKey)
 	var out, errb bytes.Buffer
 	stdout, stderr = &out, &errb

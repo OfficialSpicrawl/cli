@@ -80,6 +80,14 @@ func init() {
 	}
 	projectKey.files = []string{".mcp.json", ".cursor/mcp.json", ".gitignore"}
 	useEnv := oneShot("agents/init_all_yes_api_key_use_env", 200, true, "--api-key", goldenFlagKey, "--use-env=true")
+	// A key saved earlier (login, or a previous --api-key) is embedded the same way,
+	// with no new check; a key that is only in the environment is not.
+	savedKey := oneShot("agents/init_all_yes_saved_key", 200, true)
+	savedKey.setup = func(t *testing.T, e *goldenEnv) {
+		setupClients(t, e)
+		goldenWrite(t, e.CfgDir, "config.json", `{"api_key": "`+goldenFlagKey+`"}`)
+	}
+	savedKey.files = []string{"~/.claude.json", "~/.cursor/mcp.json"}
 	rejected := oneShot("agents/init_api_key_rejected_exit3", 401, true, "--api-key", goldenFlagKey)
 	rejected.files = nil
 	noKeyAtAll := oneShot("agents/init_all_yes_no_key", 200, true)
@@ -89,7 +97,7 @@ func init() {
 	both := agent("agents/init_all_conflicts_with_client", false, nil, nil, "init", "--all", "--client", "claude", "--yes", "--dir", "{dir}")
 	both.stderr = true
 
-	goldenAdd(allKey, projectKey, useEnv, rejected, noKeyAtAll, envKey, both)
+	goldenAdd(allKey, projectKey, useEnv, savedKey, rejected, noKeyAtAll, envKey, both)
 	goldenAdd(c, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11,
 		agent("agents_human/mcp_print_all", true, nil, nil, "mcp", "install", "--client", "all", "--dir", "{dir}", "--print"),
 		agent("agents_human/mcp_install_all", true, nil, nil, "mcp", "install", "--client", "all", "--dir", "{dir}"),

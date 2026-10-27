@@ -64,10 +64,12 @@ nothing. The key is then written into each client's MCP config as is, in your
 user-level files (~/.claude.json, ~/.cursor/mcp.json, ...) so the agents work
 with nothing exported: --global is implied, and --global=false picks the
 project files, which are added to .gitignore when the project has one.
---use-env=true keeps the ${SPICRAWL_API_KEY} reference instead. The key is
-never printed, only masked (spicrawl_live_ab12…cd34).
-$SPICRAWL_API_KEY is used as before (referenced by the client configs) but is
-neither checked nor saved here. A short report follows on stderr: connected and
+--use-env=true keeps the ${SPICRAWL_API_KEY} reference instead. A key already
+saved in the config file (by login or an earlier --api-key) is embedded the same
+way, without a new check. The key is never printed, only masked
+(spicrawl_live_ab12…cd34).
+A key that is only in $SPICRAWL_API_KEY is used as before (referenced by the
+client configs) and is neither checked nor saved here. A short report follows on stderr: connected and
 skipped clients, the key, and the next step. The results stay on stdout, as
 JSON when it is not a terminal.`,
 	Example: `  spicrawl init
@@ -99,10 +101,12 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	// A key given with --api-key goes into the client configs as is, at user
-	// level, so the agents work with nothing exported. --use-env=true keeps
-	// the environment reference and --global=false the project files.
-	embed := strings.TrimSpace(flagAPIKey) != "" && !(cmd.Flags().Changed("use-env") && initFlags.useEnv)
+	// A key given with --api-key, or already saved in the CLI config, goes into
+	// the client configs as is, at user level, so the agents work with nothing
+	// exported. A key that is only in $SPICRAWL_API_KEY stays a reference, and
+	// so does any key with --use-env=true; --global=false picks the project files.
+	key, keySource := agentAPIKey()
+	embed := (keySource == "flag" || keySource == "file") && !(cmd.Flags().Changed("use-env") && initFlags.useEnv)
 	global := initFlags.global || embed && !cmd.Flags().Changed("global")
 	s, err := agentResolveScope(initFlags.dir, global)
 	if err != nil {
@@ -127,10 +131,13 @@ func runInit(cmd *cobra.Command, _ []string) error {
 		p.Info("MCP server: %s", ep.MCP)
 	}
 
-	key, keySource := agentAPIKey()
 	keyLine := "none configured"
 	if key != "" {
-		keyLine = config.MaskKey(key) + " (from " + keySource + ")"
+		keyLine = config.MaskKey(key) + " (from " + keySource
+		if embed {
+			keyLine += "; written into the client configs"
+		}
+		keyLine += ")"
 	}
 	if keySource == "flag" {
 		// Check it and save it before writing any client file: a bad key must not leave a half-done setup.

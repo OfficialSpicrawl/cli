@@ -26,7 +26,8 @@
   },
   "mcp": {
     "detected": [],
-    "connected": []
+    "connected": [],
+    "needs_env": []
   },
   "repairs": []
 }

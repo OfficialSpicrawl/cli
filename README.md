@@ -151,7 +151,7 @@ Set up Spicrawl for yourself. My API key is <YOUR_API_KEY>. Only if your shell r
 
 What the two commands do, with no questions asked:
 
-- `init --all --yes --api-key <key>` connects every detected client (`--all`; it conflicts with `--client`) without confirming (`--yes`). The key is checked with the API and saved to the config file as `spicrawl login` does, before any client file is written; a rejected key exits 3 and writes nothing. Then the key is written into each client's MCP config as is, in your **user-level** files (`~/.claude.json`, `~/.cursor/mcp.json`, ... with mode 0600; `--global` is implied), so the agents authenticate right after a restart with nothing to export. Pass `--use-env=true` to keep the `${SPICRAWL_API_KEY}` reference instead, or `--global=false` to write the project files: those get the same key, a warning, and a line in the project's `.gitignore` when it has one that does not ignore them yet. The key is never printed, only masked (`spicrawl_live_ab12…cd34`), and API errors are masked too. The result list stays on stdout (JSON when it is not a terminal); a short report follows on stderr:
+- `init --all --yes --api-key <key>` connects every detected client (`--all`; it conflicts with `--client`) without confirming (`--yes`). The key is checked with the API and saved to the config file as `spicrawl login` does, before any client file is written; a rejected key exits 3 and writes nothing. Then the key is written into each client's MCP config as is, in your **user-level** files (`~/.claude.json`, `~/.cursor/mcp.json`, ... with mode 0600; `--global` is implied), so the agents authenticate right after a restart with nothing to export. A key already saved in the config file (by `login` or an earlier `--api-key`) is embedded the same way when you run `init` without `--api-key`; a key that is only in `$SPICRAWL_API_KEY` stays a reference. Pass `--use-env=true` to keep the `${SPICRAWL_API_KEY}` reference instead, or `--global=false` to write the project files: those get the same key, a warning, and a line in the project's `.gitignore` when it has one that does not ignore them yet. The key is never printed, only masked (`spicrawl_live_ab12…cd34`), and API errors are masked too. The result list stays on stdout (JSON when it is not a terminal); a short report follows on stderr:
 
   ```text
   connected: Claude Code, Cursor
@@ -161,7 +161,7 @@ What the two commands do, with no questions asked:
   next: run npx -y @spicrawl/cli@latest status, then ask your agent to scrape a page (or try: npx -y @spicrawl/cli@latest scrape https://example.com)
   ```
 
-  Commands in `next` and in the repairs below say `npx -y @spicrawl/cli@latest` when the CLI was started by npx, and `spicrawl` otherwise. Without `--api-key`, `init` is unchanged: project files that reference `$SPICRAWL_API_KEY`, and a `next: export SPICRAWL_API_KEY=...` step.
+  Commands in `next` and in the repairs below say `npx -y @spicrawl/cli@latest` when the CLI was started by npx, and `spicrawl` otherwise. With no key given or saved, and with a key only in `$SPICRAWL_API_KEY`, `init` is unchanged: project files that reference `$SPICRAWL_API_KEY`, and a `next: export SPICRAWL_API_KEY=...` step.
 - `status --json` adds a `repairs` array with one entry per failed check, in the order to run them, and exits non-zero when any check fails:
 
   ```json
@@ -171,9 +171,9 @@ What the two commands do, with no questions asked:
   ]
   ```
 
-  `unattended_safe: false` means the user must act (supply a key) or decide; the command holds a placeholder, never a key. The checks are `reachable`, `ready`, `key`, `workers.<kind>` and `mcp` (an agent client found in this directory or your home directory without a Spicrawl MCP server; skipped when none is found). Without `--json`, `status` prints the same repairs as `check:`, `command:`, `unattended_safe:` and `why:` lines.
+  `unattended_safe: false` means the user must act (supply a key) or decide; the command holds a placeholder, never a key. The checks are `reachable`, `ready`, `key`, `workers.<kind>` and `mcp`: each agent client found in this directory or your home directory needs a Spicrawl MCP server that can authenticate (skipped when no client is found). A server whose key is `${SPICRAWL_API_KEY}` does not count while that variable is unset where `status` runs (`mcp.needs_env`); its repair rewrites the entry with the saved key, or asks for a key if none is saved. A project-level entry shadows a user-level one. Without `--json`, `status` prints the same repairs as `check:`, `command:`, `unattended_safe:` and `why:` lines.
 
-The key is passed as an argument, so other users on the machine can see it in the process list while the command runs, and it ends up in plain text in the client configs. To avoid both, export `SPICRAWL_API_KEY` and drop `--api-key`: `init` then writes `$SPICRAWL_API_KEY` references and does not check or save the key (run `spicrawl login` to save it). Claude Code rewrites `~/.claude.json` itself, so if a running session overwrites the entry, `status` reports the `mcp` check as failed and its repair writes it again.
+The key is passed as an argument, so other users on the machine can see it in the process list while the command runs, and it ends up in plain text in the client configs. To avoid both, export `SPICRAWL_API_KEY` and drop `--api-key`: as long as no key is saved in the config file, `init` then writes `$SPICRAWL_API_KEY` references and does not check or save the key (run `spicrawl login` to save it, after which `init` embeds it). Claude Code rewrites `~/.claude.json` itself, so if a running session overwrites the entry, `status` reports the `mcp` check as failed and its repair writes it again (with the saved key, as a literal).
 
 ## Commands
 

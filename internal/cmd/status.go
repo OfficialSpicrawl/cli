@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 
@@ -49,7 +50,12 @@ type statusReport struct {
 
 type statusMCP struct {
 	Detected  []string `json:"detected"`
-	Connected []string `json:"connected"`
+	Connected []string `json:"connected"` // has a Spicrawl MCP server that can authenticate
+	// NeedsEnv has a server whose key is $SPICRAWL_API_KEY, which is not set
+	// here: the client cannot authenticate.
+	NeedsEnv []string `json:"needs_env"`
+
+	needsEnvAt map[string]string // client id -> where that entry is: "user" or "project"
 }
 
 // statusRepair is a command that fixes a failed check. UnattendedSafe says an
@@ -74,7 +80,10 @@ var statusCmd = &cobra.Command{
 
 It also looks for agent clients in this directory and your home directory
 (Claude Code, Cursor, VS Code, Codex) and checks each has a Spicrawl MCP server
-configured; with no client found that check is skipped.
+configured and able to authenticate; with no client found that check is skipped.
+A project-level entry shadows a user-level one, and an entry whose key is
+$SPICRAWL_API_KEY ("needs_env" in --json) does not count while that variable
+is unset here.
 
 For every failed check it prints a repair command, marked unattended_safe
 true (an agent may run it) or false (the user must act, for example supply an
@@ -162,7 +171,7 @@ worker kind has none ready, no MCP server configured for a client) exits 1; read
 		if keyCheckErr != nil {
 			return keyCheckErr
 		}
-		if n := len(rep.Repairs); n > 0 {
+		if n := statusFailedChecks(rep.Repairs); n > 0 {
 			return &ExitError{Code: exitcode.Internal, Err: fmt.Errorf("%d %s failed: run the repairs listed in the status output", n, map[bool]string{true: "check", false: "checks"}[n == 1])}
 		}
 		return nil
@@ -287,49 +296,75 @@ func cliInvocation() string {
 }
 
 // statusMCPCheck finds the agent clients in use here (project directory and
-// home, the ones "init --all" would pick) and which have a Spicrawl MCP server
-// configured, at project or user level.
+// home, the ones "init --all" would pick) and whether each has a Spicrawl MCP
+// server that can authenticate. A project entry shadows the user-level one of
+// the same name. An entry that takes the key from $SPICRAWL_API_KEY works only
+// while that is set, which is taken from this process's environment.
 func statusMCPCheck() statusMCP {
-	m := statusMCP{Detected: []string{}, Connected: []string{}}
+	m := statusMCP{Detected: []string{}, Connected: []string{}, NeedsEnv: []string{}, needsEnvAt: map[string]string{}}
 	s, err := agentResolveScope("", false)
 	if err != nil {
 		return m
 	}
 	g := agentScope{Global: true, Dir: s.Dir, Home: s.Home}
+	envSet := strings.TrimSpace(os.Getenv(config.EnvAPIKey)) != ""
 	for _, c := range agentDetect(s) {
 		m.Detected = append(m.Detected, c.ID)
-		if mcpConfigured(c, c.MCPPath(s)) || (s.Home != "" && mcpConfigured(c, c.MCPPath(g))) {
+		entry, ok := mcpExistingEntry(c, c.MCPPath(s))
+		where := "project"
+		if !ok && s.Home != "" {
+			entry, ok = mcpExistingEntry(c, c.MCPPath(g))
+			where = "user"
+		}
+		switch {
+		case !ok:
+		case mcpEntryNeedsEnv(entry) && !envSet:
+			m.NeedsEnv = append(m.NeedsEnv, c.ID)
+			m.needsEnvAt[c.ID] = where
+		default:
 			m.Connected = append(m.Connected, c.ID)
 		}
 	}
 	return m
 }
 
-// names are the display names of the detected clients with an MCP server
-// (connected) or without one.
-func (m statusMCP) names(connected bool) []string {
+// missing are the detected clients with no Spicrawl MCP server at all.
+func (m statusMCP) missing() []string {
 	var out []string
 	for _, id := range m.Detected {
-		has := false
-		for _, c := range m.Connected {
-			has = has || c == id
-		}
-		if has == connected {
-			out = append(out, agentClientByID(id).Name)
+		if !slices.Contains(m.Connected, id) && !slices.Contains(m.NeedsEnv, id) {
+			out = append(out, id)
 		}
 	}
 	return out
 }
 
-func statusMCPText(m statusMCP) string {
-	switch missing := m.names(false); {
-	case len(m.Detected) == 0:
-		return "no agent client found here"
-	case len(missing) == 0:
-		return "connected: " + strings.Join(m.names(true), ", ")
-	default:
-		return "not configured: " + strings.Join(missing, ", ")
+// failed: some detected client cannot use Spicrawl over MCP.
+func (m statusMCP) failed() bool { return len(m.Connected) < len(m.Detected) }
+
+func clientNames(ids []string) []string {
+	out := make([]string, len(ids))
+	for i, id := range ids {
+		out[i] = agentClientByID(id).Name
 	}
+	return out
+}
+
+func statusMCPText(m statusMCP) string {
+	if len(m.Detected) == 0 {
+		return "no agent client found here"
+	}
+	if !m.failed() {
+		return "connected: " + strings.Join(clientNames(m.Connected), ", ")
+	}
+	var parts []string
+	if len(m.NeedsEnv) > 0 {
+		parts = append(parts, "needs $"+config.EnvAPIKey+", which is not set here: "+strings.Join(clientNames(m.NeedsEnv), ", "))
+	}
+	if miss := m.missing(); len(miss) > 0 {
+		parts = append(parts, "not configured: "+strings.Join(clientNames(miss), ", "))
+	}
+	return strings.Join(parts, "; ")
 }
 
 // statusKeyBad is a key check that failed: rejected or missing, or not
@@ -355,8 +390,11 @@ func statusRepairs(rep *statusReport) []statusRepair {
 			rep.BaseURL+" did not answer: check the network, any proxy and the base URL (--base-url, $"+config.EnvBaseURL+")")
 	} else {
 		if !rep.Ready {
-			add("ready", cli+" status", true,
-				"the API reports it is not ready ("+statusBadChecks(rep)+"): that is on the server side, wait a minute and re-run; nothing to change here")
+			why := "the API reports it is not ready"
+			if bad := statusBadChecks(rep); bad != "" {
+				why += " (" + bad + ")"
+			}
+			add("ready", cli+" status", true, why+": that is on the server side, wait a minute and re-run; nothing to change here")
 		}
 		if statusKeyBad(rep) {
 			login := cli + " login --api-key <YOUR_API_KEY>"
@@ -380,11 +418,47 @@ func statusRepairs(rep *statusReport) []statusRepair {
 			}
 		}
 	}
-	if missing := rep.MCP.names(false); len(missing) > 0 {
+	if missing := rep.MCP.missing(); len(missing) > 0 {
 		add("mcp", cli+" init --all --yes", true,
-			"no Spicrawl MCP server is configured for "+strings.Join(missing, ", ")+"; this writes the MCP entry and the skill for every client found here")
+			"no Spicrawl MCP server is configured for "+strings.Join(clientNames(missing), ", ")+"; this writes the MCP entry and the skill for every client found here")
+	}
+	// An entry that reads $SPICRAWL_API_KEY, unset here, is rewritten with the
+	// key saved in the CLI config (init embeds it); without a saved key the
+	// user has to supply one.
+	saved := rep.KeySource == "file"
+	for _, where := range []string{"user", "project"} {
+		var ids []string
+		for _, id := range rep.MCP.NeedsEnv {
+			if rep.MCP.needsEnvAt[id] == where {
+				ids = append(ids, id)
+			}
+		}
+		if len(ids) == 0 {
+			continue
+		}
+		command := cli + " init --client " + strings.Join(ids, ",") + " --yes --force"
+		if where == "project" {
+			command += " --global=false"
+		}
+		why := strings.Join(clientNames(ids), ", ") + " read the key from $" + config.EnvAPIKey + ", which is not set here, so the MCP server cannot authenticate; "
+		if saved {
+			why += "this rewrites the entry with the key saved in the CLI config (the old file is kept as .bak)"
+		} else {
+			command += " --api-key <YOUR_API_KEY>"
+			why += "this checks your key, saves it and writes it into the entry (the old file is kept as .bak)"
+		}
+		add("mcp", command, saved, why)
 	}
 	return out
+}
+
+// statusFailedChecks counts the checks the repairs are for (one check can have two).
+func statusFailedChecks(rs []statusRepair) int {
+	seen := map[string]bool{}
+	for _, r := range rs {
+		seen[r.Check] = true
+	}
+	return len(seen)
 }
 
 // statusPrintRepairs lists the repairs: a block under the checklist on a
@@ -478,7 +552,7 @@ func statusPrintLive(w io.Writer, u *ui.UI, rep *statusReport) {
 	check(key, "key", statusKeyText(rep))
 	mcp := markNeutral
 	if len(rep.MCP.Detected) > 0 {
-		mcp = pick(len(rep.MCP.names(false)) == 0)
+		mcp = pick(!rep.MCP.failed())
 	}
 	check(mcp, "mcp", statusMCPText(rep.MCP))
 

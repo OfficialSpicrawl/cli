@@ -27,7 +27,8 @@
     "detected": [
       "claude"
     ],
-    "connected": []
+    "connected": [],
+    "needs_env": []
   },
   "repairs": [
     {

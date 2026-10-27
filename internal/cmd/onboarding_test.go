@@ -363,6 +363,66 @@ func TestInitEnvKeyIsNotCheckedOrSaved(t *testing.T) {
 	if !strings.Contains(errb, "(from env)") {
 		t.Errorf("report lacks the key source:\n%s", errb)
 	}
+	// A key that is only in the environment stays a reference, in the project.
+	b, err := os.ReadFile(filepath.Join(dir, ".mcp.json"))
+	if err != nil || !strings.Contains(string(b), "${SPICRAWL_API_KEY}") {
+		t.Errorf(".mcp.json: %v\n%s", err, b)
+	}
+}
+
+// usesSavedKey runs the rest of a test with onboardKey saved in the CLI config
+// and $SPICRAWL_API_KEY unset: a machine where "login" ran earlier.
+func usesSavedKey(t *testing.T) {
+	t.Helper()
+	cfg := filepath.Join(t.TempDir(), "config.json")
+	if err := os.WriteFile(cfg, []byte(`{"api_key": "`+onboardKey+`"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	testConfig, testKey = cfg, ""
+	t.Cleanup(func() { testConfig, testKey = "", "spicrawl_test_key" })
+}
+
+// A key saved earlier is embedded like --api-key's, at user level, and is not
+// checked again.
+func TestInitSavedKeyIsEmbedded(t *testing.T) {
+	usesSavedKey(t)
+	base := onboardAPI(t)
+	dir := onboardProject(t)
+	out, errb, code := runCLI(t, base, "init", "--all", "--yes", "--dir", dir)
+	if code != 0 {
+		t.Fatalf("exit %d: %s", code, errb)
+	}
+	for _, f := range []string{".claude.json", ".cursor/mcp.json"} {
+		b, err := os.ReadFile(filepath.Join(os.Getenv("HOME"), f))
+		if err != nil || !strings.Contains(string(b), `"Bearer `+onboardKey+`"`) {
+			t.Errorf("%s: %v\n%s", f, err, b)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".mcp.json")); err == nil {
+		t.Error("a project file was written")
+	}
+	for _, want := range []string{"api key: " + config.MaskKey(onboardKey) + " (from file; written into the client configs)\n", "next: restart Claude Code, Cursor"} {
+		if !strings.Contains(errb, want) {
+			t.Errorf("stderr lacks %q:\n%s", want, errb)
+		}
+	}
+	if strings.Contains(errb, "export") {
+		t.Errorf("an export step although the key is embedded:\n%s", errb)
+	}
+	noKeyIn(t, onboardKey, "stdout", out)
+	noKeyIn(t, onboardKey, "stderr", errb)
+}
+
+func TestInitSavedKeyWithUseEnvTrueReferencesTheEnvironment(t *testing.T) {
+	usesSavedKey(t)
+	dir := onboardProject(t)
+	_, errb, code := runCLI(t, onboardAPI(t), "init", "--all", "--yes", "--use-env=true", "--dir", dir)
+	if code != 0 {
+		t.Fatalf("exit %d: %s", code, errb)
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, ".mcp.json")); !strings.Contains(string(b), "${SPICRAWL_API_KEY}") || strings.Contains(string(b), onboardKey) {
+		t.Errorf(".mcp.json:\n%s", b)
+	}
 }
 
 func TestInitNextStepUsesNpxWhenStartedByNpx(t *testing.T) {
@@ -561,6 +621,132 @@ func TestMCPConfigured(t *testing.T) {
 	} {
 		if got := mcpConfigured(tc.c, tc.file); got != tc.want {
 			t.Errorf("%s: %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
+// ---- status: an entry that needs $SPICRAWL_API_KEY ----
+
+// envRefEntry is a Claude Code server entry that reads the key from the environment.
+const envRefEntry = `{"mcpServers": {"spicrawl": {"type": "http", "url": "https://mcp.spicrawl.com/mcp", "headers": {"Authorization": "Bearer ${SPICRAWL_API_KEY}"}}}}`
+
+func TestStatusMCPNeedsEnv(t *testing.T) {
+	base := onboardAPI(t)
+	dir := onboardProject(t)
+	t.Chdir(dir)
+	agentWrite(t, filepath.Join(dir, ".mcp.json"), envRefEntry)
+	agentWrite(t, filepath.Join(dir, ".cursor", "mcp.json"), `{"mcpServers": {"spicrawl": {"url": "x", "headers": {"Authorization": "Bearer ${env:SPICRAWL_API_KEY}"}}}}`)
+
+	// Exported: the entries work.
+	rep, _, code := statusJSON(t, base)
+	if code != 0 || len(rep.MCP.Connected) != 2 || len(rep.MCP.NeedsEnv) != 0 {
+		t.Fatalf("env set: exit %d, mcp %+v, repairs %+v", code, rep.MCP, rep.Repairs)
+	}
+
+	// Not exported, and no key saved: both entries fail, the repair needs the user's key.
+	testKey = ""
+	t.Cleanup(func() { testKey = "spicrawl_test_key" })
+	out, errb, code := runCLI(t, base, "status", "--api-key", onboardKey)
+	var bad statusReport
+	if err := json.Unmarshal([]byte(out), &bad); err != nil {
+		t.Fatal(err)
+	}
+	if code != 1 || strings.Join(bad.MCP.NeedsEnv, ",") != "claude,cursor" || len(bad.MCP.Connected) != 0 {
+		t.Fatalf("env unset: exit %d, mcp %+v\n%s", code, bad.MCP, errb)
+	}
+	r := repairFor(bad, "mcp")
+	if r == nil || r.UnattendedSafe || r.Command != "spicrawl init --client claude,cursor --yes --force --global=false --api-key <YOUR_API_KEY>" {
+		t.Errorf("repair %+v", r)
+	}
+	noKeyIn(t, onboardKey, "stdout", out)
+	noKeyIn(t, onboardKey, "stderr", errb)
+}
+
+// With the key saved in the CLI config, the repair is safe to run unattended,
+// and running it makes status pass; a project entry that needs the variable is
+// rewritten in place (it would shadow a user-level one).
+func TestStatusMCPNeedsEnvRepairLoop(t *testing.T) {
+	usesSavedKey(t)
+	base := onboardAPI(t)
+	dir := onboardProject(t)
+	t.Chdir(dir)
+	agentWrite(t, filepath.Join(dir, ".mcp.json"), envRefEntry)
+	agentWrite(t, filepath.Join(os.Getenv("HOME"), ".cursor", "mcp.json"),
+		`{"mcpServers": {"spicrawl": {"url": "https://mcp.spicrawl.com/mcp", "headers": {"Authorization": "Bearer ${env:SPICRAWL_API_KEY}"}}}}`)
+	// Claude's entry is in the project, Cursor's at user level.
+	rep, _, code := statusJSON(t, base)
+	if code != 1 || strings.Join(rep.MCP.NeedsEnv, ",") != "claude,cursor" {
+		t.Fatalf("exit %d, mcp %+v", code, rep.MCP)
+	}
+	var cmds []string
+	for _, r := range rep.Repairs {
+		if r.Check != "mcp" || !r.UnattendedSafe || strings.Contains(r.Command, "--api-key") {
+			t.Errorf("repair %+v", r)
+		}
+		cmds = append(cmds, r.Command)
+	}
+	want := []string{"spicrawl init --client cursor --yes --force", "spicrawl init --client claude --yes --force --global=false"}
+	if strings.Join(cmds, "|") != strings.Join(want, "|") {
+		t.Fatalf("repairs %q, want %q", cmds, want)
+	}
+	for _, c := range cmds {
+		if _, errb, code := runCLI(t, base, strings.Fields(c)[1:]...); code != 0 {
+			t.Fatalf("%s: exit %d: %s", c, code, errb)
+		}
+	}
+	rep, _, code = statusJSON(t, base)
+	if code != 0 || len(rep.Repairs) != 0 || strings.Join(rep.MCP.Connected, ",") != "claude,cursor" {
+		t.Fatalf("after the repairs: exit %d, mcp %+v, repairs %+v", code, rep.MCP, rep.Repairs)
+	}
+	b, _ := os.ReadFile(filepath.Join(dir, ".mcp.json"))
+	if strings.Contains(string(b), "${SPICRAWL_API_KEY}") || !strings.Contains(string(b), onboardKey) {
+		t.Errorf(".mcp.json was not rewritten:\n%s", b)
+	}
+}
+
+// A project entry that needs the variable shadows a working user-level one.
+func TestStatusMCPProjectEntryShadowsUserEntry(t *testing.T) {
+	usesSavedKey(t)
+	dir := onboardProject(t)
+	t.Chdir(dir)
+	agentWrite(t, filepath.Join(dir, ".mcp.json"), envRefEntry)
+	agentWrite(t, filepath.Join(os.Getenv("HOME"), ".claude.json"),
+		`{"mcpServers": {"spicrawl": {"type": "http", "url": "x", "headers": {"Authorization": "Bearer `+onboardKey+`"}}}}`)
+	rep, _, _ := statusJSON(t, onboardAPI(t))
+	if strings.Join(rep.MCP.NeedsEnv, ",") != "claude" || strings.Join(rep.MCP.Connected, ",") != "" {
+		t.Errorf("the project entry should shadow the working user-level one: %+v", rep.MCP)
+	}
+}
+
+func TestMCPEntryNeedsEnv(t *testing.T) {
+	dir := t.TempDir()
+	w := func(name, body string) string {
+		p := filepath.Join(dir, name)
+		agentWrite(t, p, body)
+		return p
+	}
+	claude, codex := agentClientByID("claude"), agentClientByID("codex")
+	for _, tc := range []struct {
+		name string
+		c    *agentClient
+		file string
+		want bool
+	}{
+		{"claude env ref", claude, w("a.json", envRefEntry), true},
+		{"claude literal key", claude, w("b.json", `{"mcpServers":{"spicrawl":{"headers":{"Authorization":"Bearer spicrawl_live_xxxxxxxxxxxxxxxx"}}}}`), false},
+		{"claude env ref with a default", claude, w("c.json", `{"mcpServers":{"spicrawl":{"headers":{"Authorization":"Bearer ${SPICRAWL_API_KEY:-k}"}}}}`), false},
+		{"another server's env ref", claude, w("d.json", `{"mcpServers":{"spicrawl":{"url":"x"},"other":{"headers":{"Authorization":"Bearer ${SPICRAWL_API_KEY}"}}}}`), false},
+		{"codex table", codex, w("e.toml", "[mcp_servers.spicrawl]\nurl = \"x\"\nbearer_token_env_var = \"SPICRAWL_API_KEY\"\n\n[mcp_servers.other]\nurl = \"y\"\n"), true},
+		{"codex literal", codex, w("f.toml", "[mcp_servers.spicrawl]\nurl = \"x\"\nhttp_headers = { \"Authorization\" = \"Bearer k\" }\n\n[mcp_servers.other]\nbearer_token_env_var = \"SPICRAWL_API_KEY\"\n"), false},
+		{"codex inline", codex, w("g.toml", "mcp_servers.spicrawl = { url = \"x\", bearer_token_env_var = \"SPICRAWL_API_KEY\" }\n"), true},
+	} {
+		entry, ok := mcpExistingEntry(tc.c, tc.file)
+		if !ok {
+			t.Errorf("%s: no entry found", tc.name)
+			continue
+		}
+		if got := mcpEntryNeedsEnv(entry); got != tc.want {
+			t.Errorf("%s: %v, want %v\n%s", tc.name, got, tc.want, entry)
 		}
 	}
 }

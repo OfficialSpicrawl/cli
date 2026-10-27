@@ -29,7 +29,8 @@
     ],
     "connected": [
       "claude"
-    ]
+    ],
+    "needs_env": []
   },
   "repairs": []
 }
