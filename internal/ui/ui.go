@@ -8,6 +8,11 @@
 // caller never branches on it and the plain output stays byte-for-byte what it
 // was. A nil *UI and a nil *Spinner are valid and off.
 //
+// When it is on it adapts to the terminal (Caps): colours are semantic roles
+// (Accent, Success, Warn, Danger, Muted) that resolve to the 16-colour palette,
+// the 256-colour cube or 24-bit colour; glyphs fall back to ASCII outside a
+// UTF-8 locale; links are OSC 8 only where the terminal has them.
+//
 // Callers that print to the same stream while a spinner runs must go through
 // Fprintf (output.Printer.Info and Warn already do), so the line is not
 // written into the middle of a frame.
@@ -22,15 +27,14 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode/utf8"
 
 	"github.com/mattn/go-isatty"
 	"golang.org/x/term"
 )
 
 // Live reports whether w should get a spinner and colour: w is a terminal and
-// nothing asked for plain output. NO_COLOR (any non-empty value), TERM=dumb
-// and CI (anything but empty, 0 or false) all turn it off.
+// nothing asked for plain output. NO_COLOR (any non-empty value), CLICOLOR=0,
+// TERM=dumb and CI (anything but empty, 0 or false) all turn it off.
 func Live(w io.Writer) bool { return live(w, os.Getenv, runtime.GOOS, isTTY) }
 
 func isTTY(f *os.File) bool {
@@ -42,7 +46,7 @@ func live(w io.Writer, getenv func(string) string, goos string, tty func(*os.Fil
 	if !ok || !tty(f) {
 		return false
 	}
-	if getenv("NO_COLOR") != "" || getenv("TERM") == "dumb" {
+	if getenv("NO_COLOR") != "" || getenv("CLICOLOR") == "0" || getenv("TERM") == "dumb" {
 		return false
 	}
 	switch strings.ToLower(getenv("CI")) {
@@ -57,37 +61,50 @@ func live(w io.Writer, getenv func(string) string, goos string, tty func(*os.Fil
 
 // UI draws on one stream. The zero value and nil are off.
 type UI struct {
-	w  io.Writer
-	on bool
+	w    io.Writer
+	on   bool
+	caps Caps
 }
 
-// New returns a UI for w that is on only when Live(w).
-func New(w io.Writer) *UI { return &UI{w: w, on: Live(w)} }
+// New returns a UI for w that is on only when Live(w), drawing for whatever the
+// terminal in the environment can do (Detect).
+func New(w io.Writer) *UI {
+	u := &UI{w: w, on: Live(w)}
+	if u.on {
+		u.caps = Detect()
+	}
+	return u
+}
 
-// Force returns a UI that is always on, whatever w is. For tests.
-func Force(w io.Writer) *UI { return &UI{w: w, on: true} }
+// Force returns a UI that is always on, whatever w is, drawing for a plain
+// UTF-8 terminal with 16 colours. For tests.
+func Force(w io.Writer) *UI { return ForceCaps(w, Caps{Unicode: true}) }
+
+// ForceCaps is Force for a terminal with the given capabilities.
+func ForceCaps(w io.Writer, c Caps) *UI { return &UI{w: w, on: true, caps: c} }
 
 // On reports whether this UI draws anything.
 func (u *UI) On() bool { return u != nil && u.on }
 
-// ---- colour ----------------------------------------------------------------
-
-// The palette is the terminal's own 8 colours plus bold and faint, so it
-// follows the user's theme and stays readable on light and dark backgrounds.
-// No white, black or yellow: those vanish on one of the two.
-
-func (u *UI) style(code, s string) string {
-	if !u.On() || s == "" {
-		return s
+// Caps is what the terminal this UI draws on can do.
+func (u *UI) Caps() Caps {
+	if u == nil {
+		return Caps{}
 	}
-	return "\x1b[" + code + "m" + s + "\x1b[0m"
+	return u.caps
 }
 
-func (u *UI) Bold(s string) string  { return u.style("1", s) }
-func (u *UI) Dim(s string) string   { return u.style("2", s) }
-func (u *UI) Red(s string) string   { return u.style("31", s) }
-func (u *UI) Green(s string) string { return u.style("32", s) }
-func (u *UI) Cyan(s string) string  { return u.style("36", s) }
+// Cols is the width of the terminal in cells, or 0 when it is not known (the
+// stream is not a terminal). It is read every call, so it follows a resize.
+func (u *UI) Cols() int {
+	if u == nil {
+		return 0
+	}
+	if u.caps.Width > 0 {
+		return u.caps.Width
+	}
+	return termCols(u.w)
+}
 
 // ---- lines -----------------------------------------------------------------
 
@@ -104,19 +121,20 @@ func (u *UI) Printf(format string, a ...any) {
 //
 //	✓ https://example.com  200 · 1 credit · 4.2s
 //
-// parts[0] is the subject (a URL); the rest are the facts, dimmed. ok picks a
+// parts[0] is the subject (a URL); the rest are the facts, muted. ok picks a
 // green ✓ or a red ✗.
 func (u *UI) Done(ok bool, parts ...string) {
 	if !u.On() || len(parts) == 0 {
 		return
 	}
-	mark := u.Red("✗")
+	g := u.Glyphs()
+	mark := u.Red(g.Bad)
 	if ok {
-		mark = u.Green("✓")
+		mark = u.Green(g.OK)
 	}
 	line := mark + " " + parts[0]
 	if len(parts) > 1 {
-		line += "  " + u.Dim(strings.Join(parts[1:], " · "))
+		line += "  " + u.Dim(strings.Join(parts[1:], " "+g.Dot+" "))
 	}
 	u.Printf("%s\n", line)
 }
@@ -129,36 +147,85 @@ type Row struct{ Key, Val string }
 //	✗ ERR::TARGET::BLOCKED: the site refused the request
 //	  hint     retry with --render
 //	  request  01J9Z... (spicrawl logs get 01J9Z...)
+//	  docs     https://docs.spicrawl.com/errors/target-blocked
 //
-// Rows with an empty value are skipped.
+// The ERR:: code is muted so the sentence leads; the hint is the accent, since
+// it is the line to act on; the keys line up; long text wraps under its own
+// column instead of under the key; URLs become links where the terminal has
+// them. Rows with an empty value are skipped.
 func (u *UI) Fail(headline string, rows ...Row) {
 	if !u.On() {
 		return
 	}
+	cols := u.Cols()
+	if cols > 0 {
+		cols-- // a line that fills the row exactly can leave a blank one after it on some terminals
+	}
 	var b strings.Builder
-	b.WriteString(u.Red("✗") + " " + u.Bold(headline) + "\n")
+	var code string
+	if i := strings.Index(headline, ": "); i > 0 && strings.HasPrefix(headline, "ERR::") && !strings.ContainsAny(headline[:i], " \t") {
+		code, headline = headline[:i+1], headline[i+2:] // "ERR::X::Y:" and the sentence
+	}
+	lead := u.Red(u.Glyphs().Bad) + " "
+	// The first line shares its row with the code; the rest have the full width.
+	var text []string
+	for i, para := range strings.Split(headline, "\n") {
+		if i > 0 {
+			text = append(text, Wrap(para, cols-2)...)
+			continue
+		}
+		ls := Wrap(para, cols-2-Width(code)-1)
+		if len(ls) > 1 {
+			rest := strings.Fields(para)[len(strings.Fields(ls[0])):]
+			ls = append(ls[:1], Wrap(strings.Join(rest, " "), cols-2)...)
+		}
+		text = append(text, ls...)
+	}
+	if code != "" {
+		text[0] = u.Dim(code) + " " + u.Bold(text[0])
+	} else {
+		text[0] = u.Bold(text[0])
+	}
+	for i, l := range text {
+		if i > 0 {
+			l = u.Bold(l)
+		}
+		b.WriteString(lead + l + "\n")
+		lead = "  "
+	}
 	pad := 0
 	for _, r := range rows {
-		if r.Val != "" && len(r.Key) > pad {
-			pad = len(r.Key)
+		if r.Val != "" {
+			pad = max(pad, Width(r.Key))
 		}
 	}
 	for _, r := range rows {
-		if r.Val != "" {
-			b.WriteString("  " + u.Dim(fmt.Sprintf("%-*s", pad, r.Key)) + "  " + r.Val + "\n")
+		if r.Val == "" {
+			continue
+		}
+		key := r.Key + strings.Repeat(" ", pad-Width(r.Key))
+		if r.Key == "hint" {
+			key = u.Accent(key)
+		} else {
+			key = u.Dim(key)
+		}
+		for i, l := range Wrap(r.Val, cols-2-pad-2) {
+			if i > 0 {
+				key = strings.Repeat(" ", pad)
+			}
+			b.WriteString("  " + key + "  " + u.Linkify(l) + "\n")
 		}
 	}
 	u.Printf("%s", b.String())
 }
 
 // Elapsed formats a duration for humans: 840ms is "0.8s", 12.14s is "12.1s",
-// 64s is "1m04s".
+// 64s is "1m04s", 3900s is "1h05m".
 func Elapsed(d time.Duration) string {
 	if d < time.Minute {
 		return fmt.Sprintf("%.1fs", d.Seconds())
 	}
-	d = d.Round(time.Second)
-	return fmt.Sprintf("%dm%02ds", int(d/time.Minute), int(d%time.Minute/time.Second))
+	return Span(d)
 }
 
 // ---- spinner ---------------------------------------------------------------
@@ -170,11 +237,13 @@ var (
 	Interval = 80 * time.Millisecond
 )
 
-var frames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-
 // Spinner is one live "⠹ label · 4.2s" line. At most one runs at a time: Spin
 // while another is active returns nil, so the outermost operation (a whole
 // batch wait) keeps its label over the calls inside it.
+//
+// Progress turns it into a determinate bar: "⠹ label  ━━━╸──  7/20 · 12.1s ·
+// ETA 22s". The line is measured against the terminal on every frame, so a
+// resize is picked up within one Interval and the label shortens to fit.
 type Spinner struct {
 	u     *UI
 	start time.Time
@@ -184,6 +253,8 @@ type Spinner struct {
 	mu      sync.Mutex
 	label   string
 	frame   int
+	items   int // finished, of total; total 0 means no bar
+	total   int
 	drawn   bool // something is on the line and the cursor is hidden
 	stopped bool
 	elapsed time.Duration
@@ -221,6 +292,18 @@ func (s *Spinner) Label(format string, a ...any) {
 	l := fmt.Sprintf(format, a...)
 	s.mu.Lock()
 	s.label = l
+	s.mu.Unlock()
+}
+
+// Progress shows "done of total" as a bar with a count and an ETA next to the
+// label. Call it as often as the count changes; it is cheap. A total of 0 (or
+// less) takes the bar away again.
+func (s *Spinner) Progress(done, total int) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.items, s.total = done, total
 	s.mu.Unlock()
 }
 
@@ -305,39 +388,41 @@ func (s *Spinner) draw() {
 	if s.stopped {
 		return
 	}
-	suffix := " · " + Elapsed(time.Since(s.start))
-	// The visible line is 2 cells of glyph, the label and the suffix, and must
-	// stay one short of the width: a line that wraps cannot be cleared by \r.
-	label := truncate(s.label, width(s.u.w)-1-2-utf8.RuneCountInString(suffix))
+	g := s.u.Glyphs()
+	frame := g.Frames[s.frame%len(g.Frames)]
+	// The visible line must stay one cell short of the width: a line that
+	// wraps cannot be cleared by \r.
+	cols := s.u.Cols()
+	if cols == 0 {
+		cols = 80
+	}
+	elapsed := time.Since(s.start)
+	var line string
+	if s.total > 0 {
+		line = s.u.progressLine(frame, s.label, s.items, s.total, elapsed, cols)
+	} else {
+		suffix := " " + g.Dot + " " + Elapsed(elapsed)
+		label := Truncate(s.label, max(cols-1-2-Width(suffix), 4), g.Ellipsis)
+		line = s.u.Accent(frame) + " " + label + s.u.Dim(suffix)
+	}
 	var b bytes.Buffer
 	if !s.drawn {
 		b.WriteString("\x1b[?25l") // hide the cursor; Stop shows it again
 		s.drawn = true
 	}
-	b.WriteString("\r\x1b[K" + s.u.Cyan(frames[s.frame%len(frames)]) + " " + label + s.u.Dim(suffix))
+	b.WriteString("\r\x1b[K" + line)
 	s.frame++
 	s.u.w.Write(b.Bytes())
 }
 
-// width is the terminal's column count, 80 when it cannot be read.
-func width(w io.Writer) int {
+// termCols is the terminal's column count, 0 when w is not a terminal.
+func termCols(w io.Writer) int {
 	if f, ok := w.(*os.File); ok {
 		if cols, _, err := term.GetSize(int(f.Fd())); err == nil && cols > 0 {
 			return cols
 		}
 	}
-	return 80
-}
-
-// truncate shortens s to n cells with a trailing …. A rune is one cell; wide
-// East Asian characters are not special-cased (ponytail: they may overshoot).
-func truncate(s string, n int) string {
-	n = max(n, 4)
-	if utf8.RuneCountInString(s) <= n {
-		return s
-	}
-	r := []rune(s)
-	return string(r[:n-1]) + "…"
+	return 0
 }
 
 // Fprintf writes to w like fmt.Fprintf, but when a spinner is drawing on w it

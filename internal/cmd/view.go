@@ -9,10 +9,8 @@ package cmd
 // text) when it is nil or off. A nil *ui.UI and a nil *ui.Spinner are valid.
 
 import (
-	"fmt"
 	"io"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/OfficialSpicrawl/cli/internal/output"
 	"github.com/OfficialSpicrawl/cli/internal/ui"
@@ -74,33 +72,50 @@ func viewNext(p *output.Printer, steps ...string) {
 	var b strings.Builder
 	b.WriteString("\n" + u.Bold("next") + "\n")
 	for _, s := range steps {
-		b.WriteString("  " + u.Cyan("›") + " " + s + "\n")
+		b.WriteString("  " + u.Accent(u.Glyphs().Bullet) + " " + s + "\n")
 	}
 	u.Printf("%s", b.String())
 }
 
-// viewRows renders key/value rows with dimmed, aligned keys. Rows with an
-// empty value are skipped.
+// viewRows renders key/value rows with muted, aligned keys. Rows with an empty
+// value are skipped. On a terminal a value longer than the line wraps under
+// its own column, not under the key, and URLs in it become links.
 func viewRows(u *ui.UI, indent string, rows []ui.Row) string {
 	pad := 0
 	for _, r := range rows {
-		if r.Val != "" && utf8.RuneCountInString(r.Key) > pad {
-			pad = utf8.RuneCountInString(r.Key)
+		if r.Val != "" {
+			pad = max(pad, ui.Width(r.Key))
 		}
+	}
+	// 0 while u is off or its width is unknown: the value is printed as it is.
+	room := 0
+	if u.On() && u.Cols() > 0 {
+		room = u.Cols() - 1 - ui.Width(indent) - pad - 2 // one short of the row: see ui.Fail
 	}
 	var b strings.Builder
 	for _, r := range rows {
-		if r.Val != "" {
-			b.WriteString(indent + viewKey(u, pad, r.Key) + "  " + r.Val + "\n")
+		if r.Val == "" {
+			continue
+		}
+		lines := []string{r.Val}
+		if room > 0 {
+			lines = ui.Wrap(r.Val, room)
+		}
+		for i, l := range lines {
+			key := viewKey(u, pad, r.Key)
+			if i > 0 {
+				key = strings.Repeat(" ", pad)
+			}
+			b.WriteString(indent + key + "  " + u.Linkify(l) + "\n")
 		}
 	}
 	return b.String()
 }
 
-// viewKey is a key padded to width, dimmed when u is on. With u off it is
-// exactly fmt's %-*s.
+// viewKey is a key padded to width cells, muted when u is on. With u off it is
+// the same text, padded.
 func viewKey(u *ui.UI, width int, key string) string {
-	return u.Dim(fmt.Sprintf("%-*s", width, key))
+	return u.Dim(key + strings.Repeat(" ", max(width-ui.Width(key), 0)))
 }
 
 // Marks for a check list. Neutral is for "not applicable" or "unknown".
@@ -112,15 +127,16 @@ const (
 )
 
 func viewMark(u *ui.UI, m int) string {
+	g := u.Glyphs()
 	switch m {
 	case markOK:
-		return u.Green("✓")
+		return u.Green(g.OK)
 	case markBad:
-		return u.Red("✗")
+		return u.Red(g.Bad)
 	case markWarn:
-		return u.Bold("!")
+		return u.Amber(g.Warn)
 	}
-	return u.Dim("–")
+	return u.Dim(g.Neutral)
 }
 
 // viewLead is a mark and a space to put before a line, or "" while u is off,
@@ -134,7 +150,8 @@ func viewLead(u *ui.UI, m int) string {
 
 // viewTable is p.Table, and exactly that while u is off. When it is on the
 // header is bold and style, if given, colours each body cell. Padding is
-// added around the plain text, so colour never skews the columns.
+// measured on the plain text, in terminal cells, so neither colour nor a wide
+// character skews the columns.
 func viewTable(p *output.Printer, u *ui.UI, headers []string, rows [][]string, style func(col int, cell string) string) {
 	if !u.On() {
 		p.Table(headers, rows)
@@ -142,12 +159,12 @@ func viewTable(p *output.Printer, u *ui.UI, headers []string, rows [][]string, s
 	}
 	widths := make([]int, len(headers))
 	for i, h := range headers {
-		widths[i] = utf8.RuneCountInString(h)
+		widths[i] = ui.Width(h)
 	}
 	for _, r := range rows {
 		for i, c := range r {
 			if i < len(widths) {
-				widths[i] = max(widths[i], utf8.RuneCountInString(c))
+				widths[i] = max(widths[i], ui.Width(c))
 			}
 		}
 	}
@@ -157,7 +174,7 @@ func viewTable(p *output.Printer, u *ui.UI, headers []string, rows [][]string, s
 			shown := paint(i, c)
 			b.WriteString(shown)
 			if i < len(cells)-1 && i < len(widths) {
-				b.WriteString(strings.Repeat(" ", max(widths[i]-utf8.RuneCountInString(c), 0)+2))
+				b.WriteString(strings.Repeat(" ", max(widths[i]-ui.Width(c), 0)+2))
 			}
 		}
 		b.WriteString("\n")
