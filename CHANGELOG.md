@@ -1,9 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.1.6 — 2026-11-16
 
 - **Advice from the API is shown.** A scrape's `X-Note` headers and `notes` are printed to stderr as `note: ...` in human mode, and kept in the JSON as `notes`; a refused target (`--allowed-status` hint) and a failure's `hint:` include them too.
-- **Parameter names in notes become flags.** In human mode `js_render` reads as `--render`, `premium_proxy` as `--premium-proxy`, and so on; JSON keeps the API's text.
+- **Parameter names in notes become flags.** In human mode `js_render` reads as `--render`, `response_format` as `--format`, and so on; JSON keeps the API's text.
 
 ## 0.1.5 — 2026-10-27
 
