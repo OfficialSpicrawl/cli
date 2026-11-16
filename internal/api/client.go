@@ -249,6 +249,7 @@ type Problem struct {
 	TargetStatus      *int            `json:"target_status"`
 	RetryAfterSeconds int             `json:"retry_after_seconds,omitempty"`
 	Warnings          []string        `json:"warnings,omitempty"`
+	Notes             []string        `json:"notes,omitempty"`
 	Diagnostics       json.RawMessage `json:"diagnostics,omitempty"`
 }
 
@@ -262,13 +263,16 @@ func (p *Problem) Error() string {
 	return msg
 }
 
-// Hint returns diagnostics.hint when the server supplied one.
+// Hint returns diagnostics.hint when the server supplied one, else the first note.
 func (p *Problem) Hint() string {
 	var d struct {
 		Hint string `json:"hint"`
 	}
-	if len(p.Diagnostics) > 0 && json.Unmarshal(p.Diagnostics, &d) == nil {
+	if len(p.Diagnostics) > 0 && json.Unmarshal(p.Diagnostics, &d) == nil && d.Hint != "" {
 		return d.Hint
+	}
+	if len(p.Notes) > 0 {
+		return p.Notes[0]
 	}
 	return ""
 }

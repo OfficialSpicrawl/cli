@@ -130,3 +130,12 @@ func (p *Printer) Warn(format string, a ...any) {
 	}
 	ui.Fprintf(p.Err, "%s", PublicText(fmt.Sprintf("warning: "+format+"\n", a...)))
 }
+
+// Note writes advice from the API (X-Note, notes) to stderr, like Warn: shown
+// with tier names, and nothing in JSON mode, where the notes are in the JSON.
+func (p *Printer) Note(format string, a ...any) {
+	if p.JSON {
+		return
+	}
+	ui.Fprintf(p.Err, "%s", PublicText(fmt.Sprintf("note: "+format+"\n", a...)))
+}

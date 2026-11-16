@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -286,6 +287,12 @@ func scrapeRun(cmd *cobra.Command, args []string) error {
 	for _, w := range res.warnings() {
 		p.Warn("%s", w)
 	}
+	// A refused target's notes are in its error (checkTarget), printed once.
+	if targetErr == nil {
+		for _, n := range res.notes() {
+			p.Note("%s", noteForHuman(n))
+		}
+	}
 	if scrapeMeta {
 		res.printMeta(p)
 	}
@@ -305,7 +312,15 @@ func (r *scrapeResult) checkTarget(body map[string]any) error {
 	msg := fmt.Sprintf("target returned %d", st)
 	r.obj["target_error"] = msg
 	r.modified = true
-	return &ExitError{Code: exitcode.Upstream, Err: fmt.Errorf("%s (pass --allowed-status %d to accept it)", msg, st)}
+	// The API's note says what to do about the refusal (often a residential proxy).
+	text := fmt.Sprintf("%s (pass --allowed-status %d to accept it)", msg, st)
+	for _, n := range r.notes() {
+		if !Printer().JSON {
+			n = noteForHuman(output.PublicText(n))
+		}
+		text += "\nnote: " + n
+	}
+	return &ExitError{Code: exitcode.Upstream, Err: fmt.Errorf("%s", text)}
 }
 
 // targetStatus is the target site's status: X-Target-Status, else the
@@ -422,6 +437,10 @@ func scrapeResultOf(url string, resp *api.Response) (*scrapeResult, error) {
 	if warnings == nil {
 		warnings = []string{}
 	}
+	notes := h.Values("X-Note")
+	if notes == nil {
+		notes = []string{}
+	}
 	credits := scrapeHeaderInt(h, "X-Credits-Charged")
 	r.obj = map[string]any{
 		"url":             url,
@@ -435,6 +454,7 @@ func scrapeResultOf(url string, resp *api.Response) (*scrapeResult, error) {
 		"cache_state":     h.Get("Cache-State"),
 		"request_id":      h.Get("X-Request-Id"),
 		"warnings":        warnings,
+		"notes":           notes,
 		"content_type":    ct,
 	}
 	if r.text {
@@ -511,6 +531,43 @@ func (r *scrapeResult) warnings() []string {
 		}
 	}
 	return out
+}
+
+func (r *scrapeResult) notes() []string {
+	if n := r.resp.Header.Values("X-Note"); len(n) > 0 {
+		return n
+	}
+	var out []string
+	if list, ok := r.obj["notes"].([]any); ok {
+		for _, n := range list {
+			if s, ok := n.(string); ok {
+				out = append(out, s)
+			}
+		}
+	}
+	return out
+}
+
+// noteParam matches a REST parameter a note names in backticks, with the
+// value it suggests ("`js_render` to true", "`js_render=true`"), or alone.
+var noteParam = regexp.MustCompile("`(js_render|premium_proxy|stealth|proxy_verify|response_format|proxy)(=true)?`( to true)?")
+
+// noteFlags maps those parameters to the scrape flag that sets them.
+var noteFlags = map[string]string{
+	"js_render":       "--render",
+	"premium_proxy":   "--premium-proxy",
+	"stealth":         "--stealth",
+	"proxy_verify":    "--proxy-verify",
+	"response_format": "--format",
+	"proxy":           "--proxy",
+}
+
+// noteForHuman rewrites REST parameter names in server advice to the CLI flags
+// (human mode only: JSON keeps the API's text).
+func noteForHuman(s string) string {
+	return noteParam.ReplaceAllStringFunc(s, func(m string) string {
+		return noteFlags[noteParam.FindStringSubmatch(m)[1]]
+	})
 }
 
 func (r *scrapeResult) printMeta(p *output.Printer) {
