@@ -279,7 +279,7 @@ func report(err error) int {
 			u.Fail(scrub(output.PublicText(prob.Error())), append(problemRows(prob), failRows...)...)
 		} else {
 			fmt.Fprintf(stderr, "error: %s\n", scrub(output.PublicText(prob.Error())))
-			if h := output.PublicText(prob.Hint()); h != "" {
+			if h := noteForHuman(output.PublicText(prob.Hint())); h != "" {
 				fmt.Fprintf(stderr, "hint: %s\n", scrub(h))
 			}
 			if prob.TargetStatus != nil {
@@ -339,7 +339,7 @@ func failContext(rows ...ui.Row) { failRows = append(failRows, rows...) }
 // ones the plain output lists (the request id once, as the command that finds
 // it) and the docs link; the ERR:: code stays in the headline.
 func problemRows(prob *api.Problem) []ui.Row {
-	rows := []ui.Row{{Key: "hint", Val: output.PublicText(prob.Hint())}}
+	rows := []ui.Row{{Key: "hint", Val: noteForHuman(output.PublicText(prob.Hint()))}}
 	if prob.TargetStatus != nil {
 		rows = append(rows, ui.Row{Key: "target", Val: fmt.Sprintf("returned %d", *prob.TargetStatus)})
 	}

@@ -6,6 +6,7 @@
   "credits_charged": 2,
   "engine": "fetch",
   "final_url": "https://example.com/final",
+  "notes": [],
   "proxy_source": "pool",
   "request_cost": 2,
   "request_id": "<REQUEST_ID>",

@@ -34,11 +34,12 @@ The result is one JSON object with the page under `content`:
   "request_id": "01K6E8Z2Q4W9R3T7Y5N1M0B8VC",
   "status": 200,
   "url": "https://example.com",
-  "warnings": []
+  "warnings": [],
+  "notes": []
 }
 ```
 
-`status` is the target site's HTTP status. Without `--json`, on a terminal, the CLI prints just the Markdown.
+`status` is the target site's HTTP status. Without `--json`, on a terminal, the CLI prints just the Markdown. Advice from the API (`notes`) is printed on stderr as `note: ...` in human mode.
 
 ## What the Spicrawl CLI does
 
