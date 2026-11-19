@@ -1655,7 +1655,7 @@ components:
         dashboard defaults underneath both. Validation happens for every item at submission.
 
         What the batch worker executes: each item is one fetch or one render, and the document is returned as
-        `response_format` (`html` by default, `json`, `markdown` or `text`). A field is either honoured on a batch item
+        `response_format` (`html` by default, `markdown` or `text`). A field is either honoured on a batch item
         or refused at submission, never accepted and skipped. Refused with 400 INVALID_PARAMETER, naming every offending
         field, with nothing queued or charged: `actions`, `screenshot` and its options, `network_capture`, `extract`,
         `extract_preset`, `ai_extract`, `autoparse`, `links`, `session_id`, `cache`/`cache_ttl`, `original_status`,
@@ -1812,10 +1812,16 @@ components:
             The batch worker has no PDF parser. `true` is refused on batch with 400 INVALID_PARAMETER (nothing
             queued or charged); use /v1/scrape. `false` is accepted.
         response_format:
-          $ref: '#/components/schemas/ScrapeRequest/properties/response_format'
+          type: string
+          enum:
+          - html
+          - markdown
+          - text
+          - pdf
+          default: html
           description: >-
-            Honoured. `html` (the default) and `json` return the document as retrieved; `markdown` and `text`
-            run the same conversion as /v1/scrape. A document that is not HTML (a PDF, an image, JSON) fails a
+            Honoured. `html` (the default) returns the document as retrieved; `markdown` and `text`
+            run the same conversion as /v1/scrape. Batch has no `json` envelope; use /v1/scrape for it. A document that is not HTML (a PDF, an image, JSON) fails a
             `markdown` or `text` item with EXTRACTION_FAILED; request `html` to get it as retrieved. `pdf` is
             refused with 400, also when it comes from the project defaults.
         cache:

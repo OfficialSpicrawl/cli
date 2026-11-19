@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.7 — 2026-11-19
+
+- **Changed:** `batch submit` takes `--format` html, markdown or text. `--format json` is refused before anything is sent, with a pointer to `spicrawl scrape --format json`, because the batch API no longer accepts `response_format` json. Its help and the batch schema (`spicrawl schema batch`) list the three formats.
+
 ## 0.1.6 — 2026-11-16
 
 - **Advice from the API is shown.** A scrape's `X-Note` headers and `notes` are printed to stderr as `note: ...` in human mode, and kept in the JSON as `notes`; a refused target (`--allowed-status` hint) and a failure's `hint:` include them too.

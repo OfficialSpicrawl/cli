@@ -98,7 +98,7 @@ A Homebrew tap is planned but not live. Use one of the channels above.
 ### Check the install
 
 ```sh
-spicrawl version   # spicrawl 0.1.6 (go1.27.1, linux/amd64)
+spicrawl version   # spicrawl 0.1.7 (go1.27.1, linux/amd64)
 ```
 
 `spicrawl version --json` prints the same as `{version, go, os, arch}`. If the npm launcher says there is no prebuilt binary, your OS or CPU is not one of the 6 targets: use `go install`, or point `SPICRAWL_BINARY` at a binary you already have.
@@ -284,7 +284,7 @@ spicrawl batch results "$id" --all -o results.jsonl
 spicrawl batch retry "$id"                  # re-run the failed items
 ```
 
-Each batch item is one fetch or render, returned as `html` (the default), `markdown`, `text` or `json` with `--format`. Screenshots, extraction (`--extract`, `--links`), actions, sessions, cache controls and PDF output are refused with a 400 at submit, before anything is queued or charged; use `spicrawl scrape - --concurrency 8 < urls.txt` for those. `batch wait` and `batch submit --wait` print the final job either way, and exit 4 when it ended `failed` or `cancelled`, so a script can tell it from `completed`; partial results stay readable with `batch results`. Results stay readable until the job's `results_expire_at` (72 hours after submission by default). More in the [batch guide](https://docs.spicrawl.com/cli/batch).
+Each batch item is one fetch or render, returned as `html` (the default), `markdown` or `text` with `--format`. Batch has no JSON envelope; `spicrawl scrape --format json` returns it. Screenshots, extraction (`--extract`, `--links`), actions, sessions, cache controls and PDF output are refused with a 400 at submit, before anything is queued or charged; use `spicrawl scrape - --concurrency 8 < urls.txt` for those. `batch wait` and `batch submit --wait` print the final job either way, and exit 4 when it ended `failed` or `cancelled`, so a script can tell it from `completed`; partial results stay readable with `batch results`. Results stay readable until the job's `results_expire_at` (72 hours after submission by default). More in the [batch guide](https://docs.spicrawl.com/cli/batch).
 
 ### How to keep cookies and logins across scrapes
 
