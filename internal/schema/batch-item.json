@@ -959,8 +959,7 @@
           "enum": [
             "html",
             "markdown",
-            "text",
-            "pdf"
+            "text"
           ],
           "default": "html",
           "description": "Honoured. `html` (the default) returns the document as retrieved; `markdown` and `text` run the same conversion as /v1/scrape. Batch has no `json` envelope; use /v1/scrape for it. A document that is not HTML (a PDF, an image, JSON) fails a `markdown` or `text` item with EXTRACTION_FAILED; request `html` to get it as retrieved. `pdf` is refused with 400, also when it comes from the project defaults."

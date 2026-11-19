@@ -1817,7 +1817,6 @@ components:
           - html
           - markdown
           - text
-          - pdf
           default: html
           description: >-
             Honoured. `html` (the default) returns the document as retrieved; `markdown` and `text`
