@@ -40,7 +40,7 @@ import (
 // --wait means "wait for the job", so the delay is --render-wait.
 var batchSubmitScrapeFlags = map[string]string{
 	"body":             "",
-	"format":           "response_format: html|markdown|text|json (pdf is refused on batch)",
+	"format":           "response_format: html|markdown|text (json is scrape-only; pdf is refused on batch)",
 	"method":           "HTTP method sent to the target (default GET; non-GET only on non-rendered items)",
 	"render":           "",
 	"stealth":          "",
@@ -135,11 +135,12 @@ Scrape flags set job-wide defaults; items override them. Prints the job; with
 --wait, polls until the job finishes and prints the final job (exit 11 if
 --max-wait elapses first, exit 4 if the job failed or was cancelled).
 
-Each item is one fetch or render, returned as html (default), markdown, text
-or json (--format). Only the scrape flags batch accepts are offered here; the
-API refuses screenshots, extraction (extract, ai_extract, autoparse, links),
-actions, sessions, network capture, cache controls, mode=auto and pdf output
-on batch with a 400 before anything is charged. Use "spicrawl scrape" for those.
+Each item is one fetch or render, returned as html (default), markdown or text
+(--format). Batch has no JSON envelope: for that, use "spicrawl scrape --format json".
+Only the scrape flags batch accepts are offered here; the API refuses screenshots,
+extraction (extract, ai_extract, autoparse, links), actions, sessions, network
+capture, cache controls, mode=auto and pdf output on batch with a 400 before
+anything is charged. Use "spicrawl scrape" for those.
 --render-wait is the render delay in ms (the scrape "wait" field); --wait waits
 for the job.`,
 	Example: `  # One URL per line, rendered, wait for completion, then fetch results
@@ -164,6 +165,9 @@ func batchRunSubmit(cmd *cobra.Command, args []string) error {
 	body, err := batchSubmitScrape.build()
 	if err != nil {
 		return err
+	}
+	if body["response_format"] == "json" {
+		return Usagef("batch returns html, markdown or text; use `spicrawl scrape --format json` for the JSON envelope")
 	}
 	if cmd.Flags().Changed("render-wait") {
 		body["wait"] = batchSubmitRenderWait
