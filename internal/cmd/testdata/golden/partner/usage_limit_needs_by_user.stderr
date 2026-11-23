@@ -1,0 +1,4 @@
+{
+  "error": "--limit, --sort and --offset apply to --by user",
+  "exit_code": 2
+}

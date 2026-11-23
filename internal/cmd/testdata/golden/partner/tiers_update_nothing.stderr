@@ -1,0 +1,4 @@
+{
+  "error": "nothing to change: pass a flag such as --cap, --requests-per-minute or --rename",
+  "exit_code": 2
+}

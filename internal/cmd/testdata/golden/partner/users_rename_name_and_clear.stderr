@@ -1,0 +1,4 @@
+{
+  "error": "--clear removes the name: give a name or --clear, not both",
+  "exit_code": 2
+}

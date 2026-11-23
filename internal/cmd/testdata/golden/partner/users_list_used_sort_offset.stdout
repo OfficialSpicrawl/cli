@@ -1,0 +1,26 @@
+{
+  "next_offset": 3,
+  "workspaces": [
+    {
+      "workspace_id": "01JDMZ4Q8V0W6Z1F2N4T5R7X9A",
+      "external_user_id": "user-42",
+      "display_name": "Jane",
+      "status": "active",
+      "created_at": "<TIMESTAMP>",
+      "free_credits": 250,
+      "wallet_cap": 500,
+      "wallet_cap_source": "tier",
+      "window_resets_at": "<TIMESTAMP>",
+      "wallet_used": 120,
+      "wallet_used_source": "live",
+      "free_used": 250,
+      "own_credits": 50,
+      "tier": {
+        "id": "01JDN2K7M3Q9R8T6V4W1X0Y5Z2",
+        "name": "Standard"
+      },
+      "requests_per_minute": 60,
+      "concurrency": 2
+    }
+  ]
+}

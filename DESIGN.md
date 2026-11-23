@@ -201,6 +201,21 @@ spicrawl init [--client claude|cursor|codex|vscode|all | --all] [--yes] [--api-k
                                                 JSON: the result array ends with a {"kind":"report"} summary (connected, skipped, api_key, next)
 spicrawl mcp install [--client ...] [--print]      add the hosted MCP server to a client config
 spicrawl skill install [--client ...] [--print]    write the Spicrawl agent skill (SKILL.md)
+spicrawl partner summary | balance                 partner key only (a workspace key gets exit 3)
+spicrawl partner usage [--by day|user] [--from D] [--to D] [--limit N] [--sort S] [--offset N]
+                                                  --by user splits each charge: free, given, from balance
+spicrawl partner users list [--limit N] [--after ID] [--query PREFIX] [--sort id|used] [--offset N] [--all]
+spicrawl partner users create <id> [--tier T] [--name TEXT] [--no-key]
+                                                  prints the user's API key once (stdout); -q prints the bare key even when piped
+spicrawl partner users get <id> | rename <id> <name>|--clear | suspend <id> [--yes] | reactivate <id>
+spicrawl partner users tier <id> <tier> | usage <id> [--from D] [--to D]
+spicrawl partner users give <id> <credits> [--idempotency-key K] [--yes]
+                                                  moves credits from the balance; --yes or a terminal to confirm
+spicrawl partner tiers list
+spicrawl partner tiers create <name> --requests-per-minute N --concurrency N --free-credits N (--cap N | --no-cap) [--default]
+spicrawl partner tiers update <tier> [--requests-per-minute N] [--concurrency N] [--free-credits N] (--cap N | --no-cap) [--rename NAME]
+spicrawl partner tiers default <tier> | delete <tier> [--yes]
+                                                  <tier> is an id or a name (names match without case)
 spicrawl docs [topic] [--list]                     print raw Markdown (from docs.spicrawl.com); JSON only with --json
 spicrawl schema [scrape|batch|session]             print the JSON Schema of a request body
 spicrawl exit-codes

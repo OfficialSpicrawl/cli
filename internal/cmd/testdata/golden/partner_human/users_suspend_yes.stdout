@@ -1,0 +1,13 @@
+Suspended user user-42
+user                  user-42
+name                  Jane
+status                active
+tier                  Standard
+cap                   500 credits a month
+used this month       120
+credits given left    50
+free credits          250 a month
+free used this month  250
+requests a minute     60
+concurrency           2
+month ends            <TIMESTAMP>

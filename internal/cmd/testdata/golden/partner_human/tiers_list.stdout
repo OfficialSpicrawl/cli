@@ -1,0 +1,2 @@
+NAME      DEFAULT  REQ/MIN  CONCURRENCY  FREE  CAP  USERS
+Standard  default  60       2            250   500  3

@@ -1,0 +1,4 @@
+{
+  "error": "one of --cap or --no-cap is required: --cap N sets the most credits a user may draw from the balance each month, --no-cap sets none",
+  "exit_code": 2
+}

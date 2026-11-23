@@ -1,0 +1,40 @@
+{
+  "period": {
+    "start": "2026-11-01",
+    "end": "2026-12-01",
+    "bounds": "[start, end)",
+    "days": 30
+  },
+  "group_by": "workspace",
+  "totals": {
+    "requests": 14,
+    "requests_failed": 1,
+    "credits_micro": 14000000,
+    "credits_wallet_micro": 4000000,
+    "credits_own_micro": 5500000
+  },
+  "rows": [
+    {
+      "external_user_id": "user-42",
+      "requests": 9,
+      "requests_failed": 1,
+      "credits_micro": 9000000,
+      "credits_wallet_micro": 2500000,
+      "credits_own_micro": 5000000
+    },
+    {
+      "external_user_id": "user-41",
+      "requests": 5,
+      "requests_failed": 0,
+      "credits_micro": 5000000,
+      "credits_wallet_micro": 1500000,
+      "credits_own_micro": 500000
+    }
+  ],
+  "page": {
+    "total": 2,
+    "limit": 2,
+    "offset": 0,
+    "next_offset": null
+  }
+}

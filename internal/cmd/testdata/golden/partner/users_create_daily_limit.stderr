@@ -1,0 +1,14 @@
+{
+  "type": "https://docs.spicrawl.com/errors",
+  "title": "Too Many Requests",
+  "status": 429,
+  "code": "ERR::LIMIT::PARTNER_WORKSPACE_LIMIT",
+  "detail": "This partner has used its daily allowance of new workspaces. It resets at 00:00 UTC.",
+  "retryable": false,
+  "doc_url": "https://docs.spicrawl.com/errors",
+  "request_id": "<REQUEST_ID>",
+  "target_status": null,
+  "diagnostics": {
+    "hint": "check the request and try again"
+  }
+}

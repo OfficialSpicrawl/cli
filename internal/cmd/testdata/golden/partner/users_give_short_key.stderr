@@ -1,0 +1,4 @@
+{
+  "error": "--idempotency-key must be 8 to 100 characters with no spaces",
+  "exit_code": 2
+}

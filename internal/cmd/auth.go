@@ -265,6 +265,7 @@ func authRunStatus(cmd *cobra.Command, _ []string) error {
 		"key_valid":       nil, // null = not checked
 	}
 	var fail error
+	var keyInfo *partnerKey
 	switch {
 	case r.APIKey == "":
 		fail = ErrNoKey
@@ -281,6 +282,11 @@ func authRunStatus(cmd *cobra.Command, _ []string) error {
 			fail = err
 		} else {
 			res["key_valid"] = true
+			if k, ok := partnerKeyInfo(rootCmd.Context(), r.BaseURL, r.APIKey); ok {
+				keyInfo = &k
+				res["key_type"] = k.Kind
+				res["scopes"] = k.Scopes
+			}
 		}
 	}
 	if r.APIKey != "" {
@@ -292,6 +298,10 @@ func authRunStatus(cmd *cobra.Command, _ []string) error {
 		if r.APIKey != "" {
 			key = config.MaskKey(r.APIKey) + "  (from " + r.APIKeySource + ")"
 		}
+		keyType := ""
+		if keyInfo != nil {
+			keyType = keyInfo.String()
+		}
 		valid := "not checked"
 		switch res["key_valid"] {
 		case true:
@@ -300,15 +310,18 @@ func authRunStatus(cmd *cobra.Command, _ []string) error {
 			valid = "no"
 		}
 		if u := outUI(p); u.On() {
-			authPrintLive(w, u, r, key, valid)
+			authPrintLive(w, u, r, key, valid, keyType)
 			return
 		}
-		p.Table([]string{"FIELD", "VALUE"}, [][]string{
-			{"api key", key},
-			{"base url", r.BaseURL + "  (from " + r.BaseURLSource + ")"},
-			{"config", r.Path},
-			{"key works", valid},
-		})
+		rows := [][]string{{"api key", key}}
+		if keyType != "" {
+			rows = append(rows, []string{"key type", keyType})
+		}
+		rows = append(rows,
+			[]string{"base url", r.BaseURL + "  (from " + r.BaseURLSource + ")"},
+			[]string{"config", r.Path},
+			[]string{"key works", valid})
+		p.Table([]string{"FIELD", "VALUE"}, rows)
 	})
 	if perr != nil {
 		return perr
@@ -318,7 +331,7 @@ func authRunStatus(cmd *cobra.Command, _ []string) error {
 
 // authPrintLive is the terminal view of "auth status": a verdict line, then
 // the facts the plain table lists.
-func authPrintLive(w io.Writer, u *ui.UI, r config.Resolved, key, valid string) {
+func authPrintLive(w io.Writer, u *ui.UI, r config.Resolved, key, valid, keyType string) {
 	verdict := map[string]string{
 		"yes":         viewMark(u, markOK) + " " + u.Bold("The API accepts your key"),
 		"no":          viewMark(u, markBad) + " " + u.Bold("The API rejected your key"),
@@ -330,6 +343,7 @@ func authPrintLive(w io.Writer, u *ui.UI, r config.Resolved, key, valid string) 
 	fmt.Fprintln(w, verdict)
 	fmt.Fprint(w, viewRows(u, "  ", []ui.Row{
 		{Key: "api key", Val: key},
+		{Key: "key type", Val: keyType},
 		{Key: "base url", Val: r.BaseURL + "  (from " + r.BaseURLSource + ")"},
 		{Key: "config", Val: r.Path},
 	}))

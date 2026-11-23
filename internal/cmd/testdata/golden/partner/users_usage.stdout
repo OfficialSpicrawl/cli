@@ -1,0 +1,28 @@
+{
+  "external_user_id": "user-42",
+  "period": {
+    "start": "2026-11-01",
+    "end": "2026-11-03",
+    "bounds": "[start, end)",
+    "days": 2
+  },
+  "totals": {
+    "requests": 5,
+    "requests_failed": 0,
+    "credits_micro": 5000000
+  },
+  "rows": [
+    {
+      "day": "2026-11-01",
+      "requests": 5,
+      "requests_failed": 0,
+      "credits_micro": 5000000
+    },
+    {
+      "day": "2026-11-02",
+      "requests": 0,
+      "requests_failed": 0,
+      "credits_micro": 0
+    }
+  ]
+}

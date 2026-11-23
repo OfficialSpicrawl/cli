@@ -1,0 +1,8 @@
+Created tier Standard
+id                 01JDN2K7M3Q9R8T6V4W1X0Y5Z2
+default            yes
+requests a minute  60
+concurrency        2
+free credits       250 a month
+cap                500 credits a month
+users              3
