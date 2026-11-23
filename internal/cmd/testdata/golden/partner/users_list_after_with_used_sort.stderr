@@ -1,0 +1,4 @@
+{
+  "error": "--after works with the default order; --sort used pages with --offset",
+  "exit_code": 2
+}

@@ -1,0 +1,12 @@
+{
+  "id": "01JDN2K7M3Q9R8T6V4W1X0Y5Z2",
+  "name": "Standard",
+  "requests_per_minute": 60,
+  "concurrency": 2,
+  "free_credits": 250,
+  "wallet_cap": 500,
+  "default": true,
+  "workspaces": 3,
+  "created_at": "<TIMESTAMP>",
+  "updated_at": "<TIMESTAMP>"
+}

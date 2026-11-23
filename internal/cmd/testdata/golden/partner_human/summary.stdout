@@ -1,0 +1,6 @@
+users         3 total, 2 active, 1 suspended
+caps          1000 credits committed to caps; 0 users with no cap
+balance       880 credits, -120 not yet committed to caps
+workspaces    3 created; up to 50 new a day
+free credits  250 a month per user (your default)
+maximums      600 requests a minute, 10 running at once, 1000 free credits a user

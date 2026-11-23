@@ -1,0 +1,20 @@
+{
+  "workspace_id": "01JDMZ4Q8V0W6Z1F2N4T5R7X9A",
+  "external_user_id": "acct:7.eu_west",
+  "display_name": null,
+  "status": "active",
+  "created_at": "<TIMESTAMP>",
+  "free_credits": 250,
+  "wallet_cap": null,
+  "wallet_cap_source": "none",
+  "window_resets_at": "<TIMESTAMP>",
+  "wallet_used": null,
+  "wallet_used_source": null,
+  "free_used": null,
+  "own_credits": null,
+  "tier": null,
+  "requests_per_minute": null,
+  "concurrency": null,
+  "created": false,
+  "api_key": "spicrawl_live_WSKEY0123456789abcdefghijk"
+}

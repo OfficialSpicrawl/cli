@@ -1,0 +1,28 @@
+{
+  "partner": true,
+  "org_id": "0b6f3c1e-2d4a-4e8b-9f10-6a7c8d9e0f12",
+  "free_credits": 250,
+  "workspace_daily_limit": 50,
+  "workspace_count": 3,
+  "limits": {
+    "max_requests_per_minute": 600,
+    "max_concurrency": 10,
+    "max_free_credits": 1000
+  },
+  "users": {
+    "total": 3,
+    "active": 2,
+    "suspended": 1
+  },
+  "caps": {
+    "committed": 1000,
+    "uncapped_users": 0
+  },
+  "balance": {
+    "funded_credits": 1000,
+    "credit_line_credits": 0,
+    "spent_credits": 120,
+    "balance_credits": 880,
+    "available_credits": 880
+  }
+}

@@ -193,6 +193,7 @@ The key is passed as an argument, so other users on the machine can see it in th
 | `spicrawl config` | Read and write the config file: `get`, `set`, `unset`, `path` |
 | `spicrawl logs` | Recent API requests, newest first; `logs get <request-id>` for one; `logs --watch` for a live view |
 | `spicrawl usage` | Billed usage over a time window; `usage summary`, `usage reconciliation` |
+| `spicrawl partner` | Partner accounts: `summary`, `balance`, `usage`, `users` (`create`, `list`, `get`, `rename`, `suspend`, `reactivate`, `tier`, `usage`, `give`), `tiers` (`list`, `create`, `update`, `default`, `delete`). Needs a partner key |
 | `spicrawl status` | Check the API is reachable, ready and accepts your key, and that detected agent clients have the MCP server; prints a repair command for each failed check |
 | `spicrawl docs` | Print a Spicrawl docs page as Markdown (`--list` for the index); no API key needed |
 | `spicrawl schema` | Print the JSON Schema of a request body: `scrape`, `batch`, `batch-item`, `session` |
@@ -306,6 +307,31 @@ spicrawl batch submit urls.txt --proxy "$MY_PROXY_URL"
 ```
 
 On `scrape`, `--proxy-verify` checks the proxy before the request runs. Your own proxy adds no proxy surcharge.
+
+## Partner accounts
+
+A partner resells Spicrawl to its own users. Each user gets a workspace with its own API key, and their requests are paid from one shared balance, within a monthly cap per user. `spicrawl partner` uses the partner key, in the same `--api-key`, `SPICRAWL_API_KEY` or config slot as everything else; a workspace key is refused (exit 3). `spicrawl auth status` says which kind of key is in use.
+
+```sh
+# Create the user's workspace (or fetch it) and capture its key; -q prints the bare key
+KEY=$(spicrawl partner users create user-42 --tier Standard --name "Jane Doe" -q)
+
+# A default cap for everyone on a tier: at most 500 credits a month from the balance
+spicrawl partner tiers create Standard --requests-per-minute 60 --concurrency 2 --free-credits 250 --cap 500 --default
+
+# Give the user 50 credits from the balance; the idempotency key makes a retry safe
+spicrawl partner users give user-42 50 --idempotency-key grant-2026-11-20-user-42 --yes
+
+# The users who drew the most from the balance this month
+spicrawl partner users list --sort used --limit 20
+
+# Each user's share of the month's spend: free, given, and from the balance
+spicrawl partner usage --by user --sort credits
+```
+
+Store the workspace key where your server keeps its secrets, and pass it as `SPICRAWL_API_KEY` (or `--api-key`) when that user's requests run. Each create call returns the user's current key. `users suspend` stops a key working within about a minute; `users reactivate` undoes it.
+
+`give` moves credits from the balance to one user. It is not undone by any command here, so it asks for confirmation on a terminal and needs `--yes` without one. Each give carries an idempotency key: without `--idempotency-key` one is generated and printed on stderr, and retrying with the same key moves nothing twice.
 
 ## CLI vs SDK vs MCP server vs REST API: which should I use?
 

@@ -1,0 +1,4 @@
+{
+  "error": "refusing to delete tier Standard without confirmation: pass --yes",
+  "exit_code": 2
+}

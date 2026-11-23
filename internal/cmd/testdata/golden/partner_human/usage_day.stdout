@@ -1,0 +1,6 @@
+period [2026-11-01, 2026-11-03) (2 days), by day
+
+DAY         REQUESTS  FAILED  CREDITS
+2026-11-01  5         0       5
+2026-11-02  9         1       9
+TOTAL       14        1       14

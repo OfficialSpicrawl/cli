@@ -133,6 +133,8 @@ func waitLabel(method, path string) string {
 		return "Requesting a browser URL"
 	case strings.HasPrefix(path, "/v1/workers"):
 		return "Checking the workers"
+	case strings.HasPrefix(path, "/v1/partner"):
+		return "Contacting the partner API"
 	}
 	return "Waiting for the Spicrawl API"
 }

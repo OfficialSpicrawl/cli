@@ -1,0 +1,12 @@
+{
+  "funded_credits": 1000,
+  "credit_line_credits": 0,
+  "spent_credits": 120,
+  "balance_credits": 880,
+  "available_credits": 880,
+  "funded_micro": 1000000000,
+  "credit_line_micro": 0,
+  "spent_micro": 120000000,
+  "balance_micro": 880000000,
+  "available_micro": 880000000
+}

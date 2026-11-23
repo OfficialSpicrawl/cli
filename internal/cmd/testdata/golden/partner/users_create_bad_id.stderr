@@ -1,0 +1,4 @@
+{
+  "error": "user id \"jane@example.com\": use 1 to 128 letters, digits, '.', '_', ':' or '-' (no '@' or spaces)",
+  "exit_code": 2
+}

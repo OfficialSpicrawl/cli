@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.0 — 2026-11-23
+
+- **Added:** `spicrawl partner` for partner accounts (partner key): `summary`, `balance`, `usage` (by day or by user, with each charge split into free, given and from the balance), `users` (`list`, `create`, `get`, `rename`, `suspend`, `reactivate`, `tier`, `usage`, `give`) and `tiers` (`list`, `create`, `update`, `default`, `delete`). `users create` prints the user's key once: on a terminal alone on its own line on stdout, and with `-q` as the bare key even when piped; `--no-key` prints only the status. `users give` takes an `--idempotency-key` (generated and printed on stderr when absent) and never retries by itself.
+- **Added:** `spicrawl auth status` names the key type (partner, workspace or API key) and its scopes, from `GET /v1/key`, when the API answers it; an older API is reported as before.
+
 ## 0.1.7 — 2026-11-19
 
 - **Changed:** `batch submit` takes `--format` html, markdown or text. `--format json` is refused before anything is sent, with a pointer to `spicrawl scrape --format json`, because the batch API no longer accepts `response_format` json. Its help and the batch schema (`spicrawl schema batch`) list the three formats.

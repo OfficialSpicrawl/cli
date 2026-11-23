@@ -63,6 +63,7 @@ var helpGroups = []struct {
 	{"Extract data", []string{"scrape", "batch", "sessions", "browser"}},
 	{"Set up", []string{"login", "logout", "auth", "init", "mcp", "skill", "config"}},
 	{"Monitor", []string{"status", "logs", "usage"}},
+	{"Partner accounts", []string{"partner"}},
 	{"Reference", []string{"docs", "schema", "exit-codes", "version", "completion", "help"}},
 }
 

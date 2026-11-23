@@ -1,0 +1,4 @@
+{
+  "error": "refusing to suspend user user-42 without confirmation: pass --yes",
+  "exit_code": 2
+}
