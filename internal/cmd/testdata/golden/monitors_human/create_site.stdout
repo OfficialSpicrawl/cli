@@ -1,0 +1,16 @@
+Created monitor
+id                  0190f5c4-2b7a-7e10-8d3f-6a1c9e4b2d71
+name                example.com
+url                 https://example.com
+scope               site
+selector            main content
+renders JavaScript  yes
+every               1d
+running every       1d
+confirm checks      2
+webhook             none
+status              enabled
+next check          <TIMESTAMP>
+max pages           200
+credits per run     500
+pages tracked       42

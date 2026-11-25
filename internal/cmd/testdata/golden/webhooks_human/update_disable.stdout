@@ -1,0 +1,11 @@
+Updated webhook endpoint 0190f3a2-7c1e-7d4b-9a2f-3b8e5c6d7e80
+id                 0190f3a2-7c1e-7d4b-9a2f-3b8e5c6d7e80
+name               —
+url                https://hooks.example.com/spicrawl
+events             batch.completed
+format             json
+status             disabled
+disabled because   disabled by you
+failures in a row  3
+last failure       <TIMESTAMP>
+secret version     2

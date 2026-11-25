@@ -1,0 +1,56 @@
+{
+  "url": "https://example.com",
+  "identity": {
+    "name": "Example",
+    "tagline": "Examples, made easy",
+    "subtitle": null,
+    "ctas": []
+  },
+  "logos": [
+    {
+      "url": "https://example.com/logo-small.png",
+      "score": 0.4
+    },
+    {
+      "url": "https://example.com/logo.svg",
+      "score": 0.9
+    }
+  ],
+  "colors": [
+    {
+      "hex": "#0055ff",
+      "role": "primary"
+    },
+    {
+      "hex": "#ffffff",
+      "role": "background"
+    },
+    {
+      "hex": "#ff8800",
+      "role": "primary"
+    }
+  ],
+  "fonts": [
+    {
+      "family": "Inter",
+      "role": "body"
+    },
+    {
+      "family": "Fraunces",
+      "role": "heading"
+    }
+  ],
+  "socials": [
+    {
+      "network": "github",
+      "url": "https://github.com/example"
+    },
+    {
+      "network": "x",
+      "url": "https://x.com/example"
+    }
+  ],
+  "warnings": [
+    "no icons found"
+  ]
+}

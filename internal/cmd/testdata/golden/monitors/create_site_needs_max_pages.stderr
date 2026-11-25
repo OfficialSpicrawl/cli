@@ -1,0 +1,4 @@
+{
+  "error": "a site monitor needs --max-pages: the most pages a run considers",
+  "exit_code": 2
+}

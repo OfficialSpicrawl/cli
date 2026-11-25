@@ -80,7 +80,9 @@ never invent a field the API does not accept (the API rejects unknown fields).
    (and not in `--allowed-status`) exits 6; the document is still written to
    stdout, JSON output carries `target_error`, and stderr gets one line.
 9. **Secrets are printed once.** `browser url` writes the URL (which carries
-   the key) once on stdout; its connection hints on stderr use
+   the key) once on stdout, and `webhooks create` and `webhooks rotate-secret`
+   write the signing secret once, as a `signing secret` line (JSON: the `secret`
+   field); its connection hints on stderr use
    `$SPICRAWL_BROWSER_URL` and are suppressed by `-q`. In human mode a `ws://`
    URL warns on stderr, always, that the key travels unencrypted; in JSON mode
    stderr stays empty and the `url` field shows the scheme.
@@ -216,6 +218,21 @@ spicrawl partner tiers create <name> --requests-per-minute N --concurrency N --f
 spicrawl partner tiers update <tier> [--requests-per-minute N] [--concurrency N] [--free-credits N] (--cap N | --no-cap) [--rename NAME]
 spicrawl partner tiers default <tier> | delete <tier> [--yes]
                                                   <tier> is an id or a name (names match without case)
+spicrawl brand <url> [--include identity,logos,colors,...] [--screenshot]
+                                                  POST /v1/brand; --json is the API's answer unchanged
+spicrawl webhooks create <url> [--name N] [--events a,b] [--format json|slack|discord]
+                                                  prints the signing secret once (stdout)
+spicrawl webhooks list | get <id>
+spicrawl webhooks update <id> [--url U] [--name N] [--events a,b] [--format F] [--enable | --disable]
+spicrawl webhooks delete <id> [--yes] | test <id> | rotate-secret <id> (prints the new secret once)
+spicrawl webhooks deliveries <id> [--limit N]     newest first, 1 to 100
+spicrawl monitors create <url> [--name N] [--selector S] [--every 30m|1h|1d|SECONDS] [--webhook ID]
+                               [--confirm-checks N] [--js]
+                               [--site --max-pages N --include P --exclude P --max-credits-per-run N]
+spicrawl monitors list | get <id>
+spicrawl monitors update <id> [flags as create, minus --site] [--enable | --disable]
+spicrawl monitors delete <id> [--yes] | check <id>
+spicrawl monitors changes <id> [--limit N] | pages <id> [--limit N] [--cursor C]
 spicrawl docs [topic] [--list]                     print raw Markdown (from docs.spicrawl.com); JSON only with --json
 spicrawl schema [scrape|batch|session]             print the JSON Schema of a request body
 spicrawl exit-codes

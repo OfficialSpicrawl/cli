@@ -1,0 +1,10 @@
+Created webhook endpoint
+id                 0190f3a2-7c1e-7d4b-9a2f-3b8e5c6d7e80
+name               prod
+url                https://hooks.example.com/spicrawl
+events             batch.completed, monitor.changed
+format             json
+status             enabled
+failures in a row  0
+secret version     1
+signing secret     whsec_0123456789abcdef   (shown once: store it now)

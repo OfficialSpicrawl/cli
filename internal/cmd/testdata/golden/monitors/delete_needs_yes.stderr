@@ -1,0 +1,4 @@
+{
+  "error": "refusing to delete monitor 0190f5c4-2b7a-7e10-8d3f-6a1c9e4b2d70 without confirmation: pass --yes",
+  "exit_code": 2
+}
