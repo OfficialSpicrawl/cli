@@ -1,0 +1,4 @@
+{
+  "error": "--every: use seconds, or a duration such as 30m, 1h or 1d, not \"soon\"",
+  "exit_code": 2
+}

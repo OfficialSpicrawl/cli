@@ -1,0 +1,7 @@
+name            Example
+tagline         Examples, made easy
+top logo        https://example.com/logo.svg
+primary colors  #0055ff, #ff8800
+fonts           Inter (body), Fraunces (heading)
+socials         github https://github.com/example
+                x https://x.com/example

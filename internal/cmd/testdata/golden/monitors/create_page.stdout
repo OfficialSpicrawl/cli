@@ -1,0 +1,21 @@
+{
+  "id": "0190f5c4-2b7a-7e10-8d3f-6a1c9e4b2d70",
+  "name": "example.com",
+  "url": "https://example.com/pricing",
+  "scope": "page",
+  "selector": ".plan-price",
+  "js_render": false,
+  "interval_seconds": 3600,
+  "current_interval_seconds": 3600,
+  "confirm_checks": 1,
+  "webhook_endpoint_id": "0190f3a2-7c1e-7d4b-9a2f-3b8e5c6d7e80",
+  "enabled": true,
+  "disabled_reason": null,
+  "last_error": null,
+  "last_checked_at": "<TIMESTAMP>",
+  "last_changed_at": null,
+  "next_check_at": "<TIMESTAMP>",
+  "max_pages": null,
+  "max_credits_per_run": null,
+  "pages_tracked": 0
+}

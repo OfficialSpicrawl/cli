@@ -60,9 +60,9 @@ var helpGroups = []struct {
 	title string
 	names []string
 }{
-	{"Extract data", []string{"scrape", "batch", "sessions", "browser"}},
+	{"Extract data", []string{"scrape", "brand", "batch", "sessions", "browser"}},
 	{"Set up", []string{"login", "logout", "auth", "init", "mcp", "skill", "config"}},
-	{"Monitor", []string{"status", "logs", "usage"}},
+	{"Monitor", []string{"status", "logs", "usage", "monitors", "webhooks"}},
 	{"Partner accounts", []string{"partner"}},
 	{"Reference", []string{"docs", "schema", "exit-codes", "version", "completion", "help"}},
 }

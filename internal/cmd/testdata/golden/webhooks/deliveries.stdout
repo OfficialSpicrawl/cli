@@ -1,0 +1,22 @@
+{
+  "data": [
+    {
+      "id": "0190f400-0000-7000-8000-000000000001",
+      "event_type": "monitor.changed",
+      "status": "delivered",
+      "attempt": 1,
+      "max_attempts": 6,
+      "last_error": null,
+      "created_at": "<TIMESTAMP>"
+    },
+    {
+      "id": "0190f400-0000-7000-8000-000000000002",
+      "event_type": "batch.failed",
+      "status": "dead",
+      "attempt": 6,
+      "max_attempts": 6,
+      "last_error": "HTTP 500",
+      "created_at": "<TIMESTAMP>"
+    }
+  ]
+}

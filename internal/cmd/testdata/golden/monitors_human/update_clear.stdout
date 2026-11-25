@@ -1,0 +1,14 @@
+Updated monitor 0190f5c4-2b7a-7e10-8d3f-6a1c9e4b2d70
+id                  0190f5c4-2b7a-7e10-8d3f-6a1c9e4b2d70
+name                example.com
+url                 https://example.com/pricing
+scope               page
+selector            .plan-price
+renders JavaScript  no
+every               1h
+running every       1h
+confirm checks      1
+webhook             0190f3a2-7c1e-7d4b-9a2f-3b8e5c6d7e80
+status              enabled
+last checked        <TIMESTAMP>
+next check          <TIMESTAMP>

@@ -1,0 +1,4 @@
+{
+  "error": "refusing to delete webhook endpoint 0190f3a2-7c1e-7d4b-9a2f-3b8e5c6d7e80 without confirmation: pass --yes",
+  "exit_code": 2
+}

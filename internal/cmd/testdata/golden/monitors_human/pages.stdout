@@ -1,0 +1,3 @@
+URL                    FIRST SEEN            LAST SEEN             LAST CHANGED          STATE
+https://example.com/a  <TIMESTAMP>  <TIMESTAMP>  <TIMESTAMP>  tracked
+https://example.com/b  <TIMESTAMP>  <TIMESTAMP>  —                     removed <TIMESTAMP>

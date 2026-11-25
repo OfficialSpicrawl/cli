@@ -33,9 +33,11 @@ credits).
 
 | Scope | Grants |
 |---|---|
-| `scrape` | `POST /v1/scrape` |
+| `scrape` | `POST /v1/scrape` and `POST /v1/brand` (`spicrawl brand`) |
 | `batch` | all `/v1/batch` routes |
 | `sessions` | all `/v1/sessions` routes |
+| `webhooks` | all `/v1/webhooks` routes (`read` also covers the GETs) |
+| `monitors` | all `/v1/monitors` routes (`read` also covers the GETs) |
 | `browser` | `GET /v1/browser` (CDP WebSocket, coming soon). Not granted by default. |
 | `read` | `/v1/usage`, `/v1/usage/summary`, `/v1/usage/reconciliation`; `GET /v1/requests?all_projects=true` and another project's `GET /v1/requests/{id}`. Not granted by default. |
 
@@ -88,6 +90,9 @@ spicrawl scrape - --format markdown --concurrency 8 < urls.txt          # many U
 spicrawl batch submit urls.txt --format markdown --wait                 # async job, wait for it
 spicrawl batch results <id> --all -o results.jsonl
 spicrawl sessions create --ttl 1800 && spicrawl scrape URL --session <id>
+spicrawl brand https://example.com --include identity,logos,colors      # a site's brand assets
+spicrawl monitors create https://example.com/pricing --every 1h --webhook <id>
+spicrawl monitors changes <id> --json                                   # a monitor's confirmed changes
 spicrawl logs --errors                                                  # recent failures
 spicrawl logs --all-projects                                            # every project in the org (read scope)
 spicrawl usage                                                          # needs the read scope
@@ -285,6 +290,49 @@ Keep cookies and storage across requests (log in once, then scrape).
 
 Pass `session_id` on `/v1/scrape`. Sessions are single-writer: run requests on one session one at
 a time. A concurrent request gets `ERR::SESSION::BUSY` (retryable).
+
+## Brand: `POST /v1/brand`
+
+One rendered page load returns the site's brand: identity (name, tagline, subtitle, CTAs), logos, icons,
+colors, fonts, images, videos and socials. Links only; nothing is downloaded. `include` picks sections
+(omitted means all); `screenshot: true` adds a screenshot and renders in the full browser, at extra cost.
+
+```bash
+spicrawl brand https://example.com --include logos,colors --json
+```
+
+## Webhooks: `/v1/webhooks`
+
+An HTTPS endpoint that receives `batch.completed`, `batch.failed`, `monitor.changed` and `monitor.failed`.
+Deliveries are signed. `create` and `rotate-secret` return the signing secret (`whsec_…`) once; store it.
+Use `test` to send a ping and `deliveries` to see each event's status and last error.
+
+| Route | Purpose |
+|---|---|
+| `POST /v1/webhooks` | Register (`url`, `events`, `format`: `json`, `slack` or `discord`). |
+| `GET /v1/webhooks` / `GET /v1/webhooks/{id}` | List / fetch. |
+| `PATCH /v1/webhooks/{id}` | Change `url`, `name`, `events`, `format` or `enabled`. |
+| `POST /v1/webhooks/{id}/test` | Queue a ping; returns its `delivery_id`. |
+| `POST /v1/webhooks/{id}/rotate-secret` | New signing secret; deliveries after it are signed with the new one only. |
+| `GET /v1/webhooks/{id}/deliveries?limit=` | Recent deliveries, newest first (1 to 100). |
+| `DELETE /v1/webhooks/{id}` | Delete. |
+
+## Monitors: `/v1/monitors`
+
+A monitor checks a page (`scope: page`) or every page under a host (`scope: site`, which needs `max_pages`)
+on an interval of at least 60 seconds, and records a change when the watched content differs. A change
+is sent to the monitor's `webhook_endpoint_id` once `confirm_checks` checks in a row have seen it.
+`js_render` costs more credits. A site's `include_paths` and `exclude_paths` keep or drop pages.
+
+| Route | Purpose |
+|---|---|
+| `POST /v1/monitors` | Create (`url`, `selector`, `interval_seconds`, `webhook_endpoint_id`, `confirm_checks`, `js_render`, `scope`, `max_pages`, `include_paths`, `exclude_paths`, `max_credits_per_run`). |
+| `GET /v1/monitors` / `GET /v1/monitors/{id}` | List / fetch. |
+| `PATCH /v1/monitors/{id}` | Change the schedule, selector, webhook, limits or `enabled`. Scope cannot change. |
+| `POST /v1/monitors/{id}/check` | Check now; the outcome is `unchanged`, `changed`, `not_modified` or `failed`. `spicrawl monitors check` exits 6 (upstream) on `failed`. |
+| `GET /v1/monitors/{id}/changes?limit=` | Confirmed changes, newest first, with their diff (or a site digest). |
+| `GET /v1/monitors/{id}/pages?limit=&cursor=` | Pages a site monitor tracks; `removed_at` marks a page it stopped finding. |
+| `DELETE /v1/monitors/{id}` | Stop and delete, with its change history. |
 
 ## Live browser: `GET /v1/browser` (CDP)
 

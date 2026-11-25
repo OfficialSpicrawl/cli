@@ -181,6 +181,7 @@ The key is passed as an argument, so other users on the machine can see it in th
 | Command | What it does |
 |---|---|
 | `spicrawl scrape <url\|->` | Fetch one page, or many from stdin, as Markdown, HTML, text, JSON, PDF or extracted data |
+| `spicrawl brand` | A site's brand from one rendered page: name, tagline, logos, icons, colours, fonts, images, videos and socials |
 | `spicrawl batch` | Run up to 10,000 URLs as one server-side job: `submit`, `wait`, `watch`, `get`, `list`, `results`, `content`, `retry`, `cancel`, `append`, `close` |
 | `spicrawl sessions` | Keep one rendering tier and cookie jar across scrapes: `create`, `list`, `get`, `context`, `release`, `delete` |
 | `spicrawl browser` | Cloud browser over a DevTools Protocol (CDP) WebSocket (`browser url`). Coming soon |
@@ -194,6 +195,8 @@ The key is passed as an argument, so other users on the machine can see it in th
 | `spicrawl logs` | Recent API requests, newest first; `logs get <request-id>` for one; `logs --watch` for a live view |
 | `spicrawl usage` | Billed usage over a time window; `usage summary`, `usage reconciliation` |
 | `spicrawl partner` | Partner accounts: `summary`, `balance`, `usage`, `users` (`create`, `list`, `get`, `rename`, `suspend`, `reactivate`, `tier`, `usage`, `give`), `tiers` (`list`, `create`, `update`, `default`, `delete`). Needs a partner key |
+| `spicrawl webhooks` | Webhook endpoints for batch and monitor events: `create`, `list`, `get`, `update`, `delete`, `test`, `rotate-secret`, `deliveries` |
+| `spicrawl monitors` | Watch a page, or a whole site, for changes: `create`, `list`, `get`, `update`, `delete`, `check`, `changes`, `pages` |
 | `spicrawl status` | Check the API is reachable, ready and accepts your key, and that detected agent clients have the MCP server; prints a repair command for each failed check |
 | `spicrawl docs` | Print a Spicrawl docs page as Markdown (`--list` for the index); no API key needed |
 | `spicrawl schema` | Print the JSON Schema of a request body: `scrape`, `batch`, `batch-item`, `session` |
@@ -332,6 +335,34 @@ spicrawl partner usage --by user --sort credits
 Store the workspace key where your server keeps its secrets, and pass it as `SPICRAWL_API_KEY` (or `--api-key`) when that user's requests run. Each create call returns the user's current key. `users suspend` stops a key working within about a minute; `users reactivate` undoes it.
 
 `give` moves credits from the balance to one user. It is not undone by any command here, so it asks for confirmation on a terminal and needs `--yes` without one. Each give carries an idempotency key: without `--idempotency-key` one is generated and printed on stderr, and retrying with the same key moves nothing twice.
+
+## Brand, webhooks and monitors
+
+Read a site's brand, get a signed webhook when something happens, and watch a page or a whole site for changes.
+
+```sh
+# A site's brand: the summary on a terminal, the full answer with --json
+spicrawl brand https://example.com --include identity,logos,colors,fonts,socials
+
+# An endpoint for monitor changes and batch results; the signing secret is printed once
+spicrawl webhooks create https://hooks.example.com/spicrawl --events batch.completed,monitor.changed
+spicrawl webhooks test <id>                  # send a ping
+spicrawl webhooks deliveries <id> --limit 10 # did the events arrive, and what went wrong
+
+# Watch a pricing page every hour; a change is sent to the endpoint once it is seen on 2 checks in a row
+spicrawl monitors create https://example.com/pricing --selector '.plan-price' --every 1h --webhook <id> --confirm-checks 2
+
+# Watch every blog post on the site, once a day, with a credit cap per run
+spicrawl monitors create https://example.com --site --max-pages 200 --include '/blog/*' --every 1d --max-credits-per-run 300
+spicrawl monitors changes <id> --limit 5
+spicrawl monitors pages <id>
+```
+
+`--every` takes seconds, or `30m`, `1h` or `1d`. A monitor's first check records a baseline and sends no event. `monitors check <id>` runs one check now. A monitor disables itself after repeated failures or when it runs out of credits; `monitors update <id> --enable` turns it back on.
+
+`webhooks create` and `webhooks rotate-secret` print the signing secret once, on stdout. Store it then: it is never returned again. Deliveries are signed with it; `rotate-secret` issues a new one, so update the receiving end before or as you rotate. `webhooks update <id> --disable` stops deliveries until you enable it again.
+
+`webhooks delete` and `monitors delete` ask for confirmation on a terminal, and need `--yes` without one. Deleting a monitor also deletes its change history.
 
 ## CLI vs SDK vs MCP server vs REST API: which should I use?
 

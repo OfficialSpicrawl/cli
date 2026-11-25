@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1 — 2026-11-25: Brand, webhooks and monitors
+
+- **Added:** `spicrawl brand <url>` reads a site's brand from one rendered page: name, tagline, logos, icons, colours, fonts, images, videos and social links. `--include` picks the sections and `--screenshot` adds a screenshot. The human view shows the name, tagline, top logo, primary colours, fonts and socials; `--json` prints the API's answer unchanged.
+- **Added:** `spicrawl webhooks` manages webhook endpoints for batch and monitor events: `create`, `list`, `get`, `update` (including `--enable` and `--disable`), `delete`, `test`, `rotate-secret` and `deliveries`. `create` and `rotate-secret` print the signing secret once, on stdout.
+- **Added:** `spicrawl monitors` watches a page, or a whole site with `--site`, for changes: `create`, `list`, `get`, `update`, `delete`, `check`, `changes` and `pages`. `--every` takes seconds or `30m`, `1h` or `1d`. `delete` asks for confirmation (or `--yes`).
+
 ## 0.2.0 — 2026-11-23
 
 - **Added:** `spicrawl partner` for partner accounts (partner key): `summary`, `balance`, `usage` (by day or by user, with each charge split into free, given and from the balance), `users` (`list`, `create`, `get`, `rename`, `suspend`, `reactivate`, `tier`, `usage`, `give`) and `tiers` (`list`, `create`, `update`, `default`, `delete`). `users create` prints the user's key once: on a terminal alone on its own line on stdout, and with `-q` as the bare key even when piped; `--no-key` prints only the status. `users give` takes an `--idempotency-key` (generated and printed on stderr when absent) and never retries by itself.
