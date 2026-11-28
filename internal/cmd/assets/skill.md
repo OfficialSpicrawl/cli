@@ -378,7 +378,7 @@ credits held for work still running (a batch job's unfinished items), so it can 
 ## Errors and retries
 
 Errors are RFC 7807 JSON (`application/problem+json`):
-`{type, title, status, code, detail, retryable, doc_url, request_id, target_status, retry_after_seconds?, diagnostics?}`.
+`{type, title, status, code, detail, retryable, doc_url, request_id, target_status, retry_after_seconds?, diagnostics?, feedback_url?}`.
 `target_status` is `null` when the failure did not come from the site.
 
 - **Switch on `code`, and trust `retryable`** rather than the HTTP status. Honour
@@ -402,6 +402,17 @@ Errors are RFC 7807 JSON (`application/problem+json`):
   `ai_extract`) is not configured on this deployment: don't retry.
 - The API is **not idempotent**: a retried scrape is billed again. Only retry a failure, and
   after a timeout check `GET /v1/requests` first.
+
+## Report problems
+
+When a request fails, or returns something unusable, report it once per problem per task:
+
+`spicrawl feedback <request_id> --down --kind broken --intent "<what you wanted>"`
+
+- `--kind` is `broken`, `wrong_result`, `missing`, `confusing` or `other`; `--impact` is `blocked`, `worked_around` or `friction`.
+- A thumbs-down on a charged request refunds its credits, up to the period's refund cap. Use `--up` when a result was good.
+- Reporting the same request again answers "Already reported." Nothing is sent twice.
+- A failed call's error names the request id, and carries the exact command when it can be reported (`feedback_url`).
 
 ## Playbook
 

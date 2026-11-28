@@ -237,20 +237,24 @@ func (c *Client) Do(ctx context.Context, req Request) (*Response, error) {
 
 // Problem is the API's RFC 7807 error body. Field names match the wire.
 type Problem struct {
-	Type              string          `json:"type,omitempty"`
-	Title             string          `json:"title"`
-	Status            int             `json:"status"`
-	Code              string          `json:"code"`
-	Detail            string          `json:"detail,omitempty"`
-	Retryable         bool            `json:"retryable"`
-	DocURL            string          `json:"doc_url,omitempty"`
-	RequestID         string          `json:"request_id,omitempty"`
+	Type      string `json:"type,omitempty"`
+	Title     string `json:"title"`
+	Status    int    `json:"status"`
+	Code      string `json:"code"`
+	Detail    string `json:"detail,omitempty"`
+	Retryable bool   `json:"retryable"`
+	DocURL    string `json:"doc_url,omitempty"`
+	RequestID string `json:"request_id,omitempty"`
+	// FeedbackURL is set on failures that can be reported with `spicrawl feedback`.
+	FeedbackURL       string          `json:"feedback_url,omitempty"`
 	Instance          string          `json:"instance,omitempty"`
 	TargetStatus      *int            `json:"target_status"`
 	RetryAfterSeconds int             `json:"retry_after_seconds,omitempty"`
 	Warnings          []string        `json:"warnings,omitempty"`
 	Notes             []string        `json:"notes,omitempty"`
 	Diagnostics       json.RawMessage `json:"diagnostics,omitempty"`
+	// Fix is the corrected request the API suggests, when it has one.
+	Fix json.RawMessage `json:"fix,omitempty"`
 }
 
 func (p *Problem) Error() string {

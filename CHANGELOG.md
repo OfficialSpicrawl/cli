@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.2 — 2026-11-28: Feedback
+
+- **Added:** `spicrawl feedback <request-id>` reports how a request went: `--up` or `--down` (the default), `--kind` (broken, wrong_result, missing, confusing, other), `--impact` (blocked, worked_around, friction), `--intent` and `-m/--comment`. A thumbs-down on a charged request refunds its credits, up to the period's cap. Reporting the same request again prints "Already reported." `--json` prints the API's answer unchanged.
+- **Changed:** a failed API call that can be reported names the command to run: a `Report it:` line on stderr in human mode, and `request_id` and `feedback_command` in the JSON problem document (the API's fields are unchanged). The agent skill has a "Report problems" section.
+- **Added:** `spicrawl scrape --method POST|PUT|PATCH|DELETE --request-body JSON|TEXT` sends a request body to the target (a JSON object or array is sent as JSON, other text as-is; set `Content-Type` with `--header`). `--request-body-file FILE` (`-` = stdin) reads it from a file. Plain fetch only, not on `batch`; see the [POST requests guide](https://docs.spicrawl.com/guides/post-requests).
+- **Changed:** when the API's error includes a `fix` (a corrected request), human mode prints it after `Corrected request:`; `--json` keeps the problem document as the API sent it.
+
 ## 0.2.1 — 2026-11-25: Brand, webhooks and monitors
 
 - **Added:** `spicrawl brand <url>` reads a site's brand from one rendered page: name, tagline, logos, icons, colours, fonts, images, videos and social links. `--include` picks the sections and `--screenshot` adds a screenshot. The human view shows the name, tagline, top logo, primary colours, fonts and socials; `--json` prints the API's answer unchanged.

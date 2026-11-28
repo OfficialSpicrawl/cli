@@ -5,7 +5,9 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -276,13 +278,20 @@ func report(err error) int {
 	if prob, ok := api.AsProblem(err); ok {
 		if p.JSON {
 			p.Out = scrubWriter{p.Err, key}
-			_ = p.Value(prob)
+			_ = p.Value(newProblemDoc(prob))
 		} else if u := p.UI(); u.On() {
-			u.Fail(scrub(output.PublicText(prob.Error())), append(problemRows(prob), failRows...)...)
+			rows := problemRows(prob)
+			for i := range rows {
+				rows[i].Val = scrub(rows[i].Val)
+			}
+			u.Fail(scrub(output.PublicText(prob.Error())), append(rows, failRows...)...)
 		} else {
 			fmt.Fprintf(stderr, "error: %s\n", scrub(output.PublicText(prob.Error())))
 			if h := noteForHuman(output.PublicText(prob.Hint())); h != "" {
 				fmt.Fprintf(stderr, "hint: %s\n", scrub(h))
+			}
+			if fix := correctedRequest(prob); fix != "" {
+				fmt.Fprintf(stderr, "Corrected request:\n%s\n", scrub(fix))
 			}
 			if prob.TargetStatus != nil {
 				fmt.Fprintf(stderr, "target status: %d\n", *prob.TargetStatus)
@@ -292,6 +301,9 @@ func report(err error) int {
 			}
 			if prob.RequestID != "" {
 				fmt.Fprintf(stderr, "request id: %s (spicrawl logs get %s)\n", prob.RequestID, prob.RequestID)
+			}
+			if cmdline := feedbackCommand(prob); cmdline != "" {
+				fmt.Fprintf(stderr, "Report it: %s\n", scrub(cmdline))
 			}
 		}
 		return ExitCode(err)
@@ -345,16 +357,76 @@ func problemRows(prob *api.Problem) []ui.Row {
 	if prob.TargetStatus != nil {
 		rows = append(rows, ui.Row{Key: "target", Val: fmt.Sprintf("returned %d", *prob.TargetStatus)})
 	}
+	if fix := correctedRequest(prob); fix != "" {
+		rows = append(rows, ui.Row{Key: "corrected request", Val: fix})
+	}
 	if prob.Retryable {
 		rows = append(rows, ui.Row{Key: "retryable", Val: "yes"})
 	}
 	if prob.RequestID != "" {
 		rows = append(rows, ui.Row{Key: "request", Val: "spicrawl logs get " + prob.RequestID})
 	}
+	if cmdline := feedbackCommand(prob); cmdline != "" {
+		rows = append(rows, ui.Row{Key: "report", Val: cmdline})
+	}
 	if prob.DocURL != "" {
 		rows = append(rows, ui.Row{Key: "docs", Val: prob.DocURL})
 	}
 	return rows
+}
+
+// problemDoc is the problem document in JSON mode: every field the API sent,
+// plus feedback_command on a failure that can be reported. request_id is always
+// present (empty when the API sent none).
+type problemDoc struct {
+	*api.Problem
+	RequestID       string `json:"request_id"`
+	FeedbackCommand string `json:"feedback_command,omitempty"`
+}
+
+func newProblemDoc(prob *api.Problem) problemDoc {
+	return problemDoc{Problem: prob, RequestID: prob.RequestID, FeedbackCommand: feedbackCommand(prob)}
+}
+
+// correctedRequest is the API's suggested fix as compact JSON, or "" when the
+// problem has none.
+func correctedRequest(prob *api.Problem) string {
+	if len(prob.Fix) == 0 || string(prob.Fix) == "null" {
+		return ""
+	}
+	var b bytes.Buffer
+	if json.Compact(&b, prob.Fix) != nil {
+		return ""
+	}
+	if b.Len() <= 2000 {
+		return b.String()
+	}
+	// A fix can echo a body of up to 64 KB: show its size instead.
+	var m map[string]json.RawMessage
+	if json.Unmarshal(prob.Fix, &m) != nil || m["body"] == nil {
+		return b.String()
+	}
+	n := len(m["body"])
+	var str string
+	if json.Unmarshal(m["body"], &str) == nil {
+		n = len(str)
+	}
+	m["body"] = json.RawMessage(fmt.Sprintf(`"<your body, %d bytes>"`, n))
+	out, err := json.Marshal(m)
+	if err != nil {
+		return b.String()
+	}
+	return strings.NewReplacer(`\u003c`, "<", `\u003e`, ">").Replace(string(out))
+}
+
+// feedbackCommand is the command that reports a failed request. It is empty
+// unless the API says the failure can be reported (feedback_url) and names the
+// request. The intent is left for the agent to fill in.
+func feedbackCommand(prob *api.Problem) string {
+	if prob.FeedbackURL == "" || prob.RequestID == "" {
+		return ""
+	}
+	return fmt.Sprintf(`spicrawl feedback %s --kind broken --intent "<what you wanted>"`, prob.RequestID)
 }
 
 // isCobraUsage recognises cobra's own flag/arg errors, which are plain errors.

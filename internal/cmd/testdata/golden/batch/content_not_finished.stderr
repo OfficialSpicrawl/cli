@@ -6,9 +6,9 @@
   "detail": "item 7 has not finished",
   "retryable": false,
   "doc_url": "https://docs.spicrawl.com/errors",
-  "request_id": "<REQUEST_ID>",
   "target_status": null,
   "diagnostics": {
     "hint": "check the request and try again"
-  }
+  },
+  "request_id": "<REQUEST_ID>"
 }

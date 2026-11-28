@@ -160,6 +160,7 @@ spicrawl scrape <url|-> [flags]                   POST /v1/scrape
   --screenshot  --screenshot-full-page  --screenshot-selector SEL  --screenshot-format F
   --no-cache  --cache-ttl S  --max-cost N  --allowed-status 403  --original-status
   --body JSON|@file     raw request body; flags override its fields
+  --method M  --request-body JSON|TEXT  --request-body-file F|-   target body (POST/PUT/PATCH/DELETE; plain fetch)
   -o, --output FILE     write the document (or screenshot) to a file
   --jsonl               one compact JSON line per result (single URL or `-`)
   --concurrency N       with `-`: parallel requests (default 4)
