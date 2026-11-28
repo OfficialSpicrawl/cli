@@ -398,7 +398,25 @@ func correctedRequest(prob *api.Problem) string {
 	if json.Compact(&b, prob.Fix) != nil {
 		return ""
 	}
-	return b.String()
+	if b.Len() <= 2000 {
+		return b.String()
+	}
+	// A fix can echo a body of up to 64 KB: show its size instead.
+	var m map[string]json.RawMessage
+	if json.Unmarshal(prob.Fix, &m) != nil || m["body"] == nil {
+		return b.String()
+	}
+	n := len(m["body"])
+	var str string
+	if json.Unmarshal(m["body"], &str) == nil {
+		n = len(str)
+	}
+	m["body"] = json.RawMessage(fmt.Sprintf(`"<your body, %d bytes>"`, n))
+	out, err := json.Marshal(m)
+	if err != nil {
+		return b.String()
+	}
+	return strings.NewReplacer(`\u003c`, "<", `\u003e`, ">").Replace(string(out))
 }
 
 // feedbackCommand is the command that reports a failed request. It is empty
