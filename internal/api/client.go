@@ -253,6 +253,8 @@ type Problem struct {
 	Warnings          []string        `json:"warnings,omitempty"`
 	Notes             []string        `json:"notes,omitempty"`
 	Diagnostics       json.RawMessage `json:"diagnostics,omitempty"`
+	// Fix is the corrected request the API suggests, when it has one.
+	Fix json.RawMessage `json:"fix,omitempty"`
 }
 
 func (p *Problem) Error() string {

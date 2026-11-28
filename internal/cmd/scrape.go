@@ -85,6 +85,18 @@ Target status
   without -o they are base64-encoded under "content_base64" instead of
   "content"; in human mode -o FILE is required.
 
+Request body
+  --method POST|PUT|PATCH|DELETE --request-body JSON|TEXT sends a body to the
+  target. A JSON object or array is sent as JSON (Content-Type is set for you);
+  any other text is sent as-is, so --header must set Content-Type to
+  application/json or application/x-www-form-urlencoded. --request-body-file
+  FILE reads it from a file (- is stdin). Needs a method that takes a body, plain
+  fetch only (refused with --render and other browser options), a workspace
+  where it is enabled, and at most 64 KB. Not on batch. The API's problem
+  document may carry a "fix": a corrected request, printed after "Corrected
+  request:" in human mode.
+  https://docs.spicrawl.com/guides/post-requests
+
 Files
   -o FILE writes the document (raw bytes for pdf) to FILE instead of stdout;
   "-o -" is stdout. The write is atomic (temp file in the same directory, then
@@ -119,6 +131,10 @@ Many URLs
 
   # Through a residential exit in Germany, with the metadata on stderr
   spicrawl scrape https://example.de/produkt/42 --premium-proxy --country de --meta
+
+  # A form POST to the target, the body as text with its own Content-Type
+  spicrawl scrape https://example.com/search --method POST --request-body 'q=shoes' \
+    --header 'Content-Type: application/x-www-form-urlencoded'
 
   # Selector extraction; prints only the extracted data
   spicrawl scrape https://example.com/product/1 --extract '{"title":"h1","price":".price"}'

@@ -5,7 +5,9 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -278,11 +280,18 @@ func report(err error) int {
 			p.Out = scrubWriter{p.Err, key}
 			_ = p.Value(newProblemDoc(prob))
 		} else if u := p.UI(); u.On() {
-			u.Fail(scrub(output.PublicText(prob.Error())), append(problemRows(prob), failRows...)...)
+			rows := problemRows(prob)
+			for i := range rows {
+				rows[i].Val = scrub(rows[i].Val)
+			}
+			u.Fail(scrub(output.PublicText(prob.Error())), append(rows, failRows...)...)
 		} else {
 			fmt.Fprintf(stderr, "error: %s\n", scrub(output.PublicText(prob.Error())))
 			if h := noteForHuman(output.PublicText(prob.Hint())); h != "" {
 				fmt.Fprintf(stderr, "hint: %s\n", scrub(h))
+			}
+			if fix := correctedRequest(prob); fix != "" {
+				fmt.Fprintf(stderr, "Corrected request:\n%s\n", scrub(fix))
 			}
 			if prob.TargetStatus != nil {
 				fmt.Fprintf(stderr, "target status: %d\n", *prob.TargetStatus)
@@ -348,6 +357,9 @@ func problemRows(prob *api.Problem) []ui.Row {
 	if prob.TargetStatus != nil {
 		rows = append(rows, ui.Row{Key: "target", Val: fmt.Sprintf("returned %d", *prob.TargetStatus)})
 	}
+	if fix := correctedRequest(prob); fix != "" {
+		rows = append(rows, ui.Row{Key: "corrected request", Val: fix})
+	}
 	if prob.Retryable {
 		rows = append(rows, ui.Row{Key: "retryable", Val: "yes"})
 	}
@@ -374,6 +386,19 @@ type problemDoc struct {
 
 func newProblemDoc(prob *api.Problem) problemDoc {
 	return problemDoc{Problem: prob, RequestID: prob.RequestID, FeedbackCommand: feedbackCommand(prob)}
+}
+
+// correctedRequest is the API's suggested fix as compact JSON, or "" when the
+// problem has none.
+func correctedRequest(prob *api.Problem) string {
+	if len(prob.Fix) == 0 || string(prob.Fix) == "null" {
+		return ""
+	}
+	var b bytes.Buffer
+	if json.Compact(&b, prob.Fix) != nil {
+		return ""
+	}
+	return b.String()
 }
 
 // feedbackCommand is the command that reports a failed request. It is empty

@@ -241,6 +241,19 @@ spicrawl scrape https://example.com/docs --format markdown \
 
 Add `--meta` to print the engine, credits, cache state, target status and request id to stderr. A target site that answers outside 2xx exits 6; accept a status with `--allowed-status 404`, and cap spend per request with `--max-cost`.
 
+### How to send a POST request body
+
+```sh
+# A JSON body; the API sets Content-Type: application/json
+spicrawl scrape https://example.com/api/search --method POST --request-body '{"q":"shoes"}'
+
+# A text body from a file, with its own Content-Type
+spicrawl scrape https://example.com/form --method POST --request-body-file body.txt \
+  --header 'Content-Type: application/x-www-form-urlencoded'
+```
+
+`--method` takes POST, PUT, PATCH or DELETE for a body. A body needs plain fetch (no `--render` or other browser options), a workspace where it is enabled, and at most 64 KB. A failed request may come back with a corrected request, printed after `Corrected request:`. More in the [POST requests guide](https://docs.spicrawl.com/guides/post-requests).
+
 ### How to scrape a JavaScript-rendered page
 
 ```sh

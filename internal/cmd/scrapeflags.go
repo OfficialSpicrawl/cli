@@ -21,6 +21,7 @@ type scrapeFlags struct {
 	format, engine, mode, country, proxy, stickyKey, session        string
 	waitFor, screenshotSelector, screenshotFormat, method, aiPrompt string
 	extract, aiSchema, actions, networkCapture, body                string
+	reqBody, reqBodyFile                                            string
 	render, stealth, impersonate, premium, proxyVerify, headless    bool
 	autoparse, links, mainContent, noMainContent, noParsePDF        bool
 	screenshot, screenshotFull, noCache, originalStatus             bool
@@ -33,7 +34,7 @@ func addScrapeFlags(cmd *cobra.Command) *scrapeFlags {
 	s := &scrapeFlags{fs: cmd.Flags()}
 	f := cmd.Flags()
 	f.StringVar(&s.format, "format", "", "response_format: html|markdown|text|json|pdf")
-	f.StringVar(&s.method, "method", "", "HTTP method sent to the target (default GET)")
+	f.StringVar(&s.method, "method", "", "HTTP method sent to the target (default GET; POST, PUT, PATCH or DELETE for a request body)")
 	f.BoolVar(&s.render, "render", false, "render JavaScript in a browser (js_render)")
 	f.BoolVar(&s.stealth, "stealth", false, "full-browser rendering hardened against bot detection (dearest tier)")
 	f.BoolVar(&s.impersonate, "impersonate", false, "fetch tier: present a real browser TLS/HTTP2 fingerprint (on by default; --impersonate=false turns it off)")
@@ -74,6 +75,9 @@ func addScrapeFlags(cmd *cobra.Command) *scrapeFlags {
 	f.StringSliceVar(&s.allowedStatus, "allowed-status", nil, "extra target statuses to accept, e.g. 403: billed as a success (200/404/410 always are), ends --mode auto escalation, and scrape exits 0 instead of 6 on them")
 	f.BoolVar(&s.originalStatus, "original-status", false, "API answers with the target's status on its HTTP status line (the CLI reads the target status either way)")
 	f.StringVar(&s.body, "body", "", "raw request body as JSON or @file; flags override its fields (nested objects are merged key by key)")
+	// Not on batch: batchSubmitScrapeFlags does not list them.
+	f.StringVar(&s.reqBody, "request-body", "", "body sent to the target: a JSON object/array (sent as JSON) or any other text (sent as-is); needs --method POST/PUT/PATCH/DELETE, plain fetch only")
+	f.StringVar(&s.reqBodyFile, "request-body-file", "", "read the --request-body from a file (- = stdin)")
 	// The API ignores both and says so in a warning, so they are kept (scripts
 	// that pass them still work) but not advertised.
 	_ = f.MarkHidden("engine")
@@ -153,6 +157,33 @@ func (s *scrapeFlags) build() (map[string]any, error) {
 			h[strings.TrimSpace(name)] = strings.TrimSpace(val)
 		}
 		mergeField(body, "custom_headers", h)
+	}
+	if s.fs.Changed("request-body") && s.fs.Changed("request-body-file") {
+		return nil, Usagef("--request-body and --request-body-file are mutually exclusive")
+	}
+	if s.fs.Changed("request-body") || s.fs.Changed("request-body-file") {
+		raw := []byte(s.reqBody)
+		if s.fs.Changed("request-body-file") {
+			var err error
+			if s.reqBodyFile == "-" {
+				raw, err = readAllStdin()
+			} else {
+				raw, err = os.ReadFile(s.reqBodyFile)
+			}
+			if err != nil {
+				return nil, Usagef("--request-body-file: %v", err)
+			}
+		}
+		// A JSON object or array is sent as JSON; anything else is sent as text.
+		var v any = string(raw)
+		var parsed any
+		if json.Unmarshal(raw, &parsed) == nil {
+			switch parsed.(type) {
+			case map[string]any, []any:
+				v = parsed
+			}
+		}
+		body["body"] = v
 	}
 	if len(s.allowedStatus) > 0 {
 		codes := make([]int, 0, len(s.allowedStatus))
