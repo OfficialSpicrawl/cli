@@ -197,6 +197,7 @@ The key is passed as an argument, so other users on the machine can see it in th
 | `spicrawl partner` | Partner accounts: `summary`, `balance`, `usage`, `users` (`create`, `list`, `get`, `rename`, `suspend`, `reactivate`, `tier`, `usage`, `give`), `tiers` (`list`, `create`, `update`, `default`, `delete`). Needs a partner key |
 | `spicrawl webhooks` | Webhook endpoints for batch and monitor events: `create`, `list`, `get`, `update`, `delete`, `test`, `rotate-secret`, `deliveries` |
 | `spicrawl monitors` | Watch a page, or a whole site, for changes: `create`, `list`, `get`, `update`, `delete`, `check`, `changes`, `pages` |
+| `spicrawl feedback <request-id>` | Report how a request went: `--up` or `--down` (the default), `--kind`, `--impact`, `--intent`, `-m`. A thumbs-down on a charged request refunds its credits |
 | `spicrawl status` | Check the API is reachable, ready and accepts your key, and that detected agent clients have the MCP server; prints a repair command for each failed check |
 | `spicrawl docs` | Print a Spicrawl docs page as Markdown (`--list` for the index); no API key needed |
 | `spicrawl schema` | Print the JSON Schema of a request body: `scrape`, `batch`, `batch-item`, `session` |

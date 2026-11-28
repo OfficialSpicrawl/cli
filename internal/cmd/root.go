@@ -276,7 +276,7 @@ func report(err error) int {
 	if prob, ok := api.AsProblem(err); ok {
 		if p.JSON {
 			p.Out = scrubWriter{p.Err, key}
-			_ = p.Value(prob)
+			_ = p.Value(newProblemDoc(prob))
 		} else if u := p.UI(); u.On() {
 			u.Fail(scrub(output.PublicText(prob.Error())), append(problemRows(prob), failRows...)...)
 		} else {
@@ -292,6 +292,9 @@ func report(err error) int {
 			}
 			if prob.RequestID != "" {
 				fmt.Fprintf(stderr, "request id: %s (spicrawl logs get %s)\n", prob.RequestID, prob.RequestID)
+			}
+			if cmdline := feedbackCommand(prob); cmdline != "" {
+				fmt.Fprintf(stderr, "Report it: %s\n", scrub(cmdline))
 			}
 		}
 		return ExitCode(err)
@@ -351,10 +354,36 @@ func problemRows(prob *api.Problem) []ui.Row {
 	if prob.RequestID != "" {
 		rows = append(rows, ui.Row{Key: "request", Val: "spicrawl logs get " + prob.RequestID})
 	}
+	if cmdline := feedbackCommand(prob); cmdline != "" {
+		rows = append(rows, ui.Row{Key: "report", Val: cmdline})
+	}
 	if prob.DocURL != "" {
 		rows = append(rows, ui.Row{Key: "docs", Val: prob.DocURL})
 	}
 	return rows
+}
+
+// problemDoc is the problem document in JSON mode: every field the API sent,
+// plus feedback_command on a failure that can be reported. request_id is always
+// present (empty when the API sent none).
+type problemDoc struct {
+	*api.Problem
+	RequestID       string `json:"request_id"`
+	FeedbackCommand string `json:"feedback_command,omitempty"`
+}
+
+func newProblemDoc(prob *api.Problem) problemDoc {
+	return problemDoc{Problem: prob, RequestID: prob.RequestID, FeedbackCommand: feedbackCommand(prob)}
+}
+
+// feedbackCommand is the command that reports a failed request. It is empty
+// unless the API says the failure can be reported (feedback_url) and names the
+// request. The intent is left for the agent to fill in.
+func feedbackCommand(prob *api.Problem) string {
+	if prob.FeedbackURL == "" || prob.RequestID == "" {
+		return ""
+	}
+	return fmt.Sprintf(`spicrawl feedback %s --kind broken --intent "<what you wanted>"`, prob.RequestID)
 }
 
 // isCobraUsage recognises cobra's own flag/arg errors, which are plain errors.

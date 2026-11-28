@@ -865,7 +865,7 @@ func scrapeErrorObject(err error) (any, int) {
 	// (timeouts, capability-unavailable problems, config errors).
 	code := ExitCode(err)
 	if prob, ok := api.AsProblem(err); ok {
-		return prob, code
+		return newProblemDoc(prob), code
 	}
 	return map[string]any{"detail": err.Error(), "exit_code": code}, code
 }
